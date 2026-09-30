@@ -7,7 +7,20 @@
 import { getStoredWorkers, saveWorkers } from './storageService';
 import { getAuditLogs as getLocalAuditLogs, logAuditEvent as logLocalAudit } from './auditService';
 
-const API_BASE = '/api';
+const resolveApiBase = () => {
+  if (import.meta.env?.VITE_API_BASE) {
+    return import.meta.env.VITE_API_BASE.replace(/\/$/, '');
+  }
+  if (typeof window !== 'undefined' && window.location?.pathname) {
+    const segments = window.location.pathname.split('/').filter(Boolean);
+    if (segments.length > 0 && !segments[0].startsWith('api')) {
+      return `/${segments[0]}/api`;
+    }
+  }
+  return '/api';
+};
+
+const API_BASE = resolveApiBase();
 
 let backendAvailable = null;
 

@@ -1,0 +1,18 @@
+[Unit]
+Description=Node.js Web API & Server for Lloyds Worker Onboarding
+After=network.target
+
+[Service]
+WorkingDirectory=/var/www/worker-onboarding
+ExecStart=/usr/bin/node /var/www/worker-onboarding/server/server.js
+Restart=always
+# Restart service after 10 seconds if service crashes:
+RestartSec=10
+KillSignal=SIGINT
+SyslogIdentifier=worker-onboarding
+User=www-data
+Environment=NODE_ENV=production
+Environment=PORT=5000
+
+[Install]
+WantedBy=multi-user.target
