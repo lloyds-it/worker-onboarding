@@ -6,7 +6,7 @@
 
 import sql from 'mssql';
 import dotenv from 'dotenv';
-import { DeviceCodeCredential } from '@azure/identity';
+import { DeviceCodeCredential, ClientSecretCredential } from '@azure/identity';
 import { execFile } from 'child_process';
 import path from 'path';
 dotenv.config();
@@ -400,12 +400,23 @@ const getSqlConfig = (token = null) => {
       type: 'azure-active-directory-access-token',
       options: { token }
     };
+  } else if (process.env.AZURE_CLIENT_ID && process.env.AZURE_CLIENT_SECRET) {
+    config.authentication = {
+      type: 'azure-active-directory-service-principal-secret',
+      options: {
+        clientId: process.env.AZURE_CLIENT_ID,
+        clientSecret: process.env.AZURE_CLIENT_SECRET,
+        tenantId: process.env.AZURE_TENANT_ID || 'common'
+      }
+    };
   } else {
     config.authentication = {
       type: 'azure-active-directory-password',
       options: {
-        userName: process.env.FABRIC_USER || '',
-        password: process.env.FABRIC_PASSWORD || ''
+        userName: process.env.FABRIC_USER || 'hmk@lloydsprojects.in',
+        password: process.env.FABRIC_PASSWORD || '',
+        clientId: process.env.AZURE_CLIENT_ID || '04b07795-8ddb-461a-bbee-02f9e1bf7b46',
+        tenantId: process.env.AZURE_TENANT_ID || 'common'
       }
     };
   }
@@ -511,7 +522,27 @@ export const connectToFabric = async () => {
     return connectWithToken(liveAccessToken);
   }
 
-  // First connect using hardcoded Active Directory credentials
+  // 1. Primary: Acquire Azure Entra ID token using Service Principal credentials
+  if (process.env.AZURE_CLIENT_ID && process.env.AZURE_CLIENT_SECRET && process.env.AZURE_TENANT_ID) {
+    try {
+      console.log('[Microsoft Fabric] Authenticating via Service Principal Client ID:', process.env.AZURE_CLIENT_ID);
+      const credential = new ClientSecretCredential(
+        process.env.AZURE_TENANT_ID,
+        process.env.AZURE_CLIENT_ID,
+        process.env.AZURE_CLIENT_SECRET
+      );
+      const tokenResp = await credential.getToken('https://database.windows.net/.default');
+      if (tokenResp && tokenResp.token) {
+        liveAccessToken = tokenResp.token;
+        console.log('[Microsoft Fabric] Acquired Entra ID Token via Service Principal!');
+        return await connectWithToken(tokenResp.token);
+      }
+    } catch (spErr) {
+      console.warn('[Microsoft Fabric] Service Principal authentication notice:', spErr.message);
+    }
+  }
+
+  // 2. Secondary: Connect using bridge if available
   try {
     const pyResult = await runPyBridge('test');
     if (pyResult && pyResult.connected) {
@@ -523,11 +554,11 @@ export const connectToFabric = async () => {
         error: null,
         mode: 'FABRIC_ONLINE'
       };
-      console.log(`[Microsoft Fabric] Connected successfully to live database via Active Directory (hmk@lloydsprojects.in)!`);
+      console.log(`[Microsoft Fabric] Connected successfully to live database via Python bridge!`);
       return { connected: true };
     }
   } catch (pyErr) {
-    console.warn('[Microsoft Fabric] Python bridge init notice:', pyErr.message);
+    // continue to direct SQL
   }
 
   try {
