@@ -36,9 +36,10 @@ echo "🔨 3. Building React frontend..."
 npm run build
 
 # 5. Set proper file ownership and permissions for www-data
-echo "🔒 4. Updating permissions for www-data..."
-sudo chown -R www-data:www-data "$APP_DIR"
-sudo chmod -R 755 "$APP_DIR"
+echo "🔒 4. Updating permissions for current user and www-data..."
+CURRENT_USER="${SUDO_USER:-$USER}"
+sudo chown -R "$CURRENT_USER:www-data" "$APP_DIR"
+sudo chmod -R 775 "$APP_DIR"
 
 # 6. Restart systemd backend service
 echo "🔄 5. Restarting backend service ($SERVICE_NAME)..."
