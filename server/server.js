@@ -255,6 +255,16 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// Fabric Live Status & Realtime Diagnostic Ping
+app.get('/api/fabric-status', async (req, res) => {
+  try {
+    const testResult = await testFabricConnection();
+    res.json(testResult);
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // GET all workers
 app.get('/api/workers', async (req, res) => {
   try {
