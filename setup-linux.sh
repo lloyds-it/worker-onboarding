@@ -99,9 +99,10 @@ else
     ln -sf "$NGINX_CONF_AVAILABLE" "$NGINX_CONF_ENABLED"
 fi
 
-# Set proper permissions for www-data
-chown -R www-data:www-data "$APP_DIR"
-chmod -R 755 "$APP_DIR"
+# Set proper permissions: current user owns files, www-data has group access
+CURRENT_USER="${SUDO_USER:-$USER}"
+chown -R "$CURRENT_USER:www-data" "$APP_DIR"
+chmod -R 775 "$APP_DIR"
 
 nginx -t
 systemctl reload nginx
