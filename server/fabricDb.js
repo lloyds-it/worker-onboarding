@@ -9,6 +9,15 @@ import dotenv from 'dotenv';
 import { DeviceCodeCredential, ClientSecretCredential } from '@azure/identity';
 import { execFile } from 'child_process';
 import path from 'path';
+import https from 'https';
+import querystring from 'querystring';
+import dns from 'dns';
+
+// Force IPv4 DNS resolution first on Linux to avoid AAAA IPv6 timeouts / network_error
+try {
+  dns.setDefaultResultOrder('ipv4first');
+} catch (e) {}
+
 dotenv.config();
 
 export const runPyBridge = (action, payload = null) => {
@@ -51,6 +60,7 @@ const FABRIC_PORT = parseInt(process.env.FABRIC_PORT || '1433', 10);
 
 let pool = null;
 let liveAccessToken = null;
+let tokenExpiresAt = 0;
 let activeAuthSession = {
   status: 'IDLE', // IDLE | PENDING | AUTHENTICATED | FAILED
   userCode: null,
@@ -425,15 +435,81 @@ const getSqlConfig = (token = null) => {
 };
 
 /**
+ * Acquire Microsoft Entra ID Token directly via OAuth2 client_credentials grant.
+ * Uses IPv4 and HTTPS to guarantee zero network_error / AAAA DNS timeouts on Linux servers.
+ */
+export const acquireDirectToken = async (tenantId, clientId, clientSecret) => {
+  const postData = querystring.stringify({
+    client_id: clientId,
+    client_secret: clientSecret,
+    scope: 'https://database.windows.net/.default',
+    grant_type: 'client_credentials'
+  });
+
+  return new Promise((resolve, reject) => {
+    const options = {
+      hostname: 'login.microsoftonline.com',
+      port: 443,
+      path: `/${tenantId}/oauth2/v2.0/token`,
+      method: 'POST',
+      family: 4, // Force IPv4 to prevent Linux network_error
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Content-Length': Buffer.byteLength(postData),
+        'User-Agent': 'LloydsWorkerOnboarding/1.0'
+      },
+      timeout: 15000
+    };
+
+    const req = https.request(options, (res) => {
+      let raw = '';
+      res.on('data', chunk => { raw += chunk; });
+      res.on('end', () => {
+        try {
+          const data = JSON.parse(raw);
+          if (data.access_token) {
+            resolve({
+              token: data.access_token,
+              expiresIn: data.expires_in || 3600
+            });
+          } else {
+            reject(new Error(data.error_description || data.error || `HTTP ${res.statusCode}`));
+          }
+        } catch (e) {
+          reject(new Error(`Failed to parse OAuth2 token response: ${raw.slice(0, 100)}`));
+        }
+      });
+    });
+
+    req.on('timeout', () => {
+      req.destroy();
+      reject(new Error('Microsoft Entra ID token request timed out after 15s'));
+    });
+
+    req.on('error', (err) => {
+      reject(err);
+    });
+
+    req.write(postData);
+    req.end();
+  });
+};
+
+/**
  * Connect with an acquired access token
  */
 export const connectWithToken = async (token) => {
   try {
     if (pool) {
       try { await pool.close(); } catch (e) {}
+      pool = null;
     }
     const config = getSqlConfig(token);
     pool = new sql.ConnectionPool(config);
+    pool.on('error', err => {
+      console.warn('[Microsoft Fabric] Connection pool warning:', err.message);
+      pool = null;
+    });
     await pool.connect();
     
     connectionStatus = {
@@ -442,13 +518,16 @@ export const connectWithToken = async (token) => {
       database: FABRIC_DATABASE,
       lastChecked: new Date().toISOString(),
       error: null,
-      mode: 'FABRIC_ONLINE'
+      mode: 'FABRIC_ONLINE_SPN'
     };
     console.log('[Microsoft Fabric] Connected successfully to live database via Entra ID Token!');
     return pool;
   } catch (err) {
     console.error('[Microsoft Fabric] Token connection error:', err.message);
     connectionStatus.error = err.message;
+    connectionStatus.isConnected = false;
+    connectionStatus.mode = 'FALLBACK_MODE';
+    pool = null;
     return null;
   }
 };
@@ -518,27 +597,49 @@ export const getAuthStatus = () => activeAuthSession;
  * Connect to Fabric using current config
  */
 export const connectToFabric = async () => {
-  if (liveAccessToken) {
+  // Reuse valid cached token (with 5 min safety buffer)
+  if (liveAccessToken && Date.now() < tokenExpiresAt - 300000) {
+    if (pool && pool.connected) {
+      return pool;
+    }
     return connectWithToken(liveAccessToken);
   }
 
-  // 1. Primary: Acquire Azure Entra ID token using Service Principal credentials
+  // 1. Primary: Acquire Azure Entra ID token directly via HTTPS (IPv4 forced)
   if (process.env.AZURE_CLIENT_ID && process.env.AZURE_CLIENT_SECRET && process.env.AZURE_TENANT_ID) {
     try {
       console.log('[Microsoft Fabric] Authenticating via Service Principal Client ID:', process.env.AZURE_CLIENT_ID);
-      const credential = new ClientSecretCredential(
+      const tokenResult = await acquireDirectToken(
         process.env.AZURE_TENANT_ID,
         process.env.AZURE_CLIENT_ID,
         process.env.AZURE_CLIENT_SECRET
       );
-      const tokenResp = await credential.getToken('https://database.windows.net/.default');
-      if (tokenResp && tokenResp.token) {
-        liveAccessToken = tokenResp.token;
-        console.log('[Microsoft Fabric] Acquired Entra ID Token via Service Principal!');
-        return await connectWithToken(tokenResp.token);
+      if (tokenResult && tokenResult.token) {
+        liveAccessToken = tokenResult.token;
+        tokenExpiresAt = Date.now() + (tokenResult.expiresIn * 1000);
+        console.log('[Microsoft Fabric] Acquired Entra ID Token via Direct OAuth2 (IPv4)!');
+        return await connectWithToken(tokenResult.token);
       }
-    } catch (spErr) {
-      console.warn('[Microsoft Fabric] Service Principal authentication notice:', spErr.message);
+    } catch (directErr) {
+      console.warn('[Microsoft Fabric] Direct OAuth2 token notice:', directErr.message);
+      
+      // Fallback to @azure/identity ClientSecretCredential if direct HTTPS had unexpected issue
+      try {
+        const credential = new ClientSecretCredential(
+          process.env.AZURE_TENANT_ID,
+          process.env.AZURE_CLIENT_ID,
+          process.env.AZURE_CLIENT_SECRET
+        );
+        const tokenResp = await credential.getToken('https://database.windows.net/.default');
+        if (tokenResp && tokenResp.token) {
+          liveAccessToken = tokenResp.token;
+          tokenExpiresAt = tokenResp.expiresOnTimestamp || (Date.now() + 3600000);
+          console.log('[Microsoft Fabric] Acquired Entra ID Token via ClientSecretCredential!');
+          return await connectWithToken(tokenResp.token);
+        }
+      } catch (spErr) {
+        console.warn('[Microsoft Fabric] Service Principal fallback notice:', spErr.message);
+      }
     }
   }
 
@@ -595,7 +696,40 @@ export const getConnectionStatus = () => connectionStatus;
 export const testFabricConnection = async () => {
   const startTime = Date.now();
 
-  // 1. Try Service Principal connection via pyodbc bridge
+  // 1. Primary: Direct Node TDS Pool Check (fastest and native)
+  try {
+    if (!pool || !pool.connected) {
+      await connectToFabric();
+    }
+    if (pool && pool.connected) {
+      const result = await pool.request().query('SELECT 1 AS isAlive, DB_NAME() AS currentDb, GETUTCDATE() AS serverTime');
+      const latencyMs = Date.now() - startTime;
+      const currentDb = result.recordset[0]?.currentDb || FABRIC_DATABASE;
+      connectionStatus = {
+        isConnected: true,
+        server: FABRIC_SERVER,
+        database: currentDb,
+        lastChecked: new Date().toISOString(),
+        error: null,
+        mode: 'FABRIC_ONLINE_SPN'
+      };
+      return {
+        success: true,
+        latencyMs,
+        server: FABRIC_SERVER,
+        database: currentDb,
+        serverTime: result.recordset[0]?.serverTime,
+        mode: 'FABRIC_ONLINE_SPN',
+        authMethod: 'Service Principal Entra ID Token',
+        servicePrincipal: process.env.AZURE_CLIENT_ID,
+        message: 'Connected to Microsoft Fabric live SQL Database via Service Principal!'
+      };
+    }
+  } catch (tdsErr) {
+    console.warn('[Microsoft Fabric] TDS direct query notice:', tdsErr.message);
+  }
+
+  // 2. Secondary: Python bridge fallback if available
   try {
     const pyResult = await runPyBridge('test');
     if (pyResult && pyResult.connected) {
@@ -640,56 +774,26 @@ export const testFabricConnection = async () => {
     console.warn('[Bridge] pyodbc check notice:', pyErr.message);
   }
 
-  // 2. Fallback to existing TDS pool check
-  try {
-    if (!pool || !pool.connected) {
-      await connectToFabric();
-    }
-    if (pool && pool.connected) {
-      const result = await pool.request().query('SELECT 1 AS isAlive, DB_NAME() AS currentDb, GETUTCDATE() AS serverTime');
-      const latencyMs = Date.now() - startTime;
-      return {
-        success: true,
-        latencyMs,
-        server: FABRIC_SERVER,
-        database: result.recordset[0]?.currentDb || FABRIC_DATABASE,
-        serverTime: result.recordset[0]?.serverTime,
-        mode: 'FABRIC_ONLINE'
-      };
-    } else {
-      return {
-        success: false,
-        latencyMs: Date.now() - startTime,
-        server: FABRIC_SERVER,
-        database: FABRIC_DATABASE,
-        error: connectionStatus.error || 'Connection not established.',
-        mode: 'FALLBACK_MODE'
-      };
-    }
-  } catch (err) {
-    return {
-      success: false,
-      latencyMs: Date.now() - startTime,
-      server: FABRIC_SERVER,
-      database: FABRIC_DATABASE,
-      error: err.message,
-      mode: 'FALLBACK_MODE'
-    };
-  }
+  return {
+    success: false,
+    latencyMs: Date.now() - startTime,
+    server: FABRIC_SERVER,
+    database: FABRIC_DATABASE,
+    error: connectionStatus.error || 'Connection not established.',
+    mode: 'FALLBACK_MODE'
+  };
 };
 
 /**
  * Retrieve all workers (Live Fabric or Fallback)
  */
 export const dbGetAllWorkers = async () => {
-  // 1. Try Service Principal bridge directly
-  try {
-    const pyRes = await runPyBridge('get_workers');
-    if (pyRes && pyRes.success && Array.isArray(pyRes.data) && pyRes.data.length > 0) {
-      fallbackWorkersCache = pyRes.data;
-      return pyRes.data;
-    }
-  } catch (e) {}
+  // 1. Ensure live connection
+  if (!pool || !pool.connected) {
+    try {
+      await connectToFabric();
+    } catch (e) {}
+  }
 
   if (pool && pool.connected) {
     try {
