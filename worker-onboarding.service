@@ -1,0 +1,21 @@
+[Unit]
+Description=Lloyds Metals & Energy - Worker Onboarding & Camp Management System
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/var/www/worker-onboarding
+ExecStart=/usr/bin/node server/server.js
+Restart=always
+RestartSec=10
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=worker-onboarding
+
+# Environment variables
+Environment=NODE_ENV=production
+Environment=PORT=5000
+
+[Install]
+WantedBy=multi-user.target
