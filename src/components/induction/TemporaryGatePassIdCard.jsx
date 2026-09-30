@@ -17,10 +17,14 @@ import {
   Edit3
 } from 'lucide-react';
 import { useWorkers } from '../../context/WorkerContext';
+import { useAuth } from '../../context/AuthContext';
 import { WorkerPhotoUpload } from '../common/WorkerPhotoUpload';
 
 export const TemporaryGatePassIdCard = ({ initialWorker, onBack }) => {
   const { workers = [], updateWorkerPhoto } = useWorkers();
+  const { currentUser, users = [] } = useAuth();
+
+  const issuingSignature = currentUser?.signature || users.find(u => u.role === 'ADMIN' || u.role === 'HR')?.signature || null;
 
   // Selected worker state
   const [selectedWorkerId, setSelectedWorkerId] = useState(() => {
@@ -301,7 +305,23 @@ export const TemporaryGatePassIdCard = ({ initialWorker, onBack }) => {
       </div>
 
       {/* Footer: Issuing Authority */}
-      <div className="id-card-footer">
+      <div className="id-card-footer" style={{ position: 'relative' }}>
+        {issuingSignature && (
+          <img 
+            src={issuingSignature} 
+            alt="Issuing Signature" 
+            style={{
+              position: 'absolute',
+              bottom: '12px',
+              right: '6px',
+              maxHeight: '26px',
+              maxWidth: '85px',
+              objectFit: 'contain',
+              opacity: 0.95,
+              pointerEvents: 'none'
+            }}
+          />
+        )}
         <div className="id-issuing-red">Issuing Authority</div>
         <div className="id-issuing-company">{companyName}</div>
       </div>

@@ -8,17 +8,23 @@ import {
   Trash2, 
   Building2, 
   Mail, 
-  Briefcase 
+  Briefcase,
+  Key,
+  FileSignature 
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { ROLES, ROLE_LABELS } from '../../types/constants';
 import { SSOConfigTab } from './SSOConfigTab';
+import { ChangePasswordModal } from '../common/ChangePasswordModal';
+import { DigitalSignatureModal } from '../common/DigitalSignatureModal';
 
 export const UserManagement = () => {
   const { users, createUser, toggleUserStatus, deleteUser, currentUser } = useAuth();
 
   const [adminSubTab, setAdminSubTab] = useState('ACCOUNTS'); // 'ACCOUNTS' | 'SSO'
   const [isCreating, setIsCreating] = useState(false);
+  const [passwordModalUser, setPasswordModalUser] = useState(null);
+  const [signatureModalUser, setSignatureModalUser] = useState(null);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -364,6 +370,7 @@ export const UserManagement = () => {
                 <th>Work Email</th>
                 <th>Assigned Department</th>
                 <th>Official Designation</th>
+                <th>Digital Signature</th>
                 <th>Account Status</th>
                 <th style={{ textAlign: 'right' }}>Admin Actions</th>
               </tr>
@@ -396,13 +403,69 @@ export const UserManagement = () => {
                     </td>
 
                     <td>
+                      {u.signature ? (
+                        <div 
+                          onClick={() => setSignatureModalUser(u)}
+                          title="Click to view or replace signature"
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.4rem',
+                            padding: '0.2rem 0.5rem',
+                            backgroundColor: '#FFFFFF',
+                            border: '1px solid var(--border-medium)',
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                            boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                          }}
+                        >
+                          <img 
+                            src={u.signature} 
+                            alt="Sig" 
+                            style={{ height: '22px', maxWidth: '65px', objectFit: 'contain' }} 
+                          />
+                          <span style={{ fontSize: '0.7rem', color: 'var(--success-solid, #059669)', fontWeight: 800 }}>✓ Active</span>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          onClick={() => setSignatureModalUser(u)}
+                          style={{ padding: '0.25rem 0.55rem', fontSize: '0.72rem', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}
+                        >
+                          <FileSignature size={13} />
+                          <span>+ Add Sig</span>
+                        </button>
+                      )}
+                    </td>
+
+                    <td>
                       <span className={`badge badge-${isActive ? 'success' : 'danger'}`}>
                         {isActive ? 'ACTIVE' : 'DEACTIVATED'}
                       </span>
                     </td>
 
                     <td style={{ textAlign: 'right' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.5rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.4rem' }}>
+                        <button
+                          className="btn btn-secondary"
+                          style={{ padding: '0.35rem 0.6rem', fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                          onClick={() => setPasswordModalUser(u)}
+                          title={`Reset password for ${u.name}`}
+                        >
+                          <Key size={13} color="var(--brand-primary)" />
+                          <span>Password</span>
+                        </button>
+
+                        <button
+                          className="btn btn-secondary"
+                          style={{ padding: '0.35rem 0.55rem', fontSize: '0.75rem' }}
+                          onClick={() => setSignatureModalUser(u)}
+                          title={`Upload or manage digital signature for ${u.name}`}
+                        >
+                          <FileSignature size={14} color="#2563EB" />
+                        </button>
+
                         {!isPrimaryAdmin && (
                           <>
                             <button
@@ -428,8 +491,8 @@ export const UserManagement = () => {
                           </>
                         )}
                         {isPrimaryAdmin && (
-                          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                            Permanent
+                          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontStyle: 'italic', paddingLeft: '0.25rem' }}>
+                            Chief
                           </span>
                         )}
                       </div>
@@ -442,6 +505,25 @@ export const UserManagement = () => {
         </div>
       </div>
         </>
+      )}
+
+      {/* Change / Reset Password Modal */}
+      {passwordModalUser && (
+        <ChangePasswordModal
+          isOpen={true}
+          onClose={() => setPasswordModalUser(null)}
+          targetUser={passwordModalUser}
+          isAdminReset={true}
+        />
+      )}
+
+      {/* Digital Signature Upload/Draw Modal */}
+      {signatureModalUser && (
+        <DigitalSignatureModal
+          isOpen={true}
+          onClose={() => setSignatureModalUser(null)}
+          targetUser={signatureModalUser}
+        />
       )}
     </div>
   );

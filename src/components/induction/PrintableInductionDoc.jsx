@@ -3,8 +3,16 @@ import { Printer, ArrowLeft, CheckSquare, Square, CreditCard } from 'lucide-reac
 import logoMetals from '../../assets/logo_metals.png';
 import logoInfra from '../../assets/logo_infra.png';
 import { TRADES, SAFETY_TOPICS, PPE_ITEMS } from '../../types/constants';
+import { useAuth } from '../../context/AuthContext';
 
 export const PrintableInductionDoc = ({ worker, onBack, onGenerateIdCard }) => {
+  const { users = [] } = useAuth();
+
+  const medSignature = users.find(u => u.role === 'MEDICAL')?.signature;
+  const safetySignature = users.find(u => u.role === 'SAFETY')?.signature;
+  const itSignature = users.find(u => u.role === 'IT')?.signature;
+  const adminSignature = users.find(u => u.role === 'ADMIN')?.signature;
+
   if (!worker) {
     return (
       <div style={{ padding: '3rem', textAlign: 'center' }}>
@@ -246,7 +254,14 @@ export const PrintableInductionDoc = ({ worker, onBack, onGenerateIdCard }) => {
           </div>
           <div style={{ textAlign: 'right', fontSize: '0.75rem' }}>
             <div><strong>Medical Examiner:</strong> {medical.examinerName || 'Dr. Vivek Deshmukh'}</div>
-            <div>Signature & Stamp: ______________________</div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.4rem', minHeight: '28px', marginTop: '0.2rem' }}>
+              <span>Signature & Stamp:</span>
+              {medSignature ? (
+                <img src={medSignature} alt="Medical Sig" style={{ maxHeight: '26px', maxWidth: '90px', objectFit: 'contain' }} />
+              ) : (
+                <span>______________________</span>
+              )}
+            </div>
           </div>
         </div>
 
@@ -291,7 +306,9 @@ export const PrintableInductionDoc = ({ worker, onBack, onGenerateIdCard }) => {
             <tr>
               <td colSpan="2" style={{ padding: '0.5rem', border: '1px solid #CBD5E0', backgroundColor: '#F8FAFC' }}>
                 <strong>Safety Officer Name:</strong> {safety.safetyOfficerName || 'Arun Patil (EHS Lead)'} &nbsp;&nbsp;&nbsp;&nbsp;
-                <strong>Signature:</strong> ________________________ &nbsp;&nbsp;&nbsp;&nbsp;
+                <strong>Signature:</strong> {safetySignature ? (
+                  <img src={safetySignature} alt="Safety Sig" style={{ maxHeight: '24px', maxWidth: '85px', verticalAlign: 'middle', objectFit: 'contain' }} />
+                ) : '________________________'} &nbsp;&nbsp;&nbsp;&nbsp;
                 <strong>Date:</strong> {safety.safetyDate || '—'}
               </td>
             </tr>
@@ -321,7 +338,9 @@ export const PrintableInductionDoc = ({ worker, onBack, onGenerateIdCard }) => {
                 <strong>Biometric / Face Registered:</strong> [{it.faceBiometricRegistered ? '✔' : ' '}] YES &nbsp;&nbsp; [{!it.faceBiometricRegistered ? '✔' : ' '}] NO
               </td>
               <td style={{ padding: '0.5rem', border: '1px solid #CBD5E0', width: '35%' }}>
-                <strong>IT Admin Signature:</strong> {it.itAdminSignature || 'Rajesh Sharma'}
+                <strong>IT Admin Signature:</strong> {itSignature ? (
+                  <img src={itSignature} alt="IT Sig" style={{ maxHeight: '24px', maxWidth: '85px', verticalAlign: 'middle', objectFit: 'contain' }} />
+                ) : (it.itAdminSignature || 'Rajesh Sharma')}
               </td>
             </tr>
           </tbody>

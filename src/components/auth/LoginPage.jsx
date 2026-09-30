@@ -13,10 +13,12 @@ import {
   KeyRound,
   CheckCircle2,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Key
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
+import { ChangePasswordModal } from '../common/ChangePasswordModal';
 import logoMetals from '../../assets/logo_metals.png';
 import logoInfra from '../../assets/logo_infra.png';
 import SSOModal, { GoogleLogo } from './SSOModal';
@@ -97,7 +99,7 @@ export const DEPARTMENT_PRESETS = [
 ];
 
 export const LoginPage = () => {
-  const { login } = useAuth();
+  const { login, users } = useAuth();
   const { toggleTheme, isDark } = useTheme();
 
   // Active form state (default to Admin)
@@ -110,6 +112,13 @@ export const LoginPage = () => {
   const [showCredentialsTable, setShowCredentialsTable] = useState(false);
   const [showSSOModal, setShowSSOModal] = useState(false);
   const [ssoProvider, setSsoProvider] = useState('GOOGLE');
+  const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
+
+  // Dynamically resolve password (in case user changed it)
+  const getActivePasswordForRole = (role, fallbackPass) => {
+    const user = users?.find(u => u.role === role);
+    return user?.password || fallbackPass;
+  };
 
   // Corporate Domain Auto-Detection
   const isCorporateDomain = Boolean(
@@ -125,7 +134,7 @@ export const LoginPage = () => {
   const handleSelectPreset = (preset) => {
     setSelectedRole(preset.role);
     setUsername(preset.email);
-    setPassword(preset.password);
+    setPassword(getActivePasswordForRole(preset.role, preset.password));
     setErrorMsg('');
   };
 
@@ -375,7 +384,7 @@ export const LoginPage = () => {
                       fontFamily: 'monospace',
                       fontSize: '0.72rem'
                     }}>
-                      {p.password}
+                      {getActivePasswordForRole(p.role, p.password)}
                     </code>
                   </div>
                 ))}
@@ -564,6 +573,29 @@ export const LoginPage = () => {
               </div>
             </div>
 
+            {/* Change Password Link */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.65rem', marginTop: '-0.25rem' }}>
+              <button
+                type="button"
+                onClick={() => setShowChangePasswordModal(true)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--brand-primary)',
+                  fontSize: '0.78rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  padding: '0.2rem 0'
+                }}
+              >
+                <Key size={13} />
+                <span>Change Password</span>
+              </button>
+            </div>
+
             {/* Submit Button */}
             <button
               id="btn-login-submit"
@@ -665,6 +697,20 @@ export const LoginPage = () => {
         initialProvider={ssoProvider}
         autoFillEmail={username}
       />
+
+      {/* Change Password Modal */}
+      {showChangePasswordModal && (
+        <ChangePasswordModal
+          isOpen={true}
+          onClose={() => setShowChangePasswordModal(false)}
+          targetUser={
+            users?.find(u => u.email.toLowerCase() === username.toLowerCase() || (u.role && u.role.toLowerCase() === username.toLowerCase())) ||
+            users?.find(u => u.role === selectedRole) ||
+            { id: username, name: username, email: username, role: selectedRole }
+          }
+          isAdminReset={false}
+        />
+      )}
     </div>
   );
 };

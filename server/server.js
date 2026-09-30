@@ -123,8 +123,57 @@ const SYSTEM_ACCOUNTS = [
   }
 ];
 
+// Persistent User Store (Stores custom changed passwords and uploaded digital signatures)
+const USERS_STORE_PATH = path.join(process.cwd(), 'server', 'data', 'users_store.json');
+
+const ensureDataDir = () => {
+  try {
+    const dir = path.dirname(USERS_STORE_PATH);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+  } catch (e) {
+    console.warn('[Store] Could not ensure data directory:', e.message);
+  }
+};
+
+const loadUserStore = () => {
+  try {
+    ensureDataDir();
+    if (fs.existsSync(USERS_STORE_PATH)) {
+      const content = fs.readFileSync(USERS_STORE_PATH, 'utf8');
+      return JSON.parse(content);
+    }
+  } catch (e) {
+    console.warn('[Store] Could not read user store:', e.message);
+  }
+  return {};
+};
+
+const saveUserStore = (store) => {
+  try {
+    ensureDataDir();
+    fs.writeFileSync(USERS_STORE_PATH, JSON.stringify(store, null, 2), 'utf8');
+  } catch (e) {
+    console.error('[Store] Failed to write user store:', e.message);
+  }
+};
+
+const syncAccountsWithStore = () => {
+  const store = loadUserStore();
+  SYSTEM_ACCOUNTS.forEach(acc => {
+    if (store[acc.id]) {
+      if (store[acc.id].password) acc.password = store[acc.id].password;
+      if (store[acc.id].signature) acc.signature = store[acc.id].signature;
+    }
+  });
+};
+// Initial sync
+syncAccountsWithStore();
+
 // Secure Multi-Department Authentication Endpoint (Validates credentials server-side)
 app.post('/api/auth/login', (req, res) => {
+  syncAccountsWithStore();
   const ip = req.ip || req.headers['x-forwarded-for'] || '127.0.0.1';
   const now = Date.now();
 
@@ -155,7 +204,8 @@ app.post('/api/auth/login', (req, res) => {
         email: matched.email,
         role: matched.role,
         designation: matched.designation,
-        department: matched.department
+        department: matched.department,
+        signature: matched.signature || null
       },
       token: `sess_${Date.now()}_${Math.random().toString(36).slice(2)}`
     });
@@ -170,6 +220,105 @@ app.post('/api/auth/login', (req, res) => {
     success: false,
     error: 'Invalid credentials. Please verify your username or email and password.'
   });
+});
+
+// Change Password Endpoint (Available for all logins & Admin Reset)
+app.post('/api/auth/change-password', (req, res) => {
+  syncAccountsWithStore();
+  const { username, currentPassword, newPassword, isAdminReset, targetUserId } = req.body || {};
+
+  if (!newPassword || newPassword.trim().length < 6) {
+    return res.status(400).json({
+      success: false,
+      error: 'New password must be at least 6 characters long.'
+    });
+  }
+
+  const cleanUser = (username || '').trim().toLowerCase();
+  let matched = null;
+
+  if (targetUserId) {
+    matched = SYSTEM_ACCOUNTS.find(acc => acc.id === targetUserId);
+  }
+  if (!matched && cleanUser) {
+    matched = SYSTEM_ACCOUNTS.find(acc => 
+      acc.email.toLowerCase() === cleanUser ||
+      acc.aliases.map(a => a.toLowerCase()).includes(cleanUser)
+    );
+  }
+
+  if (!matched) {
+    return res.status(404).json({
+      success: false,
+      error: 'User account not found.'
+    });
+  }
+
+  // If not admin reset, verify existing password
+  if (!isAdminReset) {
+    if (!currentPassword || matched.password !== currentPassword) {
+      return res.status(401).json({
+        success: false,
+        error: 'Current password does not match.'
+      });
+    }
+  }
+
+  // Save new password
+  matched.password = newPassword.trim();
+  const store = loadUserStore();
+  if (!store[matched.id]) store[matched.id] = {};
+  store[matched.id].password = matched.password;
+  store[matched.id].passwordUpdatedAt = new Date().toISOString();
+  saveUserStore(store);
+
+  console.log(`[Auth] Password updated for user ${matched.name} (${matched.email})`);
+
+  return res.json({
+    success: true,
+    message: `Password successfully updated for ${matched.name}.`
+  });
+});
+
+// Upload / Update Digital Signature for User
+app.post('/api/auth/users/:id/signature', (req, res) => {
+  syncAccountsWithStore();
+  const { id } = req.params;
+  const { signature } = req.body || {};
+
+  let matched = SYSTEM_ACCOUNTS.find(acc => acc.id === id);
+  const store = loadUserStore();
+  if (!store[id]) store[id] = {};
+  store[id].signature = signature || null;
+  store[id].signatureUpdatedAt = new Date().toISOString();
+  saveUserStore(store);
+
+  if (matched) {
+    matched.signature = signature || null;
+  }
+
+  console.log(`[Auth] Digital signature updated for user ID ${id}`);
+
+  return res.json({
+    success: true,
+    signature: signature || null,
+    message: 'Digital signature successfully saved.'
+  });
+});
+
+// Get User Directory with Signatures
+app.get('/api/auth/users', (req, res) => {
+  syncAccountsWithStore();
+  const safeUsers = SYSTEM_ACCOUNTS.map(acc => ({
+    id: acc.id,
+    name: acc.name,
+    email: acc.email,
+    role: acc.role,
+    designation: acc.designation,
+    department: acc.department,
+    signature: acc.signature || null
+  }));
+  return res.json({ success: true, users: safeUsers });
 });
 
 // Enterprise SSO Authentication Endpoint (Exclusive to Google Workspace @lloyds.in)

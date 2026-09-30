@@ -26,8 +26,6 @@ import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useWorkers } from '../../context/WorkerContext';
 import { ROLES, STAGES } from '../../types/constants';
-import logoMetals from '../../assets/logo_metals.png';
-import logoInfra from '../../assets/logo_infra.png';
 
 export const Sidebar = ({ 
   activeView, 
@@ -54,7 +52,7 @@ export const Sidebar = ({
 
   return (
     <aside className={`sidebar ${isCollapsed ? 'collapsed' : ''}`}>
-      {/* Brand Header with strict containment and collapse toggle */}
+      {/* Clean Executive Brand Header (No squished logos - logos kept exclusively on page header) */}
       <div className="sidebar-brand">
         {isCollapsed ? (
           <button
@@ -64,45 +62,34 @@ export const Sidebar = ({
             title="Expand Sidebar"
             aria-label="Expand Sidebar"
           >
-            <ChevronRight size={18} />
+            <div className="sidebar-brand-emblem-mini">
+              <span>LM</span>
+            </div>
           </button>
         ) : (
-          <>
-            <div className="sidebar-brand-expanded">
-              <div className="sidebar-brand-logos">
-                <img 
-                  src={logoInfra} 
-                  alt="Lloyds Infra" 
-                  className="brand-logo-infra"
-                  onError={(e) => { e.target.style.display = 'none'; }}
-                />
-                <div className="sidebar-logo-divider" />
-                <img 
-                  src={logoMetals} 
-                  alt="Lloyds Metals & Energy" 
-                  className="brand-logo-metals"
-                  onError={(e) => { e.target.style.display = 'none'; }}
-                />
+          <div className="sidebar-brand-expanded">
+            <div className="sidebar-brand-identity">
+              <div className="sidebar-brand-emblem">
+                <ShieldCheck size={20} />
               </div>
-
-              {onToggleCollapse && (
-                <button
-                  id="btn-sidebar-collapse"
-                  className="sidebar-collapse-btn"
-                  onClick={onToggleCollapse}
-                  title="Collapse Sidebar"
-                  aria-label="Collapse Sidebar"
-                >
-                  <ChevronLeft size={16} />
-                </button>
-              )}
+              <div className="sidebar-brand-titles">
+                <h1 className="sidebar-brand-name">LLOYDS METALS</h1>
+                <span className="sidebar-brand-desc">Worker Onboarding Portal</span>
+              </div>
             </div>
 
-            <div className="sidebar-title-block">
-              <h1>LLOYDS METALS & INFRA</h1>
-              <span>Worker Induction & Camp System</span>
-            </div>
-          </>
+            {onToggleCollapse && (
+              <button
+                id="btn-sidebar-collapse"
+                className="sidebar-collapse-btn"
+                onClick={onToggleCollapse}
+                title="Collapse Sidebar"
+                aria-label="Collapse Sidebar"
+              >
+                <ChevronLeft size={16} />
+              </button>
+            )}
+          </div>
         )}
       </div>
 

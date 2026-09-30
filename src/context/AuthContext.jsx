@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { ROLES, ROLE_LABELS } from '../types/constants';
 import { logAuditEvent } from '../services/auditService';
-import { apiLogin, apiSSOLogin } from '../services/apiService';
+import { apiLogin, apiSSOLogin, apiChangePassword, apiUploadUserSignature, apiGetUsers } from '../services/apiService';
 
 const AuthContext = createContext();
 
@@ -117,7 +117,7 @@ export const AuthProvider = ({ children }) => {
     try {
       const raw = localStorage.getItem(USERS_STORAGE_KEY);
       let loadedUsers = raw ? JSON.parse(raw) : INITIAL_SYSTEM_USERS;
-      // Ensure the hardcoded Chief Admin credentials are permanently synced
+      // Ensure default accounts exist while preserving customized passwords and signatures
       const adminIdx = loadedUsers.findIndex(u => 
         u.id === 'USR-ADMIN-01' || 
         u.role === ROLES.ADMIN || 
@@ -125,7 +125,10 @@ export const AuthProvider = ({ children }) => {
         u.email === 'hmk@lloydsprojects.in'
       );
       if (adminIdx >= 0) {
-        loadedUsers[adminIdx] = HARDCODED_ADMIN;
+        loadedUsers[adminIdx] = {
+          ...HARDCODED_ADMIN,
+          ...loadedUsers[adminIdx]
+        };
       } else {
         loadedUsers.unshift(HARDCODED_ADMIN);
       }
@@ -512,6 +515,145 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // Sync remote signatures and users on mount
+  useEffect(() => {
+    const syncBackendUsers = async () => {
+      try {
+        const res = await apiGetUsers();
+        if (res && res.success && Array.isArray(res.users)) {
+          setUsers(prevUsers => {
+            const merged = prevUsers.map(u => {
+              const remote = res.users.find(ru => ru.id === u.id || ru.email.toLowerCase() === u.email.toLowerCase());
+              if (remote && remote.signature && remote.signature !== u.signature) {
+                return { ...u, signature: remote.signature };
+              }
+              return u;
+            });
+            localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(merged));
+            return merged;
+          });
+        }
+      } catch (e) {}
+    };
+    syncBackendUsers();
+  }, []);
+
+  // Change password for any account or self
+  const changePassword = async ({ username, currentPassword, newPassword, isAdminReset = false, targetUserId = null }) => {
+    if (!newPassword || newPassword.trim().length < 6) {
+      return { success: false, error: 'New password must contain at least 6 characters.' };
+    }
+
+    const cleanUser = (username || currentUser?.email || '').trim().toLowerCase();
+
+    // 1. Attempt backend API first
+    try {
+      const res = await apiChangePassword({
+        username: cleanUser,
+        currentPassword,
+        newPassword: newPassword.trim(),
+        isAdminReset,
+        targetUserId
+      });
+      if (res && res.error && !res.error.includes('Unable to connect')) {
+        return { success: false, error: res.error };
+      }
+    } catch (e) {
+      console.warn('[Auth] Remote change-password call fallback:', e);
+    }
+
+    // 2. Local resilient update
+    const targetIdx = users.findIndex(u => 
+      (targetUserId && u.id === targetUserId) ||
+      u.email.toLowerCase() === cleanUser ||
+      (u.role && u.role.toLowerCase() === cleanUser)
+    );
+
+    if (targetIdx === -1) {
+      return { success: false, error: 'User account not found.' };
+    }
+
+    const targetUser = users[targetIdx];
+
+    // If not admin reset, verify current password
+    if (!isAdminReset) {
+      if (targetUser.password && currentPassword !== targetUser.password) {
+        return { success: false, error: 'Current password does not match.' };
+      }
+    }
+
+    const updatedUser = {
+      ...targetUser,
+      password: newPassword.trim(),
+      passwordUpdatedAt: new Date().toISOString()
+    };
+
+    const updatedUsers = [...users];
+    updatedUsers[targetIdx] = updatedUser;
+    commitUsers(updatedUsers);
+
+    // If changing own password, update currentUser
+    if (currentUser && (currentUser.id === targetUser.id || currentUser.email === targetUser.email)) {
+      setCurrentUser(updatedUser);
+    }
+
+    logAuditEvent({
+      role: currentRole || ROLES.ADMIN,
+      action: isAdminReset ? 'ADMIN_PASSWORD_RESET' : 'USER_PASSWORD_CHANGED',
+      workerId: 'N/A',
+      workerName: targetUser.name,
+      details: `${isAdminReset ? 'Administrator reset password' : 'Password changed'} for ${targetUser.name} (${targetUser.email}).`
+    });
+
+    return {
+      success: true,
+      message: `Password successfully updated for ${targetUser.name}.`
+    };
+  };
+
+  // Upload and attach digital signature for user
+  const uploadUserSignature = async (userId, signatureDataUrl) => {
+    // 1. Call backend API
+    try {
+      await apiUploadUserSignature(userId, signatureDataUrl);
+    } catch (e) {
+      console.warn('[Auth] Remote signature upload fallback:', e);
+    }
+
+    // 2. Update local state
+    const targetIdx = users.findIndex(u => u.id === userId);
+    if (targetIdx !== -1) {
+      const updatedUser = {
+        ...users[targetIdx],
+        signature: signatureDataUrl,
+        signatureUpdatedAt: new Date().toISOString()
+      };
+      const updatedUsers = [...users];
+      updatedUsers[targetIdx] = updatedUser;
+      commitUsers(updatedUsers);
+
+      if (currentUser && currentUser.id === userId) {
+        setCurrentUser(updatedUser);
+      }
+
+      logAuditEvent({
+        role: currentRole || ROLES.ADMIN,
+        action: signatureDataUrl ? 'USER_SIGNATURE_UPLOADED' : 'USER_SIGNATURE_REMOVED',
+        workerId: 'N/A',
+        workerName: updatedUser.name,
+        details: `${signatureDataUrl ? 'Digital signature uploaded' : 'Digital signature removed'} for ${updatedUser.name} (${updatedUser.designation}).`
+      });
+
+      return { success: true, user: updatedUser };
+    }
+
+    return { success: false, error: 'User not found.' };
+  };
+
+  const removeUserSignature = async (userId) => {
+    return await uploadUserSignature(userId, null);
+  };
+
   const canEditStage = (stageNum) => {
     if (currentRole === ROLES.ADMIN) return true;
     if (currentRole === ROLES.HR && stageNum === 1) return true;
@@ -536,6 +678,9 @@ export const AuthProvider = ({ children }) => {
       createUser,
       toggleUserStatus,
       deleteUser,
+      changePassword,
+      uploadUserSignature,
+      removeUserSignature,
       canEditStage
     }}>
       {children}

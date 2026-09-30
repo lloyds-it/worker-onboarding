@@ -65,6 +65,56 @@ export const apiSSOLogin = async (provider, email, token, tenantId = 'lloydsproj
 };
 
 /**
+ * Change password for user login
+ */
+export const apiChangePassword = async ({ username, currentPassword, newPassword, isAdminReset = false, targetUserId = null }) => {
+  try {
+    const res = await fetch(`${API_BASE}/auth/change-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, currentPassword, newPassword, isAdminReset, targetUserId })
+    });
+    return await res.json();
+  } catch (err) {
+    return {
+      success: false,
+      error: 'Unable to connect to authentication server to change password.'
+    };
+  }
+};
+
+/**
+ * Upload and save digital signature for user
+ */
+export const apiUploadUserSignature = async (userId, signature) => {
+  try {
+    const res = await fetch(`${API_BASE}/auth/users/${userId}/signature`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ signature })
+    });
+    return await res.json();
+  } catch (err) {
+    return {
+      success: false,
+      error: 'Unable to connect to server to save digital signature.'
+    };
+  }
+};
+
+/**
+ * Fetch system users with their digital signatures and designations
+ */
+export const apiGetUsers = async () => {
+  try {
+    const res = await fetch(`${API_BASE}/auth/users`);
+    return await res.json();
+  } catch (err) {
+    return { success: false, users: [] };
+  }
+};
+
+/**
  * Check backend and Fabric connectivity
  */
 export const checkFabricHealth = async () => {
