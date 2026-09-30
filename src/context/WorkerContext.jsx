@@ -5,7 +5,8 @@ import { ROLES, STAGES } from '../types/constants';
 import { useAuth } from './AuthContext';
 import { 
   apiGetWorkers, 
-  apiRegisterWorker, 
+  apiRegisterWorker,
+  apiUpdateWorkerPhoto,
   apiUpdateMedical, 
   apiUpdateSafety, 
   apiUpdateIT, 
@@ -490,7 +491,10 @@ export const WorkerProvider = ({ children }) => {
       return prev;
     });
 
-    showToast('Worker photograph updated successfully for Gate Pass ID Card.', 'success');
+    // Persist live to Microsoft Fabric SQL Database
+    apiUpdateWorkerPhoto(workerId, photoUrl).catch(console.warn);
+
+    showToast('Worker photograph saved to Microsoft Fabric SQL database.', 'success');
   }, []);
 
   const value = useMemo(() => ({

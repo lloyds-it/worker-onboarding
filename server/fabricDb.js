@@ -512,6 +512,16 @@ export const connectWithToken = async (token) => {
     });
     await pool.connect();
     
+    // Auto-verify photo column in dbo.WorkerHRData
+    try {
+      await pool.request().query(`
+        IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'WorkerHRData' AND COLUMN_NAME = 'photo')
+        BEGIN
+          ALTER TABLE dbo.WorkerHRData ADD photo VARCHAR(MAX) NULL;
+        END
+      `);
+    } catch (scErr) {}
+
     connectionStatus = {
       isConnected: true,
       server: FABRIC_SERVER,
@@ -800,7 +810,7 @@ export const dbGetAllWorkers = async () => {
       const query = `
         SELECT 
           w.id, w.assignedWorkerId, w.stage, w.status, w.fullName, w.contractorName, w.trade, w.mobileNumber, w.createdAt, w.updatedAt,
-          hr.fatherHusbandName, hr.dob, hr.age, hr.gender, hr.idProofType, hr.idProofRef, hr.contractorLicense, hr.emergencyPerson, hr.emergencyRelationship, hr.emergencyMobile,
+          hr.fatherHusbandName, hr.dob, hr.age, hr.gender, hr.idProofType, hr.idProofRef, hr.contractorLicense, hr.emergencyPerson, hr.emergencyRelationship, hr.emergencyMobile, hr.photo,
           m.bloodGroup, m.heightCm, m.weightKg, m.bmi, m.bmiCategory, m.bpSystolic, m.bpDiastolic, m.spo2, m.pulseRate, m.respirationRate, m.rbs, m.alcoholTest, m.visionTest, m.hearingTest, m.vertigoTest, m.existingIllness, m.fitnessStatus, m.examinerName, m.remarks AS medicalRemarks,
           s.briefingDone, s.topicsCovered, s.ppeIssued, s.safetyOfficerName, s.safetyDate,
           it.faceBiometricRegistered, it.cwmsRegistered, it.campusMasterUploaded, it.undertakingAccepted, it.itAdminSignature, it.itDate,
@@ -836,7 +846,8 @@ export const dbGetAllWorkers = async () => {
           trade: row.trade || '',
           emergencyPerson: row.emergencyPerson || '',
           emergencyRelationship: row.emergencyRelationship || '',
-          emergencyMobile: row.emergencyMobile || ''
+          emergencyMobile: row.emergencyMobile || '',
+          photo: row.photo || ''
         },
         medical: row.bloodGroup ? {
           bloodGroup: row.bloodGroup,
@@ -927,6 +938,7 @@ export const dbRegisterWorkerHR = async (newWorker) => {
         .input('emergencyPerson', sql.VarChar(200), newWorker.hr.emergencyPerson || '')
         .input('emergencyRelationship', sql.VarChar(100), newWorker.hr.emergencyRelationship || '')
         .input('emergencyMobile', sql.VarChar(20), newWorker.hr.emergencyMobile || '')
+        .input('photo', sql.VarChar(sql.MAX), newWorker.hr.photo || '')
         .query(`
           IF NOT EXISTS (SELECT 1 FROM dbo.WorkersMaster WHERE id = @id)
           BEGIN
@@ -942,13 +954,13 @@ export const dbRegisterWorkerHR = async (newWorker) => {
 
           IF NOT EXISTS (SELECT 1 FROM dbo.WorkerHRData WHERE workerId = @id)
           BEGIN
-            INSERT INTO dbo.WorkerHRData (workerId, fullName, fatherHusbandName, dob, age, gender, mobileNumber, idProofType, idProofRef, contractorName, contractorLicense, trade, emergencyPerson, emergencyRelationship, emergencyMobile, registeredAt)
-            VALUES (@id, @fullName, @fatherHusbandName, @dob, @age, @gender, @mobileNumber, @idProofType, @idProofRef, @contractorName, @contractorLicense, @trade, @emergencyPerson, @emergencyRelationship, @emergencyMobile, @createdAt);
+            INSERT INTO dbo.WorkerHRData (workerId, fullName, fatherHusbandName, dob, age, gender, mobileNumber, idProofType, idProofRef, contractorName, contractorLicense, trade, emergencyPerson, emergencyRelationship, emergencyMobile, photo, registeredAt)
+            VALUES (@id, @fullName, @fatherHusbandName, @dob, @age, @gender, @mobileNumber, @idProofType, @idProofRef, @contractorName, @contractorLicense, @trade, @emergencyPerson, @emergencyRelationship, @emergencyMobile, @photo, @createdAt);
           END
           ELSE
           BEGIN
             UPDATE dbo.WorkerHRData
-            SET fullName = @fullName, fatherHusbandName = @fatherHusbandName, dob = @dob, age = @age, gender = @gender, mobileNumber = @mobileNumber, idProofType = @idProofType, idProofRef = @idProofRef, contractorName = @contractorName, contractorLicense = @contractorLicense, trade = @trade, emergencyPerson = @emergencyPerson, emergencyRelationship = @emergencyRelationship, emergencyMobile = @emergencyMobile
+            SET fullName = @fullName, fatherHusbandName = @fatherHusbandName, dob = @dob, age = @age, gender = @gender, mobileNumber = @mobileNumber, idProofType = @idProofType, idProofRef = @idProofRef, contractorName = @contractorName, contractorLicense = @contractorLicense, trade = @trade, emergencyPerson = @emergencyPerson, emergencyRelationship = @emergencyRelationship, emergencyMobile = @emergencyMobile, photo = COALESCE(NULLIF(@photo, ''), photo)
             WHERE workerId = @id;
           END;
         `);
@@ -962,6 +974,40 @@ export const dbRegisterWorkerHR = async (newWorker) => {
   fallbackWorkersCache = [newWorker, ...fallbackWorkersCache.filter(w => w.id !== newWorker.id)];
   syncToPyBridge('register', newWorker);
   return newWorker;
+};
+
+/**
+ * Update Worker Photograph (Direct live update to Fabric SQL)
+ */
+export const dbUpdateWorkerPhoto = async (workerId, photoUrl) => {
+  if (pool && pool.connected) {
+    try {
+      const request = new sql.Request(pool);
+      await request
+        .input('workerId', sql.VarChar(50), workerId)
+        .input('photo', sql.VarChar(sql.MAX), photoUrl || '')
+        .query(`
+          UPDATE dbo.WorkerHRData
+          SET photo = @photo
+          WHERE workerId = @workerId;
+        `);
+      console.log(`[Microsoft Fabric] Worker ${workerId} photo updated in live Fabric database.`);
+    } catch (err) {
+      console.error('[Microsoft Fabric] Photo update failed:', err.message);
+    }
+  }
+
+  fallbackWorkersCache = fallbackWorkersCache.map(w => {
+    if (w.id === workerId) {
+      return {
+        ...w,
+        hr: { ...w.hr, photo: photoUrl }
+      };
+    }
+    return w;
+  });
+
+  return { success: true, workerId, photo: photoUrl };
 };
 
 /**

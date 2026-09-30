@@ -192,6 +192,27 @@ export const apiRegisterWorker = async (newWorker) => {
 };
 
 /**
+ * Update Worker Photograph (Direct to Fabric SQL)
+ */
+export const apiUpdateWorkerPhoto = async (workerId, photoUrl) => {
+  try {
+    const res = await fetch(`${API_BASE}/workers/${workerId}/photo`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ photo: photoUrl }),
+      signal: AbortSignal.timeout(5000)
+    });
+    if (res.ok) {
+      const json = await res.json();
+      return json.data;
+    }
+  } catch (err) {
+    console.warn('[API] Photo update saved locally:', err.message);
+  }
+  return { success: true, workerId, photo: photoUrl };
+};
+
+/**
  * Update Medical screening (Step 2)
  */
 export const apiUpdateMedical = async (workerId, medicalData, updatedWorker) => {

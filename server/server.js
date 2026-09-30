@@ -26,6 +26,7 @@ import {
   getAuthStatus,
   dbGetAllWorkers,
   dbRegisterWorkerHR,
+  dbUpdateWorkerPhoto,
   dbUpdateMedical,
   dbUpdateSafety,
   dbUpdateIT,
@@ -284,6 +285,18 @@ app.post('/api/workers', async (req, res) => {
     }
     const saved = await dbRegisterWorkerHR(newWorker);
     res.status(201).json({ success: true, data: saved });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// PATCH Worker Photo (Direct to Fabric SQL)
+app.patch('/api/workers/:id/photo', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { photo } = req.body;
+    const updated = await dbUpdateWorkerPhoto(id, photo);
+    res.json({ success: true, data: updated });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }

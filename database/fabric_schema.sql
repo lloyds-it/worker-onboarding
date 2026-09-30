@@ -43,6 +43,7 @@ BEGIN
         emergencyPerson VARCHAR(200) NULL,
         emergencyRelationship VARCHAR(100) NULL,
         emergencyMobile VARCHAR(20) NULL,
+        photo VARCHAR(MAX) NULL,
         registeredAt VARCHAR(50) NULL
     );
     ALTER TABLE dbo.WorkerHRData ADD CONSTRAINT PK_WorkerHRData PRIMARY KEY NONCLUSTERED (workerId) NOT ENFORCED;
