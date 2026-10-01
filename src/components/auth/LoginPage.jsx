@@ -202,8 +202,8 @@ export const LoginPage = () => {
               style={{ height: '28px', width: 'auto', objectFit: 'contain' }}
             />
           </div>
-          <div style={{ marginTop: '0.65rem', fontSize: '0.72rem', letterSpacing: '0.12em', color: 'rgba(255, 255, 255, 0.75)', fontWeight: 800, textTransform: 'uppercase' }}>
-            Infrastructure Division - LLOYDS INFRASTRUCTURE CONSTRUCTION LIMITED
+          <div style={{ marginTop: '0.65rem', fontSize: '0.7rem', letterSpacing: '0.05em', color: 'rgba(255, 255, 255, 0.75)', fontWeight: 800, textTransform: 'uppercase', lineHeight: 1.4 }}>
+            Lloyds Metals and Energy Limited and Lloyds Infrastructure &amp; Construction Limited
           </div>
         </div>
 
@@ -359,7 +359,7 @@ export const LoginPage = () => {
           fontSize: '0.75rem',
           color: 'rgba(255, 255, 255, 0.7)'
         }}>
-          <div style={{ fontWeight: 600 }}>Infrastructure Division - LLOYDS INFRASTRUCTURE CONSTRUCTION LIMITED</div>
+          <div style={{ fontWeight: 600 }}>Lloyds Metals and Energy Limited and Lloyds Infrastructure &amp; Construction Limited</div>
           <div style={{ fontWeight: 600 }}>OWASP ASVS 5.0 • JWT &amp; RBAC</div>
         </div>
       </div>
@@ -773,7 +773,7 @@ export const LoginPage = () => {
               <Shield size={13} color="#10B981" />
               <span>TLS 1.3 &amp; 256-Bit Encrypted</span>
             </div>
-            <span>LLOYDS INFRASTRUCTURE CONSTRUCTION LIMITED</span>
+            <span>Lloyds Metals &amp; Energy • Lloyds Infra &amp; Construction</span>
           </div>
         </div>
       </div>
