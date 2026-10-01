@@ -69,24 +69,27 @@ else
     # If file exists, insert right before the last closing curly brace
     if [ -f "$CONF_FILE" ]; then
         sudo cp "$CONF_FILE" "${CONF_FILE}.bak.$(date +%s)"
-        # Use python or awk or sed to insert before last }
-        python3 -c "
+        sudo python3 -c "
 with open('$CONF_FILE', 'r') as f:
     content = f.read()
 
 with open('$APP_DIR/.deployment/nginx.conf', 'r') as f:
     snippet = f.read()
 
-# Find last closing brace
 last_brace = content.rfind('}')
 if last_brace != -1:
     new_content = content[:last_brace] + '\n' + snippet + '\n}\n'
-    with open('$CONF_FILE', 'w') as f:
+    with open('/tmp/nginx_patched.conf', 'w') as f:
         f.write(new_content)
-    print('Successfully inserted snippet before last closing brace.')
+    print('✓ Generated patched Nginx configuration.')
 else:
-    print('Warning: No closing brace found.')
+    print('Warning: No closing brace found in $CONF_FILE')
 "
+        if [ -f "/tmp/nginx_patched.conf" ]; then
+            sudo cp /tmp/nginx_patched.conf "$CONF_FILE"
+            sudo rm -f /tmp/nginx_patched.conf
+            echo "✓ Successfully inserted /workeronboarding/ into $CONF_FILE"
+        fi
     else
         echo "Creating new site config at $CONF_FILE..."
         sudo cp "$APP_DIR/.deployment/nginx.conf" "$CONF_FILE"
