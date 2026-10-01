@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   ArrowLeft, 
   User, 
@@ -36,8 +36,21 @@ export const DedicatedStageProcessPage = ({ worker: propWorker, onSelectWorker, 
   // Resilient worker resolution - never allow a null/blank page if workers exist
   const worker = propWorker || (workers.length > 0 ? workers[0] : null);
 
+  // Department-to-Stage Mapping
+  const roleStageMap = useMemo(() => ({
+    [ROLES.HR]: STAGES.HR,
+    [ROLES.MEDICAL]: STAGES.MEDICAL,
+    [ROLES.SAFETY]: STAGES.SAFETY,
+    [ROLES.IT]: STAGES.IT,
+    [ROLES.CAMP]: STAGES.CAMP,
+  }), []);
+
   // Active stage tab (1 = HR, 2 = Medical, 3 = Safety, 4 = IT, 5 = Camp)
+  // Non-admin users are locked strictly to their department's stage
   const [selectedStageTab, setSelectedStageTab] = useState(() => {
+    if (currentRole !== ROLES.ADMIN && roleStageMap[currentRole]) {
+      return roleStageMap[currentRole];
+    }
     if (!worker) return STAGES.HR;
     return worker.stage === STAGES.FLAGGED 
       ? STAGES.MEDICAL 
@@ -46,6 +59,10 @@ export const DedicatedStageProcessPage = ({ worker: propWorker, onSelectWorker, 
 
   // Keep stage tab updated when candidate changes
   useEffect(() => {
+    if (currentRole !== ROLES.ADMIN && roleStageMap[currentRole]) {
+      setSelectedStageTab(roleStageMap[currentRole]);
+      return;
+    }
     if (worker) {
       setSelectedStageTab(
         worker.stage === STAGES.FLAGGED 
@@ -53,7 +70,7 @@ export const DedicatedStageProcessPage = ({ worker: propWorker, onSelectWorker, 
           : (worker.stage === STAGES.COMPLETED ? STAGES.CAMP : (worker.stage || STAGES.HR))
       );
     }
-  }, [worker?.id]);
+  }, [worker?.id, currentRole, roleStageMap]);
 
   // Fallback: If no workers exist in the system at all
   if (!worker) {
@@ -113,6 +130,19 @@ export const DedicatedStageProcessPage = ({ worker: propWorker, onSelectWorker, 
     { stage: STAGES.IT, label: 'Step 4: IT Biometrics', icon: <Fingerprint size={15} /> },
     { stage: STAGES.CAMP, label: 'Step 5: Camp Housing', icon: <Home size={15} /> }
   ];
+
+  // For department logins (e.g. IT), ONLY their own department stage tab is shown.
+  // Full 5-stage overview is exclusively available to Chief Administrator.
+  const visibleStageTabs = useMemo(() => {
+    if (currentRole === ROLES.ADMIN) {
+      return STAGE_TABS;
+    }
+    const userStage = roleStageMap[currentRole];
+    if (userStage) {
+      return STAGE_TABS.filter(t => t.stage === userStage);
+    }
+    return STAGE_TABS;
+  }, [currentRole, roleStageMap]);
 
   return (
     <div>
@@ -301,7 +331,7 @@ export const DedicatedStageProcessPage = ({ worker: propWorker, onSelectWorker, 
             border: '1px solid var(--border-light, #E2E8F0)',
             overflowX: 'auto'
           }}>
-            {STAGE_TABS.map(tab => {
+            {visibleStageTabs.map(tab => {
               const isCurrentPipelineStage = worker.stage === tab.stage;
               const isSelected = selectedStageTab === tab.stage;
               const isPastStage = worker.stage > tab.stage || worker.stage === STAGES.COMPLETED;

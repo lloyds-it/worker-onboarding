@@ -276,11 +276,13 @@ const AppContent = () => {
   };
 
   const handleOpenInductionDoc = (worker) => {
+    if (currentRole !== ROLES.ADMIN) return;
     setDocumentWorker(worker);
-    navigate('induction_doc', worker.id);
+    navigate('induction_doc', worker?.id);
   };
 
   const handleOpenIdCard = (worker) => {
+    if (currentRole !== ROLES.ADMIN) return;
     setIdCardWorker(worker);
     navigate('id_card', worker?.id);
   };
@@ -423,21 +425,37 @@ const AppContent = () => {
                 <AuditLogViewer />
               )}
 
-              {/* VIEW 8: PRINTABLE INDUCTION DOCUMENT */}
+              {/* VIEW 8: PRINTABLE INDUCTION DOCUMENT (Admin Only) */}
               {activeView === 'induction_doc' && (
-                <PrintableInductionDoc
-                  worker={documentWorker || activeWorker || (workers && workers.length > 0 ? workers[0] : null)}
-                  onBack={() => navigate('pipeline')}
-                  onGenerateIdCard={handleOpenIdCard}
-                />
+                currentRole === ROLES.ADMIN ? (
+                  <PrintableInductionDoc
+                    worker={documentWorker || activeWorker || (workers && workers.length > 0 ? workers[0] : null)}
+                    onBack={() => navigate('pipeline')}
+                    onGenerateIdCard={handleOpenIdCard}
+                  />
+                ) : (
+                  <div style={{ padding: '3rem', textAlign: 'center', backgroundColor: 'var(--bg-surface)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-light)' }}>
+                    <h3 style={{ color: 'var(--danger-solid)' }}>Access Restricted</h3>
+                    <p style={{ color: 'var(--text-muted)', marginTop: '0.5rem' }}>Only the Chief Administrator is authorized to view or print official Worker Induction Dossiers.</p>
+                    <button className="btn btn-primary" onClick={() => navigate('pipeline')} style={{ marginTop: '1rem' }}>Back to Pipeline</button>
+                  </div>
+                )
               )}
 
-              {/* VIEW 9: TEMPORARY GATE PASS ID CARD GENERATOR */}
+              {/* VIEW 9: TEMPORARY GATE PASS ID CARD GENERATOR (Admin Only) */}
               {activeView === 'id_card' && (
-                <TemporaryGatePassIdCard
-                  initialWorker={idCardWorker || activeWorker || (workers && workers.length > 0 ? workers[0] : null)}
-                  onBack={() => navigate(currentRole === ROLES.ADMIN ? 'admin_dashboard' : 'pipeline')}
-                />
+                currentRole === ROLES.ADMIN ? (
+                  <TemporaryGatePassIdCard
+                    initialWorker={idCardWorker || activeWorker || (workers && workers.length > 0 ? workers[0] : null)}
+                    onBack={() => navigate('admin_dashboard')}
+                  />
+                ) : (
+                  <div style={{ padding: '3rem', textAlign: 'center', backgroundColor: 'var(--bg-surface)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-light)' }}>
+                    <h3 style={{ color: 'var(--danger-solid)' }}>Access Restricted</h3>
+                    <p style={{ color: 'var(--text-muted)', marginTop: '0.5rem' }}>Only the Chief Administrator is authorized to generate or print Temporary Gate Pass ID Cards.</p>
+                    <button className="btn btn-primary" onClick={() => navigate('pipeline')} style={{ marginTop: '1rem' }}>Back to Pipeline</button>
+                  </div>
+                )
               )}
             </Suspense>
           </ErrorBoundary>

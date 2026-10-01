@@ -14,11 +14,17 @@ import {
   Phone, 
   Camera, 
   Check, 
-  Edit3
+  Edit3,
+  AlertTriangle,
+  XCircle,
+  CheckCircle2,
+  Lock,
+  ShieldAlert
 } from 'lucide-react';
 import { useWorkers } from '../../context/WorkerContext';
 import { useAuth } from '../../context/AuthContext';
 import { WorkerPhotoUpload } from '../common/WorkerPhotoUpload';
+import { getWorkerMissingDetails } from '../../services/validationService';
 
 export const TemporaryGatePassIdCard = ({ initialWorker, onBack }) => {
   const { workers = [], updateWorkerPhoto } = useWorkers();
@@ -186,6 +192,232 @@ export const TemporaryGatePassIdCard = ({ initialWorker, onBack }) => {
           <ArrowLeft size={16} />
           <span>Return to Roster Table</span>
         </button>
+      </div>
+    );
+  }
+
+  // Validate onboarding completeness across all 5 steps
+  const completion = getWorkerMissingDetails(currentWorker);
+
+  // If worker is incomplete, DO NOT generate or print the official ID Card.
+  // Instead, show exactly what details are missing.
+  if (!completion.isComplete) {
+    return (
+      <div style={{ maxWidth: '900px', margin: '0 auto', paddingBottom: '3rem' }}>
+        {/* Navigation Toolbar with Candidate Switcher */}
+        <div className="no-print" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+            <button className="btn btn-secondary" onClick={onBack}>
+              <ArrowLeft size={16} />
+              <span>Back to Master Pipeline</span>
+            </button>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <label htmlFor="worker-picker-incomplete" style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-muted)' }}>
+                Select Candidate:
+              </label>
+              <select
+                id="worker-picker-incomplete"
+                className="form-select"
+                style={{ padding: '0.35rem 0.65rem', fontSize: '0.82rem', minWidth: '240px' }}
+                value={selectedWorkerId || ''}
+                onChange={handleWorkerChange}
+              >
+                {workers.map(w => {
+                  const wComp = getWorkerMissingDetails(w);
+                  return (
+                    <option key={w.id} value={w.id}>
+                      {w.hr?.fullName || w.id} ({w.assignedWorkerId || w.id}) {wComp.isComplete ? '✔ (Complete)' : `⚠️ (${wComp.totalMissing} missing)`}
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+          </div>
+          
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+            <span className="badge badge-warning" style={{ fontSize: '0.8rem', padding: '0.4rem 0.75rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+              <Lock size={13} />
+              <span>ID Card Issuance Locked (Incomplete)</span>
+            </span>
+          </div>
+        </div>
+
+        {/* High-Visibility Incomplete Notice Card */}
+        <div style={{
+          backgroundColor: '#FFFBEB',
+          border: '1.5px solid #FCD34D',
+          borderRadius: '12px',
+          padding: '1.5rem',
+          marginBottom: '1.75rem',
+          boxShadow: '0 4px 12px rgba(245, 158, 11, 0.08)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '1rem' }}>
+            <div style={{
+              width: '42px',
+              height: '42px',
+              borderRadius: '50%',
+              backgroundColor: '#FEF3C7',
+              color: '#D97706',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0
+            }}>
+              <AlertTriangle size={24} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#92400E', margin: '0 0 0.35rem 0' }}>
+                Cannot Generate Temporary Gate Pass ID Card — Incomplete Onboarding
+              </h2>
+              <p style={{ color: '#78350F', fontSize: '0.875rem', lineHeight: 1.5, margin: 0 }}>
+                This worker's profile is currently <strong>incomplete</strong> ({completion.totalMissing} mandatory {completion.totalMissing === 1 ? 'detail' : 'details'} missing across {completion.missingSteps.length} {completion.missingSteps.length === 1 ? 'department step' : 'department steps'}). Under security &amp; safety regulations, official Temporary Gate Pass ID Cards cannot be issued until all 5 steps (HR, Medical, Safety, IT Biometrics, and Camp Housing) are certified.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Worker Candidate Banner */}
+        <div style={{
+          backgroundColor: 'var(--bg-surface, #FFFFFF)',
+          border: '1px solid var(--border-light, #E2E8F0)',
+          borderRadius: '12px',
+          padding: '1.25rem 1.5rem',
+          marginBottom: '1.5rem',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '1rem',
+          boxShadow: 'var(--shadow-sm)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <div style={{
+              width: '56px',
+              height: '62px',
+              borderRadius: '8px',
+              backgroundColor: '#F1F5F9',
+              border: '1px solid #CBD5E1',
+              overflow: 'hidden',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontWeight: 800,
+              fontSize: '1.4rem',
+              color: 'var(--brand-primary)',
+              flexShrink: 0
+            }}>
+              {workerPhoto ? (
+                <img src={workerPhoto} alt={hr?.fullName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              ) : (
+                hr?.fullName?.charAt(0) || 'W'
+              )}
+            </div>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
+                  {hr?.fullName || 'Unnamed Candidate'}
+                </h3>
+                <span className="badge badge-purple" style={{ fontSize: '0.72rem' }}>
+                  {hr?.trade || 'General Worker'}
+                </span>
+              </div>
+              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
+                ID: <strong>{currentWorker.assignedWorkerId || currentWorker.id}</strong> • Agency: <strong>{hr?.contractorName || '—'}</strong>
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span className="badge badge-warning" style={{ fontSize: '0.8rem', padding: '0.35rem 0.75rem' }}>
+              Current Pipeline: Stage {currentWorker.stage || 1}
+            </span>
+          </div>
+        </div>
+
+        {/* Missing Details Checklist Card */}
+        <div style={{
+          backgroundColor: 'var(--bg-surface, #FFFFFF)',
+          border: '1px solid var(--border-light, #E2E8F0)',
+          borderRadius: '12px',
+          padding: '1.5rem',
+          boxShadow: 'var(--shadow-sm)'
+        }}>
+          <h3 style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <ShieldAlert size={18} color="var(--brand-primary)" />
+            <span>Missing Onboarding Details Checklist</span>
+          </h3>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            {/* Missing Steps */}
+            {completion.missingSteps.map((s, idx) => (
+              <div key={idx} style={{
+                backgroundColor: '#FEF2F2',
+                border: '1.5px solid #FECACA',
+                borderRadius: '10px',
+                padding: '1.1rem 1.25rem'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.65rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <XCircle size={18} color="#DC2626" />
+                    <span style={{ fontWeight: 800, color: '#991B1B', fontSize: '0.92rem' }}>
+                      {s.title}
+                    </span>
+                    <span style={{ fontSize: '0.72rem', backgroundColor: '#FEE2E2', color: '#B91C1C', padding: '0.15rem 0.5rem', borderRadius: '6px', fontWeight: 700 }}>
+                      {s.dept}
+                    </span>
+                  </div>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#DC2626' }}>
+                    {s.items.length} Missing {s.items.length === 1 ? 'Item' : 'Items'}
+                  </span>
+                </div>
+
+                <div style={{ paddingLeft: '1.65rem' }}>
+                  <ul style={{ margin: 0, padding: 0, listStyleType: 'none', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                    {s.items.map((item, itemIdx) => (
+                      <li key={itemIdx} style={{ fontSize: '0.82rem', color: '#7F1D1D', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                        <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#DC2626', display: 'inline-block' }}></span>
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            ))}
+
+            {/* Completed Steps */}
+            {completion.completedSteps.map((c, idx) => (
+              <div key={idx} style={{
+                backgroundColor: '#F0FDF4',
+                border: '1px solid #BBF7D0',
+                borderRadius: '10px',
+                padding: '0.9rem 1.25rem',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <CheckCircle2 size={17} color="#16A34A" />
+                  <span style={{ fontWeight: 700, color: '#166534', fontSize: '0.88rem' }}>
+                    {c.title}
+                  </span>
+                  <span style={{ fontSize: '0.7rem', backgroundColor: '#DCFCE7', color: '#15803D', padding: '0.1rem 0.45rem', borderRadius: '6px', fontWeight: 700 }}>
+                    {c.dept}
+                  </span>
+                </div>
+                <span style={{ fontSize: '0.75rem', color: '#15803D', fontWeight: 600 }}>
+                  Signed off by {c.completedBy}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ marginTop: '1.75rem', paddingTop: '1.25rem', borderTop: '1px solid var(--border-light)', display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+            <button className="btn btn-secondary" onClick={onBack}>
+              Return to Pipeline
+            </button>
+          </div>
+        </div>
       </div>
     );
   }
@@ -429,11 +661,14 @@ export const TemporaryGatePassIdCard = ({ initialWorker, onBack }) => {
               value={selectedWorkerId || ''}
               onChange={handleWorkerChange}
             >
-              {workers.map(w => (
-                <option key={w.id} value={w.id}>
-                  {w.hr?.fullName || w.id} ({w.assignedWorkerId || w.id}) - {w.hr?.trade || 'Worker'}
-                </option>
-              ))}
+              {workers.map(w => {
+                const wComp = getWorkerMissingDetails(w);
+                return (
+                  <option key={w.id} value={w.id}>
+                    {w.hr?.fullName || w.id} ({w.assignedWorkerId || w.id}) {wComp.isComplete ? '✔ (Complete)' : `⚠️ (${wComp.totalMissing} missing)`}
+                  </option>
+                );
+              })}
             </select>
           </div>
         </div>

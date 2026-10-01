@@ -424,37 +424,38 @@ export const WorkerTable = ({ onOpenProcessModal, onViewInductionDoc, onGenerate
                           </span>
                         )}
 
-                        {/* View Printable Induction Doc */}
-                        <button
-                          className="btn btn-secondary"
-                          style={{ padding: '0.35rem 0.55rem' }}
-                          onClick={() => onViewInductionDoc(worker)}
-                          title="Print official Lloyd Enhanced Induction Form"
-                        >
-                          <Printer size={15} />
-                        </button>
+                        {/* Only Chief Administrator can view/download Worker Induction Form & ID Card */}
+                        {currentRole === ROLES.ADMIN && (
+                          <>
+                            <button
+                              className="btn btn-secondary"
+                              style={{ padding: '0.35rem 0.55rem' }}
+                              onClick={() => onViewInductionDoc(worker)}
+                              title="Print / View Official Lloyd Enhanced Induction Form"
+                            >
+                              <Printer size={15} />
+                            </button>
 
-                        {/* Generate Temporary Gate Pass ID Card (Beside Print) */}
-                        <button
-                          id={`btn-generate-id-card-${worker.id}`}
-                          className="btn btn-secondary"
-                          style={{
-                            padding: '0.35rem 0.55rem',
-                            color: '#1E3A8A',
-                            borderColor: '#93C5FD',
-                            backgroundColor: '#EFF6FF',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '0.25rem'
-                          }}
-                          onClick={() => onGenerateIdCard && onGenerateIdCard(worker)}
-                          title="Generate Temporary Gate Pass ID Card"
-                        >
-                          <CreditCard size={15} />
-                          {currentRole === ROLES.ADMIN && (
-                            <span style={{ fontSize: '0.72rem', fontWeight: 700 }}>ID Card</span>
-                          )}
-                        </button>
+                            <button
+                              id={`btn-generate-id-card-${worker.id}`}
+                              className="btn btn-secondary"
+                              style={{
+                                padding: '0.35rem 0.55rem',
+                                color: '#1E3A8A',
+                                borderColor: '#93C5FD',
+                                backgroundColor: '#EFF6FF',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.25rem'
+                              }}
+                              onClick={() => onGenerateIdCard && onGenerateIdCard(worker)}
+                              title="Generate Temporary Gate Pass ID Card"
+                            >
+                              <CreditCard size={15} />
+                              <span style={{ fontSize: '0.72rem', fontWeight: 700 }}>ID Card</span>
+                            </button>
+                          </>
+                        )}
 
                         {/* Admin Override Only for Admin */}
                         {currentRole === ROLES.ADMIN && (

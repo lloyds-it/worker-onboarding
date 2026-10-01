@@ -221,28 +221,6 @@ export const Sidebar = ({
               <Building2 size={18} />
               <span>HR Department Dashboard</span>
             </button>
-
-            <button
-              id="nav-induction-form"
-              className={`nav-item ${activeView === 'induction_doc' ? 'active' : ''}`}
-              onClick={() => setActiveView('induction_doc')}
-              data-tooltip="Print Induction Form"
-              title={isCollapsed ? "Print Induction Form" : undefined}
-            >
-              <Printer size={18} />
-              <span>Print Induction Form</span>
-            </button>
-
-            <button
-              id="nav-hr-id-cards"
-              className={`nav-item ${activeView === 'id_card' ? 'active' : ''}`}
-              onClick={() => setActiveView('id_card')}
-              data-tooltip="Generate Gate Pass ID Cards"
-              title={isCollapsed ? "Generate Gate Pass ID Cards" : undefined}
-            >
-              <CreditCard size={18} />
-              <span>Gate Pass ID Cards</span>
-            </button>
           </>
         )}
 
@@ -276,17 +254,6 @@ export const Sidebar = ({
             >
               <Activity size={18} />
               <span>Medical Vitals Dashboard</span>
-            </button>
-
-            <button
-              id="nav-induction-form"
-              className={`nav-item ${activeView === 'induction_doc' ? 'active' : ''}`}
-              onClick={() => setActiveView('induction_doc')}
-              data-tooltip="Print Medical Dossier"
-              title={isCollapsed ? "Print Medical Dossier" : undefined}
-            >
-              <Printer size={18} />
-              <span>Print Medical Dossier</span>
             </button>
           </>
         )}
@@ -322,17 +289,6 @@ export const Sidebar = ({
               <ShieldCheck size={18} />
               <span>PPE Equipment Ledger</span>
             </button>
-
-            <button
-              id="nav-induction-form"
-              className={`nav-item ${activeView === 'induction_doc' ? 'active' : ''}`}
-              onClick={() => setActiveView('induction_doc')}
-              data-tooltip="Print Safety Sheet"
-              title={isCollapsed ? "Print Safety Sheet" : undefined}
-            >
-              <Printer size={18} />
-              <span>Print Safety Sheet</span>
-            </button>
           </>
         )}
 
@@ -367,17 +323,6 @@ export const Sidebar = ({
               <Activity size={18} />
               <span>IT Systems & CWMS Sync</span>
             </button>
-
-            <button
-              id="nav-induction-form"
-              className={`nav-item ${activeView === 'induction_doc' ? 'active' : ''}`}
-              onClick={() => setActiveView('induction_doc')}
-              data-tooltip="Print IT Master Record"
-              title={isCollapsed ? "Print IT Master Record" : undefined}
-            >
-              <Printer size={18} />
-              <span>Print IT Master Record</span>
-            </button>
           </>
         )}
 
@@ -411,17 +356,6 @@ export const Sidebar = ({
             >
               <Building2 size={18} />
               <span>Gondwana Bed Capacity</span>
-            </button>
-
-            <button
-              id="nav-induction-form"
-              className={`nav-item ${activeView === 'induction_doc' ? 'active' : ''}`}
-              onClick={() => setActiveView('induction_doc')}
-              data-tooltip="Print Gate Pass Record"
-              title={isCollapsed ? "Print Gate Pass Record" : undefined}
-            >
-              <Printer size={18} />
-              <span>Print Gate Pass Record</span>
             </button>
           </>
         )}

@@ -155,3 +155,192 @@ export const calculateBMI = (heightCm, weightKg) => {
   else if (bmiVal >= 30) category = 'Obese';
   return { bmi: bmiVal, category };
 };
+
+/**
+ * Evaluates completeness of a candidate across all 5 mandatory onboarding steps.
+ * Used to guard official document printing and ID card generation.
+ */
+export const getWorkerMissingDetails = (worker) => {
+  if (!worker) {
+    return {
+      isComplete: false,
+      missingSteps: [{ step: 0, title: 'No Candidate Selected', dept: 'System', items: ['No worker selected'] }],
+      completedSteps: [],
+      totalMissing: 1
+    };
+  }
+
+  const missingSteps = [];
+  const completedSteps = [];
+
+  // Step 1: HR Profile
+  const hrMissing = [];
+  if (!worker.hr?.fullName?.trim()) hrMissing.push('Full candidate name');
+  if (!worker.hr?.fatherHusbandName?.trim()) hrMissing.push("Father's or Husband's name");
+  if (!worker.hr?.mobileNumber?.trim()) hrMissing.push('Contact mobile number');
+  if (!worker.hr?.dob && !worker.hr?.age) hrMissing.push('Date of birth / Age');
+  if (!worker.hr?.trade) hrMissing.push('Designated trade category');
+  if (!worker.hr?.contractorName?.trim()) hrMissing.push('Contractor agency name');
+  if (!worker.hr?.emergencyPerson?.trim() || !worker.hr?.emergencyMobile?.trim()) hrMissing.push('Emergency contact details');
+  if (!worker.hr?.photo) hrMissing.push('Official portrait photograph');
+
+  if (hrMissing.length > 0) {
+    missingSteps.push({
+      step: 1,
+      title: 'Step 1: HR Profile Registration',
+      dept: 'Human Resources',
+      items: hrMissing
+    });
+  } else {
+    completedSteps.push({
+      step: 1,
+      title: 'Step 1: HR Profile Registration',
+      dept: 'Human Resources',
+      completedBy: worker.hr?.registeredBy || 'HR Operations'
+    });
+  }
+
+  // Step 2: Medical Exam
+  const medMissing = [];
+  const fitDecision = worker.medical?.fitStatus || worker.medical?.fitnessStatus;
+  if (!fitDecision) {
+    medMissing.push('Examining Doctor fitness certificate (FIT / UNFIT)');
+  } else if (fitDecision === 'UNFIT') {
+    medMissing.push(`Candidate flagged medically UNFIT (${worker.medical?.fitStatusReason || worker.medical?.remarks || 'Failed medical parameters'})`);
+  }
+  if (!worker.medical?.doctorName?.trim() && !worker.medical?.examinerName?.trim()) {
+    medMissing.push('Examining Medical Officer name & signature');
+  }
+  if (!worker.medical?.bloodPressure && !worker.medical?.bpSystolic) {
+    medMissing.push('Blood pressure vitals (BP)');
+  }
+  if (!worker.medical?.identificationMark1?.trim()) {
+    medMissing.push('Physical identification mark #1');
+  }
+  const isMedStageDone = (worker.stage && worker.stage > 2) || worker.stage === 6;
+  if (medMissing.length > 0 || !isMedStageDone) {
+    if (medMissing.length === 0 && !isMedStageDone) {
+      medMissing.push('Doctor medical clearance and stage confirmation pending');
+    }
+    missingSteps.push({
+      step: 2,
+      title: 'Step 2: Occupational Medical Examination',
+      dept: 'Medical Services',
+      items: medMissing
+    });
+  } else {
+    completedSteps.push({
+      step: 2,
+      title: 'Step 2: Occupational Medical Examination',
+      dept: 'Medical Services',
+      completedBy: worker.medical?.doctorName || worker.medical?.examinerName || 'Medical Officer'
+    });
+  }
+
+  // Step 3: EHS Safety
+  const safetyMissing = [];
+  if (!worker.safety?.safetyOfficer?.trim()) {
+    safetyMissing.push('EHS Safety Officer verification');
+  }
+  if (!worker.safety?.briefingDate) {
+    safetyMissing.push('Safety induction briefing date');
+  }
+  const ppeCount = worker.safety?.ppeIssued ? Object.values(worker.safety.ppeIssued).filter(Boolean).length : 0;
+  if (ppeCount === 0) {
+    safetyMissing.push('Mandatory PPE kit issuance verification');
+  }
+  const isSafetyStageDone = (worker.stage && worker.stage > 3) || worker.stage === 6;
+  if (safetyMissing.length > 0 || !isSafetyStageDone) {
+    if (safetyMissing.length === 0 && !isSafetyStageDone) {
+      safetyMissing.push('Safety briefing and PPE issuance confirmation pending');
+    }
+    missingSteps.push({
+      step: 3,
+      title: 'Step 3: EHS Safety Induction & PPE Issuance',
+      dept: 'Environment, Health & Safety',
+      items: safetyMissing
+    });
+  } else {
+    completedSteps.push({
+      step: 3,
+      title: 'Step 3: EHS Safety Induction & PPE Issuance',
+      dept: 'Environment, Health & Safety',
+      completedBy: worker.safety?.safetyOfficer || 'Safety Engineer'
+    });
+  }
+
+  // Step 4: IT Biometrics
+  const itMissing = [];
+  if (!worker.it?.rfidCardNumber?.trim()) {
+    itMissing.push('Smart Card RFID / UID card assignment');
+  }
+  if (!worker.it?.cwmsId?.trim()) {
+    itMissing.push('Central CWMS Master registration ID');
+  }
+  if (!worker.it?.itOfficer?.trim()) {
+    itMissing.push('IT Biometrics Specialist signoff');
+  }
+  const isItStageDone = (worker.stage && worker.stage > 4) || worker.stage === 6;
+  if (itMissing.length > 0 || !isItStageDone) {
+    if (itMissing.length === 0 && !isItStageDone) {
+      itMissing.push('IT Biometric registration and UID enrollment pending');
+    }
+    missingSteps.push({
+      step: 4,
+      title: 'Step 4: IT Biometric Master Enrollment',
+      dept: 'Information Technology',
+      items: itMissing
+    });
+  } else {
+    completedSteps.push({
+      step: 4,
+      title: 'Step 4: IT Biometric Master Enrollment',
+      dept: 'Information Technology',
+      completedBy: worker.it?.itOfficer || 'IT Specialist'
+    });
+  }
+
+  // Step 5: Camp Housing
+  const campMissing = [];
+  if (!worker.camp?.campName?.trim()) {
+    campMissing.push('Camp colony allocation (e.g. Gondwana Camp)');
+  }
+  if (!worker.camp?.roomNumber?.trim()) {
+    campMissing.push('Allocated room number');
+  }
+  if (!worker.camp?.bedNumber?.trim()) {
+    campMissing.push('Allocated bed number');
+  }
+  if (!worker.camp?.supervisorName?.trim()) {
+    campMissing.push('Camp Accommodations Supervisor signoff');
+  }
+  const isCampStageDone = worker.stage === 6;
+  if (campMissing.length > 0 || !isCampStageDone) {
+    if (campMissing.length === 0 && !isCampStageDone) {
+      campMissing.push('Camp room allocation and final gate pass activation pending');
+    }
+    missingSteps.push({
+      step: 5,
+      title: 'Step 5: Camp Living Quarters & Gate Pass Activation',
+      dept: 'Camp Administration',
+      items: campMissing
+    });
+  } else {
+    completedSteps.push({
+      step: 5,
+      title: 'Step 5: Camp Living Quarters & Gate Pass Activation',
+      dept: 'Camp Administration',
+      completedBy: worker.camp?.supervisorName || 'Camp Supervisor'
+    });
+  }
+
+  const isComplete = missingSteps.length === 0 && worker.stage === 6;
+  const totalMissing = missingSteps.reduce((acc, s) => acc + s.items.length, 0);
+
+  return {
+    isComplete,
+    missingSteps,
+    completedSteps,
+    totalMissing
+  };
+};
