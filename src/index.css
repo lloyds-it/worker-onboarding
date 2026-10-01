@@ -1826,5 +1826,66 @@ a {
   }
 }
 
+/* ============================================================================
+   ENTERPRISE FULL-PAGE LOGIN PORTAL (SPLIT VIEW, ZERO SCROLLBAR)
+   ============================================================================ */
+.login-split-page {
+  height: 100vh;
+  max-height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+  display: flex;
+  background-color: var(--bg-app);
+}
+
+.login-hero-panel {
+  flex: 1.15;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 2.5rem 3.25rem;
+  background: radial-gradient(circle at 12% 18%, rgba(232, 35, 41, 0.16) 0%, rgba(15, 23, 42, 0.98) 72%), linear-gradient(135deg, #090E17 0%, #0F172A 100%);
+  color: #FFFFFF;
+  position: relative;
+  overflow: hidden;
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+  box-sizing: border-box;
+}
+
+.login-auth-panel {
+  flex: 1;
+  max-width: 540px;
+  min-width: 380px;
+  height: 100vh;
+  max-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 1.75rem 2.5rem;
+  background-color: var(--bg-surface);
+  box-sizing: border-box;
+  overflow-y: auto;
+}
+
+@media (max-width: 960px) {
+  .login-split-page {
+    overflow-y: auto;
+    height: auto;
+    min-height: 100vh;
+  }
+  .login-hero-panel {
+    display: none !important;
+  }
+  .login-auth-panel {
+    max-width: 100%;
+    min-width: 100%;
+    padding: 2rem 1.5rem;
+    height: auto;
+    min-height: 100vh;
+  }
+}
+
+
 
 

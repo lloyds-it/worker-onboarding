@@ -12,9 +12,12 @@ import {
   AlertCircle,
   KeyRound,
   CheckCircle2,
-  ChevronDown,
-  ChevronUp,
-  Key
+  Key,
+  Stethoscope,
+  HardHat,
+  Fingerprint,
+  Home,
+  Users
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
@@ -27,7 +30,7 @@ export const DEPARTMENT_PRESETS = [
   {
     role: 'ADMIN',
     stageName: 'Executive',
-    badge: '👑 Chief Admin',
+    badge: '👑 Admin',
     name: 'Harshvardhan M. K.',
     designation: 'Chief Administrator & Site Director',
     email: 'hmk@lloydsprojects.in',
@@ -37,8 +40,8 @@ export const DEPARTMENT_PRESETS = [
   },
   {
     role: 'HR',
-    stageName: 'Stage 1',
-    badge: '📋 HR Induction',
+    stageName: 'Step 1',
+    badge: '📋 HR',
     name: 'Pooja Nair',
     designation: 'Senior HR Operations Lead',
     email: 'hr.operations@lloyds.in',
@@ -48,8 +51,8 @@ export const DEPARTMENT_PRESETS = [
   },
   {
     role: 'MEDICAL',
-    stageName: 'Stage 2',
-    badge: '🩺 Medical Screening',
+    stageName: 'Step 2',
+    badge: '🩺 Medical',
     name: 'Dr. Vivek Deshmukh (MBBS, CIH)',
     designation: 'Chief Medical Officer',
     email: 'medical.officer@lloyds.in',
@@ -59,8 +62,8 @@ export const DEPARTMENT_PRESETS = [
   },
   {
     role: 'SAFETY',
-    stageName: 'Stage 3',
-    badge: '🛡️ EHS Safety',
+    stageName: 'Step 3',
+    badge: '🛡️ Safety',
     name: 'Arun Patil',
     designation: 'Lead EHS Safety Engineer',
     email: 'ehs.safety@lloyds.in',
@@ -70,8 +73,8 @@ export const DEPARTMENT_PRESETS = [
   },
   {
     role: 'IT',
-    stageName: 'Stage 4',
-    badge: '💻 IT Biometrics',
+    stageName: 'Step 4',
+    badge: '💻 IT',
     name: 'Rajesh Sharma',
     designation: 'Senior IT Biometric Specialist',
     email: 'it.biometrics@lloyds.in',
@@ -81,8 +84,8 @@ export const DEPARTMENT_PRESETS = [
   },
   {
     role: 'CAMP',
-    stageName: 'Stage 5',
-    badge: '🏕️ Camp Housing',
+    stageName: 'Step 5',
+    badge: '🏕️ Camp',
     name: 'Mahesh Kulkarni',
     designation: 'Camp Accommodations Supervisor',
     email: 'camp.gondwana@lloyds.in',
@@ -106,7 +109,6 @@ export const LoginPage = () => {
   const [showSSOModal, setShowSSOModal] = useState(false);
   const [ssoProvider, setSsoProvider] = useState('GOOGLE');
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
-  const [showDirectory, setShowDirectory] = useState(false);
 
   // Corporate Domain Auto-Detection
   const isCorporateDomain = Boolean(
@@ -157,151 +159,297 @@ export const LoginPage = () => {
   const activePreset = DEPARTMENT_PRESETS.find(p => p.role === selectedRole) || DEPARTMENT_PRESETS[0];
 
   return (
-    <div className="login-page-wrapper" style={{
-      minHeight: '100vh',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: '2rem 1rem',
-      backgroundColor: 'var(--bg-app)',
-      position: 'relative'
-    }}>
-      <div style={{
-        width: '100%',
-        maxWidth: '560px',
-        backgroundColor: 'var(--bg-surface)',
-        borderRadius: 'var(--radius-xl, 16px)',
-        border: '1px solid var(--border-light)',
-        boxShadow: 'var(--shadow-lg, 0 10px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1))',
-        overflow: 'hidden'
-      }}>
-        {/* Top Header Banner with dual branding */}
+    <div className="login-split-page">
+      {/* ==================================================================== */}
+      {/* LEFT HERO / BRAND SHOWCASE PANEL (Fills 100vh, Zero Scrolling)      */}
+      {/* ==================================================================== */}
+      <div className="login-hero-panel">
+        {/* Decorative Radial Background Accent */}
         <div style={{
-          backgroundColor: 'var(--brand-navy, #0F172A)',
-          padding: '1.25rem 1.75rem',
-          color: '#FFFFFF',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          borderBottom: '3px solid var(--brand-primary, #E82329)'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+          position: 'absolute',
+          top: '-120px',
+          right: '-120px',
+          width: '500px',
+          height: '500px',
+          borderRadius: '50%',
+          background: 'radial-gradient(circle, rgba(232, 35, 41, 0.15) 0%, transparent 70%)',
+          pointerEvents: 'none'
+        }} />
+
+        {/* Top: Dual Brand Logos with Glassmorphic Plate */}
+        <div style={{ position: 'relative', zIndex: 2 }}>
+          <div style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '1rem',
+            padding: '0.65rem 1.25rem',
+            background: 'rgba(255, 255, 255, 0.08)',
+            backdropFilter: 'blur(12px)',
+            WebkitBackdropFilter: 'blur(12px)',
+            borderRadius: '12px',
+            border: '1px solid rgba(255, 255, 255, 0.16)',
+            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.25)'
+          }}>
             <img 
               src={logoInfra} 
               alt="Lloyds Infra" 
-              style={{ height: '36px', maxWidth: '110px', objectFit: 'contain' }}
-              onError={(e) => { e.target.style.display = 'none'; }}
+              style={{ height: '34px', width: 'auto', objectFit: 'contain' }}
             />
-            <div style={{ height: '28px', width: '1px', backgroundColor: 'rgba(255, 255, 255, 0.25)' }} />
+            <div style={{ width: '1px', height: '26px', backgroundColor: 'rgba(255, 255, 255, 0.25)' }} />
             <img 
               src={logoMetals} 
               alt="Lloyds Metals" 
-              style={{ height: '30px', maxWidth: '130px', objectFit: 'contain' }}
-              onError={(e) => { e.target.style.display = 'none'; }}
+              style={{ height: '28px', width: 'auto', objectFit: 'contain' }}
             />
           </div>
-
-          {/* Theme Mode Toggle Button */}
-          <button
-            id="btn-login-theme-toggle"
-            type="button"
-            onClick={toggleTheme}
-            className="theme-toggle-btn"
-            style={{
-              backgroundColor: 'rgba(255, 255, 255, 0.1)',
-              color: '#FFFFFF',
-              borderColor: 'rgba(255, 255, 255, 0.25)',
-              padding: '0.35rem 0.65rem',
-              fontSize: '0.75rem',
-              borderRadius: '6px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.35rem',
-              cursor: 'pointer'
-            }}
-            title={isDark ? "Switch to Day Mode (Light)" : "Switch to Night Mode (Dark)"}
-            aria-label="Toggle Theme Mode"
-          >
-            {isDark ? <Sun size={14} color="#F59E0B" /> : <Moon size={14} color="#CBD5E1" />}
-            <span>{isDark ? 'Day' : 'Night'}</span>
-          </button>
+          <div style={{ marginTop: '0.65rem', fontSize: '0.72rem', letterSpacing: '0.12em', color: 'rgba(255, 255, 255, 0.65)', fontWeight: 800, textTransform: 'uppercase' }}>
+            Lloyds Metals &amp; Energy Limited • Infrastructure Division
+          </div>
         </div>
 
-        {/* Login Form Body */}
-        <div style={{ padding: '2rem 2.25rem' }}>
-          {/* Executive Header */}
-          <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
+        {/* Center: System Value Proposition & 5 Pipeline Steps */}
+        <div style={{ position: 'relative', zIndex: 2, maxWidth: '560px', margin: 'auto 0' }}>
+          <div style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            padding: '0.35rem 0.85rem',
+            borderRadius: '9999px',
+            background: 'rgba(232, 35, 41, 0.18)',
+            border: '1px solid rgba(232, 35, 41, 0.45)',
+            color: '#FCA5A5',
+            fontSize: '0.75rem',
+            fontWeight: 800,
+            marginBottom: '1rem',
+            letterSpacing: '0.04em',
+            textTransform: 'uppercase'
+          }}>
+            <ShieldCheck size={14} color="#EF4444" />
+            <span>Enterprise Induction Platform</span>
+          </div>
+
+          <h1 style={{
+            fontSize: '2.5rem',
+            fontWeight: 800,
+            lineHeight: 1.15,
+            letterSpacing: '-0.02em',
+            marginBottom: '0.85rem',
+            color: '#FFFFFF'
+          }}>
+            Worker Onboarding <span style={{ color: '#E82329' }}>Software</span>
+          </h1>
+
+          <p style={{
+            fontSize: '0.95rem',
+            lineHeight: 1.55,
+            color: 'rgba(255, 255, 255, 0.75)',
+            marginBottom: '1.75rem'
+          }}>
+            Comprehensive 5-stage workforce induction, clinical health certification, EHS safety compliance, biometric gate pass issuance, and living quarters management.
+          </p>
+
+          {/* 5 Pipeline Stages Visual Chips */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(2, 1fr)',
+            gap: '0.75rem'
+          }}>
             <div style={{
-              width: '52px',
-              height: '52px',
-              borderRadius: '50%',
-              backgroundColor: `${activePreset.color}18`,
-              color: activePreset.color,
-              display: 'inline-flex',
+              display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center',
-              marginBottom: '0.75rem'
+              gap: '0.75rem',
+              padding: '0.65rem 0.85rem',
+              background: 'rgba(255, 255, 255, 0.05)',
+              borderRadius: '10px',
+              border: '1px solid rgba(255, 255, 255, 0.1)'
             }}>
-              <ShieldCheck size={28} />
+              <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(2, 132, 199, 0.25)', color: '#38BDF8', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <Users size={16} />
+              </div>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#FFFFFF' }}>Step 1: HR Induction</div>
+                <div style={{ fontSize: '0.68rem', color: 'rgba(255, 255, 255, 0.6)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Candidate Dossier &amp; Bio</div>
+              </div>
             </div>
 
-            <h1 style={{
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.75rem',
+              padding: '0.65rem 0.85rem',
+              background: 'rgba(255, 255, 255, 0.05)',
+              borderRadius: '10px',
+              border: '1px solid rgba(255, 255, 255, 0.1)'
+            }}>
+              <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(234, 88, 12, 0.25)', color: '#FB923C', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <Stethoscope size={16} />
+              </div>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#FFFFFF' }}>Step 2: Medical Health</div>
+                <div style={{ fontSize: '0.68rem', color: 'rgba(255, 255, 255, 0.6)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Clinical Screening &amp; Vitals</div>
+              </div>
+            </div>
+
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.75rem',
+              padding: '0.65rem 0.85rem',
+              background: 'rgba(255, 255, 255, 0.05)',
+              borderRadius: '10px',
+              border: '1px solid rgba(255, 255, 255, 0.1)'
+            }}>
+              <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(217, 119, 6, 0.25)', color: '#FCD34D', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <HardHat size={16} />
+              </div>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#FFFFFF' }}>Step 3: EHS Safety</div>
+                <div style={{ fontSize: '0.68rem', color: 'rgba(255, 255, 255, 0.6)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Hazard Training &amp; PPE</div>
+              </div>
+            </div>
+
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.75rem',
+              padding: '0.65rem 0.85rem',
+              background: 'rgba(255, 255, 255, 0.05)',
+              borderRadius: '10px',
+              border: '1px solid rgba(255, 255, 255, 0.1)'
+            }}>
+              <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(37, 99, 235, 0.25)', color: '#60A5FA', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <Fingerprint size={16} />
+              </div>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#FFFFFF' }}>Step 4: IT Biometrics</div>
+                <div style={{ fontSize: '0.68rem', color: 'rgba(255, 255, 255, 0.6)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>RFID Gate Pass Issuance</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Bottom: Live Gateway Status & Security Standards */}
+        <div style={{
+          position: 'relative',
+          zIndex: 2,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          paddingTop: '1.25rem',
+          borderTop: '1px solid rgba(255, 255, 255, 0.12)',
+          fontSize: '0.75rem',
+          color: 'rgba(255, 255, 255, 0.7)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span style={{
+              width: '8px',
+              height: '8px',
+              borderRadius: '50%',
+              backgroundColor: '#10B981',
+              boxShadow: '0 0 10px #10B981',
+              display: 'inline-block'
+            }} />
+            <span style={{ fontWeight: 600 }}>Microsoft Fabric SQL Gateway Connected</span>
+          </div>
+          <div style={{ fontWeight: 600 }}>OWASP ASVS 5.0 • JWT &amp; RBAC</div>
+        </div>
+      </div>
+
+      {/* ==================================================================== */}
+      {/* RIGHT AUTHENTICATION TERMINAL (Scroll-Free, Fits 100vh Perfectly)   */}
+      {/* ==================================================================== */}
+      <div className="login-auth-panel">
+        <div style={{ width: '100%', maxWidth: '440px', margin: '0 auto' }}>
+          {/* Top Bar: Portal Label + Theme Toggle */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            marginBottom: '1.25rem'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <div style={{
+                width: '28px',
+                height: '28px',
+                borderRadius: '8px',
+                background: 'linear-gradient(135deg, #DC2626, #991B1B)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#FFFFFF',
+                boxShadow: '0 2px 8px rgba(220, 38, 38, 0.35)'
+              }}>
+                <ShieldCheck size={16} />
+              </div>
+              <div>
+                <span style={{ fontSize: '0.75rem', fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>
+                  Authentication Terminal
+                </span>
+              </div>
+            </div>
+
+            <button
+              id="btn-login-theme-toggle"
+              type="button"
+              onClick={toggleTheme}
+              className="theme-toggle-btn"
+              style={{
+                backgroundColor: 'var(--bg-surface-subtle)',
+                color: 'var(--text-primary)',
+                border: '1px solid var(--border-medium)',
+                padding: '0.3rem 0.65rem',
+                fontSize: '0.75rem',
+                borderRadius: '6px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.35rem',
+                cursor: 'pointer'
+              }}
+              title={isDark ? "Switch to Day Mode" : "Switch to Night Mode"}
+              aria-label="Toggle Theme Mode"
+            >
+              {isDark ? <Sun size={13} color="#F59E0B" /> : <Moon size={13} color="#64748B" />}
+              <span>{isDark ? 'Day' : 'Night'}</span>
+            </button>
+          </div>
+
+          {/* Heading */}
+          <div style={{ marginBottom: '1.25rem' }}>
+            <h2 style={{
               fontSize: '1.35rem',
               fontWeight: 800,
               color: 'var(--text-primary)',
               letterSpacing: '-0.01em',
-              marginBottom: '0.25rem'
+              margin: '0 0 0.25rem 0'
             }}>
-              Department Login Portal
-            </h1>
+              Welcome Back
+            </h2>
             <p style={{
-              fontSize: '0.85rem',
+              fontSize: '0.825rem',
               color: 'var(--text-secondary)',
-              lineHeight: 1.4,
               margin: 0
             }}>
-              Lloyds Metals & Energy Limited • Worker Onboarding Software
+              Select your department profile or enter corporate credentials
             </p>
           </div>
 
-          {/* Quick Department Switcher Tabs */}
-          <div style={{ marginBottom: '1.5rem' }}>
+          {/* Quick Department Profile Chips (Compact 3x2 Grid) */}
+          <div style={{ marginBottom: '1rem' }}>
             <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              marginBottom: '0.5rem'
+              fontSize: '0.72rem',
+              fontWeight: 800,
+              color: 'var(--text-muted)',
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em',
+              marginBottom: '0.45rem'
             }}>
-              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                Select Department Profile
-              </span>
-              <button
-                type="button"
-                onClick={() => setShowDirectory(!showDirectory)}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  padding: 0,
-                  fontSize: '0.75rem',
-                  color: 'var(--brand-primary, #E82329)',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.25rem'
-                }}
-              >
-                <KeyRound size={12} />
-                <span>{showDirectory ? 'Hide Directory' : 'Department Directory'}</span>
-                {showDirectory ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-              </button>
+              Department Profiles
             </div>
 
-            {/* Department Preset Buttons */}
             <div style={{
               display: 'grid',
               gridTemplateColumns: 'repeat(3, 1fr)',
-              gap: '0.5rem'
+              gap: '0.45rem'
             }}>
               {DEPARTMENT_PRESETS.map((p) => {
                 const isSelected = selectedRole === p.role;
@@ -311,129 +459,87 @@ export const LoginPage = () => {
                     type="button"
                     onClick={() => handleSelectPreset(p)}
                     style={{
-                      padding: '0.6rem 0.5rem',
+                      padding: '0.45rem 0.35rem',
                       borderRadius: '8px',
                       border: isSelected ? `2px solid ${p.color}` : '1px solid var(--border-medium)',
-                      backgroundColor: isSelected ? `${p.color}15` : 'var(--bg-card)',
+                      backgroundColor: isSelected ? `${p.color}15` : 'var(--bg-surface-subtle)',
                       color: isSelected ? p.color : 'var(--text-primary)',
                       cursor: 'pointer',
                       textAlign: 'center',
                       display: 'flex',
-                      flexDirection: 'column',
                       alignItems: 'center',
-                      gap: '0.2rem',
-                      transition: 'all 0.15s ease'
+                      justifyContent: 'center',
+                      gap: '0.35rem',
+                      transition: 'all 0.15s ease',
+                      boxShadow: isSelected ? `0 2px 8px ${p.color}25` : 'none'
                     }}
                   >
-                    <span style={{ fontSize: '0.82rem', fontWeight: 700 }}>{p.badge}</span>
-                    <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>{p.stageName}</span>
+                    <span style={{ fontSize: '0.775rem', fontWeight: 800 }}>{p.badge}</span>
                   </button>
                 );
               })}
             </div>
           </div>
 
-          {/* Collapsible Department Directory */}
-          {showDirectory && (
-            <div style={{
-              marginBottom: '1.5rem',
-              padding: '1rem',
-              borderRadius: '8px',
-              backgroundColor: 'var(--bg-surface-subtle, #F8FAFC)',
-              border: '1px solid var(--border-medium, #E2E8F0)',
-              fontSize: '0.775rem'
-            }}>
-              <div style={{ fontWeight: 700, marginBottom: '0.6rem', color: 'var(--text-primary)' }}>
-                System Access Directory
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                {DEPARTMENT_PRESETS.map(p => (
-                  <div 
-                    key={p.role}
-                    onClick={() => handleSelectPreset(p)}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: '0.4rem 0.6rem',
-                      borderRadius: '6px',
-                      backgroundColor: selectedRole === p.role ? 'var(--bg-surface, #FFFFFF)' : 'transparent',
-                      border: selectedRole === p.role ? `1px solid ${p.color}40` : '1px solid transparent',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    <div>
-                      <div style={{ fontWeight: 600, color: p.color }}>{p.badge} - {p.name}</div>
-                      <div style={{ color: 'var(--text-muted)', fontSize: '0.72rem' }}>{p.email}</div>
-                    </div>
-                    <span style={{ fontSize: '0.72rem', fontWeight: 600, color: p.color, backgroundColor: `${p.color}15`, padding: '0.15rem 0.5rem', borderRadius: '4px' }}>
-                      {p.stageName}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
           {/* Active Profile Info Banner */}
           <div style={{
             display: 'flex',
             alignItems: 'center',
-            gap: '0.65rem',
-            padding: '0.65rem 0.85rem',
-            backgroundColor: `${activePreset.color}10`,
+            gap: '0.5rem',
+            padding: '0.5rem 0.75rem',
+            backgroundColor: `${activePreset.color}12`,
             borderRadius: '8px',
-            border: `1px solid ${activePreset.color}30`,
-            marginBottom: '1.25rem'
+            border: `1px solid ${activePreset.color}35`,
+            marginBottom: '1.15rem'
           }}>
-            <CheckCircle2 size={16} color={activePreset.color} style={{ flexShrink: 0 }} />
-            <div style={{ fontSize: '0.775rem', lineHeight: 1.35 }}>
-              <span style={{ fontWeight: 700, color: activePreset.color }}>{activePreset.name}</span>
-              <span style={{ color: 'var(--text-secondary)' }}> • {activePreset.designation}</span>
+            <CheckCircle2 size={15} color={activePreset.color} style={{ flexShrink: 0 }} />
+            <div style={{ fontSize: '0.775rem', lineHeight: 1.3, minWidth: 0, overflow: 'hidden' }}>
+              <span style={{ fontWeight: 800, color: activePreset.color }}>{activePreset.name}</span>
+              <span style={{ color: 'var(--text-muted)' }}> • {activePreset.designation}</span>
             </div>
           </div>
 
-          {/* Error Alert Message */}
+          {/* Error Message Alert */}
           {errorMsg && (
             <div style={{
               backgroundColor: 'rgba(239, 68, 68, 0.1)',
               border: '1px solid rgba(239, 68, 68, 0.3)',
               borderRadius: '8px',
-              padding: '0.75rem 1rem',
-              marginBottom: '1.25rem',
+              padding: '0.65rem 0.85rem',
+              marginBottom: '1rem',
               display: 'flex',
               alignItems: 'center',
-              gap: '0.6rem',
+              gap: '0.5rem',
               color: '#EF4444',
-              fontSize: '0.825rem',
+              fontSize: '0.8rem',
               fontWeight: 600
             }}>
-              <AlertCircle size={17} style={{ flexShrink: 0 }} />
+              <AlertCircle size={16} style={{ flexShrink: 0 }} />
               <span>{errorMsg}</span>
             </div>
           )}
 
           {/* Login Form */}
-          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.15rem' }}>
+          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
             {/* Username / Email Field */}
             <div>
               <label 
                 htmlFor="login-username"
                 style={{
                   display: 'block',
-                  fontSize: '0.8rem',
+                  fontSize: '0.775rem',
                   fontWeight: 700,
                   color: 'var(--text-primary)',
-                  marginBottom: '0.4rem'
+                  marginBottom: '0.35rem'
                 }}
               >
-                Username or Work Email
+                Work Email or Username
               </label>
               <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
                 <User 
-                  size={17} 
+                  size={15} 
                   color="var(--text-muted)" 
-                  style={{ position: 'absolute', left: '0.9rem', pointerEvents: 'none' }} 
+                  style={{ position: 'absolute', left: '0.85rem', pointerEvents: 'none' }} 
                 />
                 <input
                   id="login-username"
@@ -442,17 +548,17 @@ export const LoginPage = () => {
                   required
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder="Enter email or username alias (e.g. hr, medical, admin)"
+                  placeholder="Enter email or department alias"
                   style={{
                     width: '100%',
-                    padding: '0.75rem 1rem 0.75rem 2.65rem',
-                    fontSize: '0.9rem',
-                    backgroundColor: 'var(--bg-card)',
+                    padding: '0.65rem 0.85rem 0.65rem 2.45rem',
+                    fontSize: '0.85rem',
+                    backgroundColor: 'var(--bg-surface-subtle)',
                     border: '1px solid var(--border-medium)',
-                    borderRadius: 'var(--radius-md, 8px)',
+                    borderRadius: '8px',
                     color: 'var(--text-primary)',
                     outline: 'none',
-                    transition: 'all var(--transition-fast)'
+                    boxSizing: 'border-box'
                   }}
                 />
               </div>
@@ -465,30 +571,27 @@ export const LoginPage = () => {
                     setShowSSOModal(true);
                   }}
                   style={{
-                    marginTop: '0.45rem',
+                    marginTop: '0.4rem',
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
-                    padding: '0.45rem 0.75rem',
+                    padding: '0.4rem 0.65rem',
                     borderRadius: '6px',
-                    backgroundColor: '#EFF6FF',
-                    border: '1px solid #BFDBFE',
-                    color: '#1E40AF',
-                    fontSize: '0.75rem',
-                    transition: 'all 0.15s ease'
+                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                    border: '1px solid rgba(59, 130, 246, 0.25)',
+                    color: '#2563EB',
+                    fontSize: '0.725rem'
                   }}
                   title="Authenticate via Google Workspace Single Sign-On (@lloyds.in)"
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                    <GoogleLogo size={14} />
-                    <span>
-                      Corporate account (<strong>@{detectedDomain}</strong>)
-                    </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <GoogleLogo size={13} />
+                    <span>Company Account (<strong>@{detectedDomain}</strong>)</span>
                   </div>
-                  <span style={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.2rem', color: '#2563EB' }}>
-                    <span>Sign In with Google SSO</span>
-                    <ArrowRight size={12} />
+                  <span style={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
+                    <span>Google SSO</span>
+                    <ArrowRight size={11} />
                   </span>
                 </div>
               )}
@@ -496,23 +599,43 @@ export const LoginPage = () => {
 
             {/* Password Field */}
             <div>
-              <label 
-                htmlFor="login-password"
-                style={{
-                  display: 'block',
-                  fontSize: '0.8rem',
-                  fontWeight: 700,
-                  color: 'var(--text-primary)',
-                  marginBottom: '0.4rem'
-                }}
-              >
-                Password
-              </label>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
+                <label 
+                  htmlFor="login-password"
+                  style={{
+                    fontSize: '0.775rem',
+                    fontWeight: 700,
+                    color: 'var(--text-primary)'
+                  }}
+                >
+                  Password
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setShowChangePasswordModal(true)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--brand-primary)',
+                    fontSize: '0.75rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.25rem',
+                    padding: 0
+                  }}
+                >
+                  <Key size={12} />
+                  <span>Change Password</span>
+                </button>
+              </div>
+
               <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
                 <Lock 
-                  size={17} 
+                  size={15} 
                   color="var(--text-muted)" 
-                  style={{ position: 'absolute', left: '0.9rem', pointerEvents: 'none' }} 
+                  style={{ position: 'absolute', left: '0.85rem', pointerEvents: 'none' }} 
                 />
                 <input
                   id="login-password"
@@ -521,17 +644,17 @@ export const LoginPage = () => {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter password"
+                  placeholder="Enter account password"
                   style={{
                     width: '100%',
-                    padding: '0.75rem 2.75rem 0.75rem 2.65rem',
-                    fontSize: '0.9rem',
-                    backgroundColor: 'var(--bg-card)',
+                    padding: '0.65rem 2.45rem 0.65rem 2.45rem',
+                    fontSize: '0.85rem',
+                    backgroundColor: 'var(--bg-surface-subtle)',
                     border: '1px solid var(--border-medium)',
-                    borderRadius: 'var(--radius-md, 8px)',
+                    borderRadius: '8px',
                     color: 'var(--text-primary)',
                     outline: 'none',
-                    transition: 'all var(--transition-fast)'
+                    boxSizing: 'border-box'
                   }}
                 />
                 <button
@@ -546,129 +669,102 @@ export const LoginPage = () => {
                     color: 'var(--text-muted)',
                     display: 'flex',
                     alignItems: 'center',
-                    padding: '4px'
+                    padding: '3px'
                   }}
                   title={showPassword ? "Hide password" : "Show password"}
                   aria-label={showPassword ? "Hide password" : "Show password"}
                 >
-                  {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                  {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
                 </button>
               </div>
             </div>
 
-            {/* Change Password Link */}
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.65rem', marginTop: '-0.25rem' }}>
-              <button
-                type="button"
-                onClick={() => setShowChangePasswordModal(true)}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: 'var(--brand-primary)',
-                  fontSize: '0.78rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.35rem',
-                  padding: '0.2rem 0'
-                }}
-              >
-                <Key size={13} />
-                <span>Change Password</span>
-              </button>
-            </div>
-
-            {/* Submit Button */}
+            {/* Primary Sign In Button */}
             <button
               id="btn-login-submit"
               type="submit"
               disabled={isLoading}
               className="btn btn-primary"
               style={{
-                marginTop: '0.5rem',
-                padding: '0.8rem 1.5rem',
-                fontSize: '0.95rem',
-                fontWeight: 700,
+                marginTop: '0.25rem',
+                padding: '0.7rem 1.25rem',
+                fontSize: '0.9rem',
+                fontWeight: 800,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: '0.5rem',
                 width: '100%',
-                borderRadius: 'var(--radius-md, 8px)',
-                cursor: isLoading ? 'wait' : 'pointer'
+                borderRadius: '8px',
+                cursor: isLoading ? 'wait' : 'pointer',
+                backgroundColor: 'var(--brand-primary, #E82329)',
+                boxShadow: '0 4px 14px rgba(232, 35, 41, 0.35)'
               }}
             >
-              <Lock size={16} />
-              <span>{isLoading ? 'Authenticating...' : `Sign In to ${activePreset.stageName} (${activePreset.role})`}</span>
-              <ArrowRight size={16} />
+              <Lock size={15} />
+              <span>{isLoading ? 'Authenticating...' : `Sign In to ${activePreset.stageName}`}</span>
+              <ArrowRight size={15} />
             </button>
           </form>
 
-          {/* Enterprise Single Sign-On (SSO) Section */}
-          <div style={{ marginTop: '1.25rem' }}>
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              marginBottom: '0.85rem',
-              color: 'var(--text-muted)'
-            }}>
-              <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--border-light)' }} />
-              <span style={{ padding: '0 0.75rem', fontSize: '0.72rem', fontWeight: 800, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>
-                Or Sign In With Enterprise SSO
-              </span>
-              <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--border-light)' }} />
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-              {/* Google Workspace SSO (@lloyds.in) */}
-              <button
-                id="btn-sso-google"
-                type="button"
-                onClick={() => {
-                  setSsoProvider('GOOGLE');
-                  setShowSSOModal(true);
-                }}
-                className="btn btn-secondary"
-                style={{
-                  width: '100%',
-                  padding: '0.75rem 1rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '0.75rem',
-                  fontSize: '0.875rem',
-                  fontWeight: 700,
-                  backgroundColor: 'var(--bg-card)',
-                  borderColor: 'var(--border-medium)',
-                  color: 'var(--text-primary)',
-                  boxShadow: 'var(--shadow-xs)'
-                }}
-              >
-                <GoogleLogo size={20} />
-                <span>Sign in with Google Workspace (@lloyds.in)</span>
-              </button>
-            </div>
+          {/* SSO Alternative Separator */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            margin: '1.15rem 0 0.75rem 0',
+            color: 'var(--text-muted)'
+          }}>
+            <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--border-light)' }} />
+            <span style={{ padding: '0 0.65rem', fontSize: '0.68rem', fontWeight: 800, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>
+              Or Continue With
+            </span>
+            <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--border-light)' }} />
           </div>
 
-          {/* Security & Access Info Footer */}
+          {/* Google Workspace SSO Button */}
+          <button
+            id="btn-sso-google"
+            type="button"
+            onClick={() => {
+              setSsoProvider('GOOGLE');
+              setShowSSOModal(true);
+            }}
+            className="btn btn-secondary"
+            style={{
+              width: '100%',
+              padding: '0.65rem 1rem',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '0.65rem',
+              fontSize: '0.825rem',
+              fontWeight: 700,
+              backgroundColor: 'var(--bg-surface-subtle)',
+              borderColor: 'var(--border-medium)',
+              color: 'var(--text-primary)',
+              borderRadius: '8px'
+            }}
+          >
+            <GoogleLogo size={18} />
+            <span>Sign in with Google Workspace (@lloyds.in)</span>
+          </button>
+
+          {/* Footer Security Badges */}
           <div style={{
-            marginTop: '1.75rem',
-            paddingTop: '1.25rem',
+            marginTop: '1.25rem',
+            paddingTop: '0.85rem',
             borderTop: '1px solid var(--border-light)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            fontSize: '0.75rem',
-            color: 'var(--text-muted)',
-            flexWrap: 'wrap',
-            gap: '0.5rem'
+            fontSize: '0.725rem',
+            color: 'var(--text-muted)'
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-              <Shield size={14} color="var(--success-solid)" />
-              <span>OWASP ASVS 5.0 Secured</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+              <Shield size={13} color="#10B981" />
+              <span>TLS 1.3 &amp; 256-Bit Encrypted</span>
             </div>
-            <span>Lloyds Metals & Energy Portal</span>
+            <span>Lloyds Metals &amp; Energy</span>
           </div>
         </div>
       </div>
