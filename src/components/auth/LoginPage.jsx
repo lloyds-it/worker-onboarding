@@ -322,7 +322,7 @@ export const LoginPage = () => {
               </div>
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#FFFFFF' }}>Step 4: IT Biometrics</div>
-                <div style={{ fontSize: '0.68rem', color: 'rgba(255, 255, 255, 0.6)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>RFID Gate Pass Issuance</div>
+                <div style={{ fontSize: '0.68rem', color: 'rgba(255, 255, 255, 0.6)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Biometrics and CWMS</div>
               </div>
             </div>
 
