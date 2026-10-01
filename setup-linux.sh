@@ -84,14 +84,14 @@ echo "=========================================================="
 echo "🌐 6/6: Configuring Nginx Reverse Proxy"
 echo "=========================================================="
 
-# If taskai.lloyds.in config already exists, check if /onboarding/ is already configured
+# If taskai.lloyds.in config already exists, check if /workeronboarding/ is already configured
 if [ -f "$TASKAI_CONF" ]; then
-    if ! grep -q "location /onboarding/" "$TASKAI_CONF"; then
-        echo "Appending /onboarding/ route into $TASKAI_CONF..."
+    if ! grep -q "location /workeronboarding/" "$TASKAI_CONF"; then
+        echo "Appending /workeronboarding/ route into $TASKAI_CONF..."
         # Insert before the last closing brace
         sed -i '$e cat '"$APP_DIR/.deployment/nginx.conf" "$TASKAI_CONF"
     else
-        echo "/onboarding/ location block already present in $TASKAI_CONF"
+        echo "/workeronboarding/ location block already present in $TASKAI_CONF"
     fi
 else
     # Install as standalone site
@@ -110,7 +110,7 @@ systemctl reload nginx
 echo "=========================================================="
 echo "🎉 SETUP COMPLETED SUCCESSFULLY!"
 echo "=========================================================="
-echo "🌐 Web Application: https://taskai.lloyds.in/onboarding/"
+echo "🌐 Web Application: https://taskai.lloyds.in/workeronboarding/"
 echo "⚡ Backend REST API: http://127.0.0.1:5000/api/"
 echo "📁 Deploy Directory: /var/www/worker-onboarding"
 echo "=========================================================="

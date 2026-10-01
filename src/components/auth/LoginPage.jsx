@@ -260,7 +260,7 @@ export const LoginPage = () => {
               lineHeight: 1.4,
               margin: 0
             }}>
-              Lloyds Metals & Energy Limited • Worker Induction & Camp Management System
+              Lloyds Metals & Energy Limited • Worker Onboarding Software
             </p>
           </div>
 

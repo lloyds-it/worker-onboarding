@@ -86,9 +86,11 @@ app.use(cors({
 
 app.use(express.json({ limit: '10mb' }));
 
-// Resilient Subpath Normalization: seamlessly route requests with or without /onboarding prefix
+// Resilient Subpath Normalization: seamlessly route requests with or without subpath prefix
 app.use((req, res, next) => {
-  if (req.url.startsWith('/onboarding/api')) {
+  if (req.url.startsWith('/workeronboarding/api')) {
+    req.url = req.url.replace('/workeronboarding/api', '/api');
+  } else if (req.url.startsWith('/onboarding/api')) {
     req.url = req.url.replace('/onboarding/api', '/api');
   }
   next();
@@ -800,11 +802,12 @@ const __dirname = path.dirname(__filename);
 const distPath = path.join(__dirname, '../dist');
 
 if (fs.existsSync(distPath)) {
+  app.use('/workeronboarding', express.static(distPath));
   app.use('/onboarding', express.static(distPath));
   app.use(express.static(distPath));
   // Client SPA routing: any non-API request serves index.html (Express 5 compatible)
   app.use((req, res) => {
-    if (req.path.startsWith('/api') || req.path.startsWith('/onboarding/api')) {
+    if (req.path.startsWith('/api') || req.path.startsWith('/workeronboarding/api') || req.path.startsWith('/onboarding/api')) {
       return res.status(404).json({ error: 'Endpoint not found' });
     }
     res.sendFile(path.join(distPath, 'index.html'));

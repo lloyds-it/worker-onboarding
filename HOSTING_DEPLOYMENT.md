@@ -29,10 +29,10 @@ graph TD
 | Component                   | Detail                                                 |
 | --------------------------- | ------------------------------------------------------ |
 | **Domain**            | `https://taskai.lloyds.in`                           |
-| **Frontend Web Path** | `https://taskai.lloyds.in/onboarding/`               |
-| **Backend API Path**  | `https://taskai.lloyds.in/onboarding/api/`           |
+| **Frontend Web Path** | `https://taskai.lloyds.in/workeronboarding/`         |
+| **Backend API Path**  | `https://taskai.lloyds.in/workeronboarding/api/`     |
 | **Internal API Port** | `http://127.0.0.1:5000`                              |
-| **Operating System**  | Linux (Ubuntu / Debian) with`systemd` and `nginx`  |
+| **Operating System**  | Linux (Ubuntu / Debian) with `systemd` and `nginx`   |
 | **Deploy Directory**  | `/var/www/worker-onboarding/`                        |
 | **Process User**      | `www-data`                                           |
 | **GitHub Repository** | `https://github.com/lloyds-it/worker-onboarding.git` |
