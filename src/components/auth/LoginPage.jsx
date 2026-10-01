@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   ShieldCheck, 
   Lock, 
@@ -117,6 +117,19 @@ export const LoginPage = () => {
 
   // Single Sign-On (SSO) is disabled for now
   const isSSOEnabled = false;
+
+  // Ensure stale hash (e.g. #departments, #users, #pipeline) is stripped from the URL on login page
+  useEffect(() => {
+    try {
+      if (typeof window !== 'undefined' && window.location.hash) {
+        if (window.history && window.history.replaceState) {
+          window.history.replaceState(null, '', window.location.pathname + window.location.search);
+        } else {
+          window.location.hash = '';
+        }
+      }
+    } catch (e) {}
+  }, []);
 
   // Corporate Domain Auto-Detection (active only when SSO is enabled)
   const isCorporateDomain = isSSOEnabled && Boolean(

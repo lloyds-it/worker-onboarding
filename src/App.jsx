@@ -252,6 +252,15 @@ const AppContent = () => {
   }, [currentRole, isAuthenticated, setSelectedStageFilter]);
 
   if (!isAuthenticated) {
+    if (typeof window !== 'undefined' && window.location.hash) {
+      try {
+        if (window.history && window.history.replaceState) {
+          window.history.replaceState(null, '', window.location.pathname + window.location.search);
+        } else {
+          window.location.hash = '';
+        }
+      } catch (e) {}
+    }
     return <LoginPage />;
   }
 

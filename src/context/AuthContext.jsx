@@ -471,6 +471,17 @@ export const AuthProvider = ({ children }) => {
     setCurrentRole(null);
     setCurrentUser(null);
     localStorage.removeItem(AUTH_SESSION_KEY);
+
+    // Strip stale URL hash (e.g. #departments, #users, #pipeline) upon logout
+    try {
+      if (typeof window !== 'undefined') {
+        if (window.history && window.history.replaceState) {
+          window.history.replaceState(null, '', window.location.pathname + window.location.search);
+        } else {
+          window.location.hash = '';
+        }
+      }
+    } catch (e) {}
   };
 
   // Admin creates new user (Synchronized with backend REST API and local state)
