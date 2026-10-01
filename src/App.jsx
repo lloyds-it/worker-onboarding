@@ -464,7 +464,9 @@ export default function App() {
     <ThemeProvider>
       <AuthProvider>
         <WorkerProvider>
-          <AppContent />
+          <ErrorBoundary>
+            <AppContent />
+          </ErrorBoundary>
         </WorkerProvider>
       </AuthProvider>
     </ThemeProvider>

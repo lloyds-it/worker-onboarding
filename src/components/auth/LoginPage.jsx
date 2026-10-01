@@ -106,6 +106,7 @@ export const LoginPage = () => {
   const [showSSOModal, setShowSSOModal] = useState(false);
   const [ssoProvider, setSsoProvider] = useState('GOOGLE');
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
+  const [showDirectory, setShowDirectory] = useState(false);
 
   // Corporate Domain Auto-Detection
   const isCorporateDomain = Boolean(
@@ -276,7 +277,7 @@ export const LoginPage = () => {
               </span>
               <button
                 type="button"
-                onClick={() => setShowCredentialsTable(!showCredentialsTable)}
+                onClick={() => setShowDirectory(!showDirectory)}
                 style={{
                   background: 'none',
                   border: 'none',
@@ -291,8 +292,8 @@ export const LoginPage = () => {
                 }}
               >
                 <KeyRound size={12} />
-                <span>{showCredentialsTable ? 'Hide Details' : 'View All Credentials'}</span>
-                {showCredentialsTable ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                <span>{showDirectory ? 'Hide Directory' : 'Department Directory'}</span>
+                {showDirectory ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
               </button>
             </div>
 
@@ -332,14 +333,14 @@ export const LoginPage = () => {
             </div>
           </div>
 
-          {/* Collapsible Credentials Reference Sheet */}
-          {showCredentialsTable && (
+          {/* Collapsible Department Directory */}
+          {showDirectory && (
             <div style={{
               marginBottom: '1.5rem',
               padding: '1rem',
               borderRadius: '8px',
-              backgroundColor: 'var(--bg-card)',
-              border: '1px solid var(--border-medium)',
+              backgroundColor: 'var(--bg-surface-subtle, #F8FAFC)',
+              border: '1px solid var(--border-medium, #E2E8F0)',
               fontSize: '0.775rem'
             }}>
               <div style={{ fontWeight: 700, marginBottom: '0.6rem', color: 'var(--text-primary)' }}>
@@ -356,7 +357,8 @@ export const LoginPage = () => {
                       justifyContent: 'space-between',
                       padding: '0.4rem 0.6rem',
                       borderRadius: '6px',
-                      backgroundColor: selectedRole === p.role ? 'var(--bg-hover)' : 'transparent',
+                      backgroundColor: selectedRole === p.role ? 'var(--bg-surface, #FFFFFF)' : 'transparent',
+                      border: selectedRole === p.role ? `1px solid ${p.color}40` : '1px solid transparent',
                       cursor: 'pointer'
                     }}
                   >
@@ -364,15 +366,9 @@ export const LoginPage = () => {
                       <div style={{ fontWeight: 600, color: p.color }}>{p.badge} - {p.name}</div>
                       <div style={{ color: 'var(--text-muted)', fontSize: '0.72rem' }}>{p.email}</div>
                     </div>
-                    <code style={{
-                      backgroundColor: 'var(--bg-input)',
-                      padding: '0.2rem 0.4rem',
-                      borderRadius: '4px',
-                      fontFamily: 'monospace',
-                      fontSize: '0.72rem'
-                    }}>
-                      {getActivePasswordForRole(p.role, p.password)}
-                    </code>
+                    <span style={{ fontSize: '0.72rem', fontWeight: 600, color: p.color, backgroundColor: `${p.color}15`, padding: '0.15rem 0.5rem', borderRadius: '4px' }}>
+                      {p.stageName}
+                    </span>
                   </div>
                 ))}
               </div>
