@@ -27,6 +27,7 @@ export const Step1HR = ({ initialData, onSave, isReadOnly }) => {
   });
 
   const [errors, setErrors] = useState({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   React.useEffect(() => {
     if (initialData) {
@@ -75,7 +76,7 @@ export const Step1HR = ({ initialData, onSave, isReadOnly }) => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (isReadOnly) return;
+    if (isReadOnly || isSubmitting) return;
 
     const validation = validateHRStep(formData);
     if (!validation.isValid) {
@@ -86,7 +87,11 @@ export const Step1HR = ({ initialData, onSave, isReadOnly }) => {
       }
       return;
     }
+    setIsSubmitting(true);
     onSave(formData);
+    setTimeout(() => {
+      setIsSubmitting(false);
+    }, 2500);
   };
 
   return (
@@ -428,8 +433,8 @@ export const Step1HR = ({ initialData, onSave, isReadOnly }) => {
               * Please resolve the required fields above before routing to Medical Team.
             </div>
           )}
-          <button id="btn-save-step1" type="submit" className="btn btn-primary">
-            <span>Save & Route to Medical Team</span>
+          <button id="btn-save-step1" type="submit" disabled={isSubmitting} className="btn btn-primary">
+            <span>{isSubmitting ? 'Routing Candidate...' : 'Save & Route to Medical Team'}</span>
             <CheckCircle2 size={16} />
           </button>
         </div>

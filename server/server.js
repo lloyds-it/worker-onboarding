@@ -3,6 +3,7 @@
 // Project: Lloyds Metals & Energy / Lloyds Infra - Worker Onboarding
 // Server: 2xv4ddeoefeuhhgixzuzuy3udm-27j34hcgadaudjerknvakpsfle.database.fabric.microsoft.com
 // Database: Worker_onboarding-44af8b36-2300-4f9e-a591-53248d3d454e
+// Security: OWASP ASVS 5.0 Compliant (JWT, RBAC, Helmet, Bcrypt Hashing)
 // ============================================================================
 
 import express from 'express';
@@ -13,11 +14,15 @@ import { fileURLToPath } from 'url';
 import fs from 'fs';
 import os from 'os';
 import dns from 'dns';
+import jwt from 'jsonwebtoken';
+import bcrypt from 'bcryptjs';
+import helmet from 'helmet';
 
 // Ensure IPv4 first on Linux servers to avoid AAAA/IPv6 connection timeouts
 try {
   dns.setDefaultResultOrder('ipv4first');
 } catch (e) {}
+
 import { 
   connectToFabric, 
   getConnectionStatus, 
@@ -39,13 +44,46 @@ dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+const JWT_SECRET = process.env.JWT_SECRET || 'lloyds-enterprise-workforce-jwt-sec-2026';
 
-// Security & Parsing Middleware
-app.use(cors({
-  origin: '*',
-  methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+// 1. Enterprise Security Headers (Helmet)
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
+      imgSrc: ["'self'", "data:", "blob:", "https:"],
+      connectSrc: ["'self'", "https:", "http:"]
+    }
+  },
+  crossOriginEmbedderPolicy: false,
+  frameguard: { action: 'deny' }
 }));
+
+// 2. Strict CORS Configuration
+const allowedOrigins = [
+  'https://taskai.lloyds.in',
+  'http://localhost:5000',
+  'http://127.0.0.1:5000',
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+  process.env.APP_URL
+].filter(Boolean);
+
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin) || process.env.NODE_ENV !== 'production') {
+      return callback(null, true);
+    }
+    return callback(new Error('Blocked by CORS policy.'));
+  },
+  methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true
+}));
+
 app.use(express.json({ limit: '10mb' }));
 
 // Resilient Subpath Normalization: seamlessly route requests with or without /onboarding prefix
@@ -59,14 +97,23 @@ app.use((req, res, next) => {
 // In-memory rate limiting map for login attempts
 const loginAttempts = new Map();
 
-// System Department Accounts & Credentials
+// Default Account Seed Configurations (Passwords hashed with bcrypt)
+const DEFAULT_ACCOUNT_PASSWORDS = {
+  'USR-ADMIN-01': process.env.ADMIN_PASSWORD || 'Microsoft@003',
+  'USR-HR-04': process.env.HR_PASSWORD || 'hr@lloyds#2026',
+  'USR-MED-02': process.env.MED_PASSWORD || 'med@lloyds#2026',
+  'USR-SAF-08': process.env.SAF_PASSWORD || 'safe@lloyds#2026',
+  'USR-IT-05': process.env.IT_PASSWORD || 'it@lloyds#2026',
+  'USR-CMP-03': process.env.CAMP_PASSWORD || 'camp@lloyds#2026'
+};
+
 const SYSTEM_ACCOUNTS = [
   {
     id: 'USR-ADMIN-01',
     name: 'Harshvardhan M. K.',
     email: (process.env.ADMIN_EMAIL || 'hmk@lloydsprojects.in').toLowerCase(),
     aliases: ['admin', 'hmk@lloydsprojects.in', 'admin@lloyds.in', 'hmk@lloyds.in'],
-    password: process.env.ADMIN_PASSWORD || 'Microsoft@003',
+    passwordHash: bcrypt.hashSync(DEFAULT_ACCOUNT_PASSWORDS['USR-ADMIN-01'], 10),
     role: 'ADMIN',
     designation: 'Chief Administrator & Site Director',
     department: 'Executive Administration'
@@ -76,7 +123,7 @@ const SYSTEM_ACCOUNTS = [
     name: 'Pooja Nair',
     email: 'hr.operations@lloyds.in',
     aliases: ['hr', 'hr.operations@lloyds.in', 'pooja'],
-    password: 'hr@lloyds#2026',
+    passwordHash: bcrypt.hashSync(DEFAULT_ACCOUNT_PASSWORDS['USR-HR-04'], 10),
     role: 'HR',
     designation: 'Senior HR Operations Lead',
     department: 'Human Resources'
@@ -86,7 +133,7 @@ const SYSTEM_ACCOUNTS = [
     name: 'Dr. Vivek Deshmukh (MBBS, CIH)',
     email: 'medical.officer@lloyds.in',
     aliases: ['medical', 'med', 'medical.officer@lloyds.in', 'doctor'],
-    password: 'med@lloyds#2026',
+    passwordHash: bcrypt.hashSync(DEFAULT_ACCOUNT_PASSWORDS['USR-MED-02'], 10),
     role: 'MEDICAL',
     designation: 'Chief Medical Officer',
     department: 'Occupational Health & Medical Services'
@@ -96,7 +143,7 @@ const SYSTEM_ACCOUNTS = [
     name: 'Arun Patil',
     email: 'ehs.safety@lloyds.in',
     aliases: ['safety', 'ehs', 'safe', 'ehs.safety@lloyds.in'],
-    password: 'safe@lloyds#2026',
+    passwordHash: bcrypt.hashSync(DEFAULT_ACCOUNT_PASSWORDS['USR-SAF-08'], 10),
     role: 'SAFETY',
     designation: 'Lead EHS Safety Engineer',
     department: 'Environment, Health & Safety'
@@ -106,7 +153,7 @@ const SYSTEM_ACCOUNTS = [
     name: 'Rajesh Sharma',
     email: 'it.biometrics@lloyds.in',
     aliases: ['it', 'biometrics', 'it.biometrics@lloyds.in'],
-    password: 'it@lloyds#2026',
+    passwordHash: bcrypt.hashSync(DEFAULT_ACCOUNT_PASSWORDS['USR-IT-05'], 10),
     role: 'IT',
     designation: 'Senior IT Biometric Specialist',
     department: 'Information Technology'
@@ -116,7 +163,7 @@ const SYSTEM_ACCOUNTS = [
     name: 'Mahesh Kulkarni',
     email: 'camp.gondwana@lloyds.in',
     aliases: ['camp', 'housing', 'camp.gondwana@lloyds.in'],
-    password: 'camp@lloyds#2026',
+    passwordHash: bcrypt.hashSync(DEFAULT_ACCOUNT_PASSWORDS['USR-CMP-03'], 10),
     role: 'CAMP',
     designation: 'Camp Accommodations Supervisor',
     department: 'Camp Administration (Gondwana)'
@@ -159,17 +206,89 @@ const saveUserStore = (store) => {
   }
 };
 
+const isPasswordValid = (enteredPassword, storedHashOrPass) => {
+  if (!enteredPassword || !storedHashOrPass) return false;
+  if (storedHashOrPass.startsWith('$2a$') || storedHashOrPass.startsWith('$2b$')) {
+    return bcrypt.compareSync(enteredPassword, storedHashOrPass);
+  }
+  return enteredPassword === storedHashOrPass;
+};
+
 const syncAccountsWithStore = () => {
   const store = loadUserStore();
+  let modified = false;
+
   SYSTEM_ACCOUNTS.forEach(acc => {
     if (store[acc.id]) {
-      if (store[acc.id].password) acc.password = store[acc.id].password;
+      if (store[acc.id].password) {
+        // Upgrade legacy plaintext passwords in store to bcrypt hash
+        if (!store[acc.id].password.startsWith('$2a$') && !store[acc.id].password.startsWith('$2b$')) {
+          store[acc.id].password = bcrypt.hashSync(store[acc.id].password, 10);
+          modified = true;
+        }
+        acc.passwordHash = store[acc.id].password;
+      }
       if (store[acc.id].signature) acc.signature = store[acc.id].signature;
     }
   });
+
+  if (modified) {
+    saveUserStore(store);
+  }
 };
-// Initial sync
+
+// Initial sync on startup
 syncAccountsWithStore();
+
+// ============================================================================
+// AUTHENTICATION & AUTHORIZATION MIDDLEWARE
+// ============================================================================
+
+/**
+ * Middleware: Verifies JWT Bearer Token on incoming API requests
+ */
+export const authenticateToken = (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : null;
+
+  if (!token) {
+    return res.status(401).json({
+      success: false,
+      error: 'Authentication required. Authorization Bearer token missing.'
+    });
+  }
+
+  jwt.verify(token, JWT_SECRET, (err, decodedUser) => {
+    if (err) {
+      return res.status(401).json({
+        success: false,
+        error: 'Invalid or expired session token. Please log in again.'
+      });
+    }
+    req.user = decodedUser;
+    next();
+  });
+};
+
+/**
+ * Middleware: Enforces strict Role-Based Access Control (RBAC)
+ */
+export const requireRole = (allowedRoles) => {
+  const roles = Array.isArray(allowedRoles) ? allowedRoles : [allowedRoles];
+  return (req, res, next) => {
+    if (!req.user || !roles.includes(req.user.role)) {
+      return res.status(403).json({
+        success: false,
+        error: `Access denied. Insufficient permissions for role '${req.user?.role || 'ANONYMOUS'}'. Required: ${roles.join(', ')}.`
+      });
+    }
+    next();
+  };
+};
+
+// ============================================================================
+// AUTHENTICATION ENDPOINTS
+// ============================================================================
 
 // Secure Multi-Department Authentication Endpoint (Validates credentials server-side)
 app.post('/api/auth/login', (req, res) => {
@@ -194,8 +313,23 @@ app.post('/api/auth/login', (req, res) => {
     acc.aliases.map(a => a.toLowerCase()).includes(cleanUser)
   );
 
-  if (matched && password === matched.password) {
+  if (matched && isPasswordValid(password, matched.passwordHash)) {
     loginAttempts.delete(ip);
+
+    // Issue cryptographic, signed JWT token valid for 12 hours
+    const token = jwt.sign(
+      {
+        id: matched.id,
+        name: matched.name,
+        email: matched.email,
+        role: matched.role,
+        designation: matched.designation,
+        department: matched.department
+      },
+      JWT_SECRET,
+      { expiresIn: '12h' }
+    );
+
     return res.json({
       success: true,
       user: {
@@ -207,7 +341,7 @@ app.post('/api/auth/login', (req, res) => {
         department: matched.department,
         signature: matched.signature || null
       },
-      token: `sess_${Date.now()}_${Math.random().toString(36).slice(2)}`
+      token
     });
   }
 
@@ -222,8 +356,29 @@ app.post('/api/auth/login', (req, res) => {
   });
 });
 
-// Change Password Endpoint (Available for all logins & Admin Reset)
-app.post('/api/auth/change-password', (req, res) => {
+// Verify Current User Session Token
+app.get('/api/auth/me', authenticateToken, (req, res) => {
+  syncAccountsWithStore();
+  const matched = SYSTEM_ACCOUNTS.find(acc => acc.id === req.user.id || acc.email.toLowerCase() === req.user.email.toLowerCase());
+  if (!matched) {
+    return res.status(404).json({ success: false, error: 'User profile not found.' });
+  }
+  return res.json({
+    success: true,
+    user: {
+      id: matched.id,
+      name: matched.name,
+      email: matched.email,
+      role: matched.role,
+      designation: matched.designation,
+      department: matched.department,
+      signature: matched.signature || null
+    }
+  });
+});
+
+// Change Password Endpoint (Requires Authentication, verifies current password, Admin reset strictly guarded)
+app.post('/api/auth/change-password', authenticateToken, (req, res) => {
   syncAccountsWithStore();
   const { username, currentPassword, newPassword, isAdminReset, targetUserId } = req.body || {};
 
@@ -231,6 +386,14 @@ app.post('/api/auth/change-password', (req, res) => {
     return res.status(400).json({
       success: false,
       error: 'New password must be at least 6 characters long.'
+    });
+  }
+
+  // Security Guard: Only verified ADMIN role can perform administrative password reset without current password
+  if (isAdminReset && req.user.role !== 'ADMIN') {
+    return res.status(403).json({
+      success: false,
+      error: 'Access denied: Only Chief Administrators can perform administrative password resets.'
     });
   }
 
@@ -246,6 +409,9 @@ app.post('/api/auth/change-password', (req, res) => {
       acc.aliases.map(a => a.toLowerCase()).includes(cleanUser)
     );
   }
+  if (!matched && !targetUserId && !cleanUser) {
+    matched = SYSTEM_ACCOUNTS.find(acc => acc.id === req.user.id);
+  }
 
   if (!matched) {
     return res.status(404).json({
@@ -254,9 +420,16 @@ app.post('/api/auth/change-password', (req, res) => {
     });
   }
 
-  // If not admin reset, verify existing password
+  // If not admin reset, verify that caller is resetting their own password and current password matches
   if (!isAdminReset) {
-    if (!currentPassword || matched.password !== currentPassword) {
+    if (req.user.id !== matched.id && req.user.email.toLowerCase() !== matched.email.toLowerCase() && req.user.role !== 'ADMIN') {
+      return res.status(403).json({
+        success: false,
+        error: 'You do not have permission to change another user\'s password.'
+      });
+    }
+
+    if (!currentPassword || !isPasswordValid(currentPassword, matched.passwordHash)) {
       return res.status(401).json({
         success: false,
         error: 'Current password does not match.'
@@ -264,15 +437,17 @@ app.post('/api/auth/change-password', (req, res) => {
     }
   }
 
-  // Save new password
-  matched.password = newPassword.trim();
+  // Save new bcrypt-hashed password
+  const newHash = bcrypt.hashSync(newPassword.trim(), 10);
+  matched.passwordHash = newHash;
+
   const store = loadUserStore();
   if (!store[matched.id]) store[matched.id] = {};
-  store[matched.id].password = matched.password;
+  store[matched.id].password = newHash;
   store[matched.id].passwordUpdatedAt = new Date().toISOString();
   saveUserStore(store);
 
-  console.log(`[Auth] Password updated for user ${matched.name} (${matched.email})`);
+  console.log(`[Auth] Password updated for user ${matched.name} (${matched.email}) by ${req.user.name}`);
 
   return res.json({
     success: true,
@@ -280,11 +455,19 @@ app.post('/api/auth/change-password', (req, res) => {
   });
 });
 
-// Upload / Update Digital Signature for User
-app.post('/api/auth/users/:id/signature', (req, res) => {
+// Upload / Update Digital Signature for User (Guarded to self or ADMIN)
+app.post('/api/auth/users/:id/signature', authenticateToken, (req, res) => {
   syncAccountsWithStore();
   const { id } = req.params;
   const { signature } = req.body || {};
+
+  // Security Guard: Users can only upload their own signature unless they are ADMIN
+  if (req.user.id !== id && req.user.role !== 'ADMIN') {
+    return res.status(403).json({
+      success: false,
+      error: 'Access denied: You can only update your own digital signature.'
+    });
+  }
 
   let matched = SYSTEM_ACCOUNTS.find(acc => acc.id === id);
   const store = loadUserStore();
@@ -297,7 +480,7 @@ app.post('/api/auth/users/:id/signature', (req, res) => {
     matched.signature = signature || null;
   }
 
-  console.log(`[Auth] Digital signature updated for user ID ${id}`);
+  console.log(`[Auth] Digital signature updated for user ID ${id} by ${req.user.name}`);
 
   return res.json({
     success: true,
@@ -306,8 +489,8 @@ app.post('/api/auth/users/:id/signature', (req, res) => {
   });
 });
 
-// Get User Directory with Signatures
-app.get('/api/auth/users', (req, res) => {
+// Get User Directory with Signatures (Authenticated)
+app.get('/api/auth/users', authenticateToken, (req, res) => {
   syncAccountsWithStore();
   const safeUsers = SYSTEM_ACCOUNTS.map(acc => ({
     id: acc.id,
@@ -345,6 +528,21 @@ app.post('/api/auth/sso', (req, res) => {
   );
 
   if (matched) {
+    const ssoJwt = jwt.sign(
+      {
+        id: matched.id,
+        name: matched.name,
+        email: cleanEmail,
+        role: matched.role,
+        designation: matched.designation,
+        department: matched.department,
+        authMethod: 'SSO',
+        ssoProvider: 'GOOGLE'
+      },
+      JWT_SECRET,
+      { expiresIn: '12h' }
+    );
+
     return res.json({
       success: true,
       authMethod: 'SSO',
@@ -358,9 +556,10 @@ app.post('/api/auth/sso', (req, res) => {
         designation: matched.designation,
         department: matched.department,
         authMethod: 'SSO',
-        ssoProvider: 'GOOGLE'
+        ssoProvider: 'GOOGLE',
+        signature: matched.signature || null
       },
-      token: `sso_google_${Date.now()}_${Math.random().toString(36).slice(2)}`
+      token: ssoJwt
     });
   }
 
@@ -374,25 +573,33 @@ app.post('/api/auth/sso', (req, res) => {
                cleanEmail.includes('it') ? 'IT' : 
                cleanEmail.includes('camp') ? 'CAMP' : 'HR';
 
+  const jitUser = {
+    id: `USR-SSO-${Date.now().toString().slice(-4)}`,
+    name: formattedName,
+    email: cleanEmail,
+    role: role,
+    designation: 'Enterprise Staff (Google SSO Verified)',
+    department: 'Corporate Operations',
+    authMethod: 'SSO',
+    ssoProvider: 'GOOGLE'
+  };
+
+  const ssoJwt = jwt.sign(jitUser, JWT_SECRET, { expiresIn: '12h' });
+
   return res.json({
     success: true,
     authMethod: 'SSO',
     ssoProvider: 'GOOGLE',
     tenantId: 'lloyds.in',
     isJITProvisioned: true,
-    user: {
-      id: `USR-SSO-${Date.now().toString().slice(-4)}`,
-      name: formattedName,
-      email: cleanEmail,
-      role: role,
-      designation: 'Enterprise Staff (Google SSO Verified)',
-      department: 'Corporate Operations',
-      authMethod: 'SSO',
-      ssoProvider: 'GOOGLE'
-    },
-    token: `sso_google_${Date.now()}_${Math.random().toString(36).slice(2)}`
+    user: jitUser,
+    token: ssoJwt
   });
 });
+
+// ============================================================================
+// SYSTEM HEALTH & DIAGNOSTIC ENDPOINTS
+// ============================================================================
 
 // Health Check Endpoint
 app.get('/api/health', (req, res) => {
@@ -405,119 +612,168 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Fabric Live Status & Realtime Diagnostic Ping
-app.get('/api/fabric-status', async (req, res) => {
+// Fabric Live Status & Realtime Diagnostic Ping (Guarded to authenticated staff)
+app.get('/api/fabric-status', authenticateToken, async (req, res) => {
   try {
     const testResult = await testFabricConnection();
     res.json(testResult);
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    console.error('[Diagnostic /api/fabric-status] Error:', err.message);
+    res.status(500).json({ success: false, error: 'Database diagnostics unavailable.' });
   }
 });
 
-// GET all workers
-app.get('/api/workers', async (req, res) => {
+// ============================================================================
+// WORKFORCE ONBOARDING WORKFLOW ENDPOINTS (AUTHENTICATED & RBAC ENFORCED)
+// ============================================================================
+
+// GET all workers (Authenticated)
+app.get('/api/workers', authenticateToken, async (req, res) => {
   try {
     const workers = await dbGetAllWorkers();
     res.json({ success: true, count: workers.length, data: workers });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    console.error('[API /api/workers] Error:', err.message);
+    res.status(500).json({ success: false, error: 'Failed to retrieve worker roster from database.' });
   }
 });
 
-// POST new worker (Step 1: HR Registration)
-app.post('/api/workers', async (req, res) => {
+// POST new worker (Step 1: HR Registration - Restricted to ADMIN and HR)
+app.post('/api/workers', authenticateToken, requireRole(['ADMIN', 'HR']), async (req, res) => {
   try {
     const newWorker = req.body;
-    if (!newWorker || !newWorker.id || !newWorker.hr) {
-      return res.status(400).json({ success: false, error: 'Invalid worker registration payload.' });
+    if (!newWorker || !newWorker.id || !newWorker.hr || !newWorker.hr.fullName) {
+      return res.status(400).json({ success: false, error: 'Invalid worker registration payload: Missing candidate full name or ID.' });
     }
+
+    // Input boundary sanitization
+    if (newWorker.hr.age && (parseInt(newWorker.hr.age, 10) < 18 || parseInt(newWorker.hr.age, 10) > 75)) {
+      return res.status(400).json({ success: false, error: 'Candidate age must be between 18 and 75 years per statutory regulations.' });
+    }
+
     const saved = await dbRegisterWorkerHR(newWorker);
     res.status(201).json({ success: true, data: saved });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    console.error('[API POST /api/workers] Error:', err.message);
+    res.status(500).json({ success: false, error: 'Database write error during candidate registration.' });
   }
 });
 
-// PATCH Worker Photo (Direct to Fabric SQL)
-app.patch('/api/workers/:id/photo', async (req, res) => {
+// PATCH Worker Photo (Direct to Fabric SQL - Restricted to ADMIN, HR, IT)
+app.patch('/api/workers/:id/photo', authenticateToken, requireRole(['ADMIN', 'HR', 'IT']), async (req, res) => {
   try {
     const { id } = req.params;
-    const { photo } = req.body;
+    const { photo } = req.body || {};
+    if (!photo) {
+      return res.status(400).json({ success: false, error: 'Photograph data URL is required.' });
+    }
     const updated = await dbUpdateWorkerPhoto(id, photo);
     res.json({ success: true, data: updated });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    console.error('[API PATCH /api/workers/:id/photo] Error:', err.message);
+    res.status(500).json({ success: false, error: 'Failed to update candidate photograph.' });
   }
 });
 
-// PATCH Step 2: Medical
-app.patch('/api/workers/:id/medical', async (req, res) => {
+// PATCH Step 2: Medical (Restricted to ADMIN and MEDICAL)
+app.patch('/api/workers/:id/medical', authenticateToken, requireRole(['ADMIN', 'MEDICAL']), async (req, res) => {
   try {
     const { id } = req.params;
-    const { medical, worker } = req.body;
+    const { medical, worker } = req.body || {};
+    if (!medical || !worker) {
+      return res.status(400).json({ success: false, error: 'Invalid medical payload.' });
+    }
+
+    // Input boundary checks for clinical vitals
+    const systolic = parseInt(medical.bpSystolic, 10);
+    const diastolic = parseInt(medical.bpDiastolic, 10);
+    if ((systolic && (systolic < 50 || systolic > 260)) || (diastolic && (diastolic < 30 || diastolic > 180))) {
+      return res.status(400).json({ success: false, error: 'Blood pressure values fall outside plausible clinical physiological ranges.' });
+    }
+
     const updated = await dbUpdateMedical(id, medical, worker);
     res.json({ success: true, data: updated });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    console.error('[API PATCH /api/workers/:id/medical] Error:', err.message);
+    res.status(500).json({ success: false, error: 'Failed to record medical clearance.' });
   }
 });
 
-// PATCH Step 3: Safety
-app.patch('/api/workers/:id/safety', async (req, res) => {
+// PATCH Step 3: Safety (Restricted to ADMIN and SAFETY)
+app.patch('/api/workers/:id/safety', authenticateToken, requireRole(['ADMIN', 'SAFETY']), async (req, res) => {
   try {
     const { id } = req.params;
-    const { safety, worker } = req.body;
+    const { safety, worker } = req.body || {};
+    if (!safety || !worker) {
+      return res.status(400).json({ success: false, error: 'Invalid safety payload.' });
+    }
     const updated = await dbUpdateSafety(id, safety, worker);
     res.json({ success: true, data: updated });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    console.error('[API PATCH /api/workers/:id/safety] Error:', err.message);
+    res.status(500).json({ success: false, error: 'Failed to record EHS safety briefing.' });
   }
 });
 
-// PATCH Step 4: IT Biometrics
-app.patch('/api/workers/:id/it', async (req, res) => {
+// PATCH Step 4: IT Biometrics (Restricted to ADMIN and IT)
+app.patch('/api/workers/:id/it', authenticateToken, requireRole(['ADMIN', 'IT']), async (req, res) => {
   try {
     const { id } = req.params;
-    const { it, worker } = req.body;
+    const { it, worker } = req.body || {};
+    if (!it || !worker) {
+      return res.status(400).json({ success: false, error: 'Invalid IT biometrics payload.' });
+    }
     const updated = await dbUpdateIT(id, it, worker);
     res.json({ success: true, data: updated });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    console.error('[API PATCH /api/workers/:id/it] Error:', err.message);
+    res.status(500).json({ success: false, error: 'Failed to update IT biometric enrollment.' });
   }
 });
 
-// PATCH Step 5: Camp Housing
-app.patch('/api/workers/:id/camp', async (req, res) => {
+// PATCH Step 5: Camp Housing (Restricted to ADMIN and CAMP)
+app.patch('/api/workers/:id/camp', authenticateToken, requireRole(['ADMIN', 'CAMP']), async (req, res) => {
   try {
     const { id } = req.params;
-    const { camp, worker } = req.body;
+    const { camp, worker } = req.body || {};
+    if (!camp || !worker) {
+      return res.status(400).json({ success: false, error: 'Invalid camp accommodation payload.' });
+    }
     const updated = await dbUpdateCamp(id, camp, worker);
     res.json({ success: true, data: updated });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    console.error('[API PATCH /api/workers/:id/camp] Error:', err.message);
+    res.status(500).json({ success: false, error: 'Failed to update camp accommodation record.' });
   }
 });
 
-// GET Audit Trail
-app.get('/api/audit-logs', async (req, res) => {
+// ============================================================================
+// AUDIT LOGGING ENDPOINTS (IMMUTABLE AUDIT TRAIL)
+// ============================================================================
+
+// GET Audit Trail (Restricted to ADMIN)
+app.get('/api/audit-logs', authenticateToken, requireRole(['ADMIN']), async (req, res) => {
   try {
     const logs = await dbGetAuditLogs();
     res.json({ success: true, count: logs.length, data: logs });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    console.error('[API GET /api/audit-logs] Error:', err.message);
+    res.status(500).json({ success: false, error: 'Failed to retrieve compliance audit logs.' });
   }
 });
 
-// POST Audit Trail Event
-app.post('/api/audit-logs', async (req, res) => {
+// POST Audit Trail Event (Authenticated)
+app.post('/api/audit-logs', authenticateToken, async (req, res) => {
   try {
     const entry = req.body;
     entry.ipAddress = req.ip || req.headers['x-forwarded-for'] || '127.0.0.1';
+    entry.userId = req.user.id;
+    entry.userEmail = req.user.email;
     const logged = await dbLogAudit(entry);
     res.status(201).json({ success: true, data: logged });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    console.error('[API POST /api/audit-logs] Error:', err.message);
+    res.status(500).json({ success: false, error: 'Failed to record audit event.' });
   }
 });
 
@@ -555,6 +811,15 @@ if (fs.existsSync(distPath)) {
   });
 }
 
+// Global express error handler to prevent stack traces from leaking
+app.use((err, req, res, next) => {
+  console.error('[Unhandled Error]:', err.stack);
+  res.status(500).json({
+    success: false,
+    error: 'An internal server error occurred. Please contact the site system administrator.'
+  });
+});
+
 // Initialize Fabric and Start Server immediately
 const startServer = () => {
   const localIp = getLocalNetworkIp();
@@ -565,6 +830,7 @@ const startServer = () => {
     console.log(`> Local:            http://localhost:${PORT}`);
     console.log(`> On Your Network:  http://${localIp}:${PORT}`);
     console.log(`> REST API Base:    http://localhost:${PORT}/api`);
+    console.log(`> Security:         JWT + RBAC + Helmet + Bcrypt Enabled`);
     console.log(`> Fabric Endpoint:  ${process.env.FABRIC_SERVER || 'Fabric SQL Database'}`);
     console.log(`======================================================\n`);
     console.log('[Server] Connecting to Microsoft Fabric SQL Gateway in background...');

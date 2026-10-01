@@ -98,6 +98,7 @@ export const DigitalSignatureModal = ({
 
   // Drawing Handlers
   const startDrawing = (e) => {
+    if (e.cancelable) e.preventDefault();
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
@@ -119,6 +120,7 @@ export const DigitalSignatureModal = ({
 
   const draw = (e) => {
     if (!isDrawing) return;
+    if (e.cancelable) e.preventDefault();
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');

@@ -174,6 +174,24 @@ const AppContent = () => {
       }
 
       const [route, param] = rawHash.split('/');
+
+      // Role-Based Access Control Route Guards
+      if (['admin', 'reports', 'audit', 'users'].includes(route) && currentRole !== ROLES.ADMIN) {
+        window.location.hash = '#pipeline';
+        setActiveView('pipeline');
+        return;
+      }
+      if (route === 'register' && currentRole !== ROLES.ADMIN && currentRole !== ROLES.HR) {
+        window.location.hash = '#pipeline';
+        setActiveView('pipeline');
+        return;
+      }
+      if (route === 'idcard' && currentRole !== ROLES.ADMIN && currentRole !== ROLES.HR) {
+        window.location.hash = '#pipeline';
+        setActiveView('pipeline');
+        return;
+      }
+
       const targetView = HASH_TO_VIEW[route];
       if (targetView) {
         setActiveView(targetView);

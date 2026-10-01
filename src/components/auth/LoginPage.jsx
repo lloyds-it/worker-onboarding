@@ -32,7 +32,6 @@ export const DEPARTMENT_PRESETS = [
     designation: 'Chief Administrator & Site Director',
     email: 'hmk@lloydsprojects.in',
     alias: 'admin',
-    password: 'Microsoft@003',
     department: 'Site Administration & Master Control',
     color: '#7C3AED'
   },
@@ -44,7 +43,6 @@ export const DEPARTMENT_PRESETS = [
     designation: 'Senior HR Operations Lead',
     email: 'hr.operations@lloyds.in',
     alias: 'hr',
-    password: 'hr@lloyds#2026',
     department: 'Human Resources',
     color: '#0284C7'
   },
@@ -56,7 +54,6 @@ export const DEPARTMENT_PRESETS = [
     designation: 'Chief Medical Officer',
     email: 'medical.officer@lloyds.in',
     alias: 'medical',
-    password: 'med@lloyds#2026',
     department: 'Occupational Health & Medical Services',
     color: '#EA580C'
   },
@@ -68,7 +65,6 @@ export const DEPARTMENT_PRESETS = [
     designation: 'Lead EHS Safety Engineer',
     email: 'ehs.safety@lloyds.in',
     alias: 'safety',
-    password: 'safe@lloyds#2026',
     department: 'Environment, Health & Safety',
     color: '#D97706'
   },
@@ -80,7 +76,6 @@ export const DEPARTMENT_PRESETS = [
     designation: 'Senior IT Biometric Specialist',
     email: 'it.biometrics@lloyds.in',
     alias: 'it',
-    password: 'it@lloyds#2026',
     department: 'Information Technology',
     color: '#2563EB'
   },
@@ -92,7 +87,6 @@ export const DEPARTMENT_PRESETS = [
     designation: 'Camp Accommodations Supervisor',
     email: 'camp.gondwana@lloyds.in',
     alias: 'camp',
-    password: 'camp@lloyds#2026',
     department: 'Camp Administration (Gondwana)',
     color: '#059669'
   }
@@ -105,20 +99,13 @@ export const LoginPage = () => {
   // Active form state (default to Admin)
   const [selectedRole, setSelectedRole] = useState('ADMIN');
   const [username, setUsername] = useState('hmk@lloydsprojects.in');
-  const [password, setPassword] = useState('Microsoft@003');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [showCredentialsTable, setShowCredentialsTable] = useState(false);
   const [showSSOModal, setShowSSOModal] = useState(false);
   const [ssoProvider, setSsoProvider] = useState('GOOGLE');
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
-
-  // Dynamically resolve password (in case user changed it)
-  const getActivePasswordForRole = (role, fallbackPass) => {
-    const user = users?.find(u => u.role === role);
-    return user?.password || fallbackPass;
-  };
 
   // Corporate Domain Auto-Detection
   const isCorporateDomain = Boolean(
@@ -134,7 +121,7 @@ export const LoginPage = () => {
   const handleSelectPreset = (preset) => {
     setSelectedRole(preset.role);
     setUsername(preset.email);
-    setPassword(getActivePasswordForRole(preset.role, preset.password));
+    setPassword('');
     setErrorMsg('');
   };
 

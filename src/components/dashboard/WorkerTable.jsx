@@ -410,6 +410,17 @@ export const WorkerTable = ({ onOpenProcessModal, onViewInductionDoc, onGenerate
                           </button>
                         )}
 
+                        {/* If other department and worker is FLAGGED UNFIT, display clear status badge */}
+                        {isFlagged && currentRole !== ROLES.ADMIN && currentRole !== ROLES.MEDICAL && (
+                          <span 
+                            className="badge badge-danger" 
+                            style={{ fontSize: '0.72rem', padding: '0.3rem 0.6rem', cursor: 'help' }}
+                            title="Candidate flagged medically UNFIT by Doctor. Workflow blocked pending Chief Medical Officer clearance or Executive Admin override."
+                          >
+                            ⚠️ Blocked (Unfit)
+                          </span>
+                        )}
+
                         {/* View Printable Induction Doc */}
                         <button
                           className="btn btn-secondary"

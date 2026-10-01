@@ -201,10 +201,11 @@ export const Sidebar = ({
             <button
               id="nav-new-worker"
               className="nav-item"
-              style={{ color: '#FCD34D' }}
+              style={{ color: '#FDE68A', fontWeight: 700 }}
               onClick={onOpenNewWorkerModal}
               data-tooltip="Register Worker (Step 1)"
               title={isCollapsed ? "Register Worker (Step 1)" : undefined}
+              aria-label="Register Worker (Step 1)"
             >
               <UserPlus size={18} />
               <span>+ Register Worker (Step 1)</span>

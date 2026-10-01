@@ -7,7 +7,7 @@
 import sql from 'mssql';
 import dotenv from 'dotenv';
 import { DeviceCodeCredential, ClientSecretCredential } from '@azure/identity';
-import { execFile } from 'child_process';
+import { execFile, spawn } from 'child_process';
 import path from 'path';
 import https from 'https';
 import querystring from 'querystring';
@@ -23,20 +23,35 @@ dotenv.config();
 export const runPyBridge = (action, payload = null) => {
   return new Promise((resolve) => {
     const bridgePath = path.join(process.cwd(), 'server', 'fabric_bridge.py');
-    const args = [bridgePath, action];
-    if (payload) args.push(JSON.stringify(payload));
-    
-    execFile('python', args, { timeout: 25000 }, (error, stdout, stderr) => {
-      if (error) {
-        return resolve({ success: false, error: stderr || error.message });
+    const child = spawn('python', [bridgePath, action], { timeout: 25000 });
+    let stdout = '';
+    let stderr = '';
+
+    child.stdout.on('data', data => { stdout += data; });
+    child.stderr.on('data', data => { stderr += data; });
+
+    child.on('close', code => {
+      if (code !== 0 && !stdout) {
+        return resolve({ success: false, error: stderr || `Process exited with code ${code}` });
       }
       try {
         const parsed = JSON.parse(stdout.trim());
         resolve(parsed);
       } catch (e) {
-        resolve({ success: false, error: stdout || 'Failed to parse bridge output' });
+        resolve({ success: false, error: stdout || stderr || 'Failed to parse bridge output' });
       }
     });
+
+    child.on('error', err => {
+      resolve({ success: false, error: err.message });
+    });
+
+    if (payload) {
+      try {
+        child.stdin.write(JSON.stringify(payload));
+      } catch (err) {}
+    }
+    child.stdin.end();
   });
 };
 

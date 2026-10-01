@@ -1,11 +1,14 @@
 // ============================================================================
 // CLIENT-SIDE API SERVICE - ENTERPRISE DATA GATEWAY
 // Handles real-time communication with secure backend gateway
+// OWASP ASVS Compliant: Includes JWT Authorization Headers on all API calls
 // Includes automatic resilient fallback to local storage
 // ============================================================================
 
 import { getStoredWorkers, saveWorkers } from './storageService';
 import { getAuditLogs as getLocalAuditLogs, logAuditEvent as logLocalAudit } from './auditService';
+
+const AUTH_SESSION_KEY = 'lloyd_auth_session_v3';
 
 const resolveApiBase = () => {
   if (import.meta.env?.VITE_API_BASE) {
@@ -25,7 +28,33 @@ const API_BASE = resolveApiBase();
 let backendAvailable = null;
 
 /**
- * Authenticate administrator credentials against backend
+ * Retrieve cached JWT session token from browser secure storage
+ */
+export const getAuthToken = () => {
+  try {
+    const raw = localStorage.getItem(AUTH_SESSION_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      return parsed.token || null;
+    }
+  } catch (e) {}
+  return null;
+};
+
+/**
+ * Helper to construct authorized request headers with JWT Bearer Token
+ */
+export const getAuthHeaders = (extraHeaders = {}) => {
+  const token = getAuthToken();
+  const headers = { ...extraHeaders };
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  return headers;
+};
+
+/**
+ * Authenticate credentials against backend
  */
 export const apiLogin = async (username, password) => {
   try {
@@ -45,9 +74,26 @@ export const apiLogin = async (username, password) => {
 };
 
 /**
- * Authenticate via Enterprise Single Sign-On (Microsoft Entra ID, Google Workspace, SAML 2.0)
+ * Verify current active session token with backend gateway
  */
-export const apiSSOLogin = async (provider, email, token, tenantId = 'lloydsprojects.in') => {
+export const apiVerifySession = async () => {
+  try {
+    const res = await fetch(`${API_BASE}/auth/me`, {
+      headers: getAuthHeaders()
+    });
+    if (res.ok) {
+      return await res.json();
+    }
+    return { success: false, error: 'Session expired or invalid.' };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+};
+
+/**
+ * Authenticate via Enterprise Single Sign-On (Google Workspace @lloyds.in)
+ */
+export const apiSSOLogin = async (provider, email, token, tenantId = 'lloyds.in') => {
   try {
     const res = await fetch(`${API_BASE}/auth/sso`, {
       method: 'POST',
@@ -65,13 +111,13 @@ export const apiSSOLogin = async (provider, email, token, tenantId = 'lloydsproj
 };
 
 /**
- * Change password for user login
+ * Change password for user login (Authorized)
  */
 export const apiChangePassword = async ({ username, currentPassword, newPassword, isAdminReset = false, targetUserId = null }) => {
   try {
     const res = await fetch(`${API_BASE}/auth/change-password`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ username, currentPassword, newPassword, isAdminReset, targetUserId })
     });
     return await res.json();
@@ -84,13 +130,13 @@ export const apiChangePassword = async ({ username, currentPassword, newPassword
 };
 
 /**
- * Upload and save digital signature for user
+ * Upload and save digital signature for user (Authorized)
  */
 export const apiUploadUserSignature = async (userId, signature) => {
   try {
     const res = await fetch(`${API_BASE}/auth/users/${userId}/signature`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ signature })
     });
     return await res.json();
@@ -103,11 +149,13 @@ export const apiUploadUserSignature = async (userId, signature) => {
 };
 
 /**
- * Fetch system users with their digital signatures and designations
+ * Fetch system users with their digital signatures and designations (Authorized)
  */
 export const apiGetUsers = async () => {
   try {
-    const res = await fetch(`${API_BASE}/auth/users`);
+    const res = await fetch(`${API_BASE}/auth/users`, {
+      headers: getAuthHeaders()
+    });
     return await res.json();
   } catch (err) {
     return { success: false, users: [] };
@@ -151,13 +199,12 @@ export const checkFabricHealth = async () => {
 };
 
 /**
- * Test Fabric connection diagnostics on demand
+ * Test Fabric connection diagnostics on demand (Authorized)
  */
 export const testFabricDiagnostics = async () => {
   try {
-    const res = await fetch(`${API_BASE}/fabric/test`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' }
+    const res = await fetch(`${API_BASE}/fabric-status`, {
+      headers: getAuthHeaders()
     });
     if (res.ok) {
       return await res.json();
@@ -165,7 +212,7 @@ export const testFabricDiagnostics = async () => {
   } catch (err) {
     return {
       success: false,
-      error: 'Backend API service is not reachable on http://localhost:5000. Start backend server with `npm run server`.',
+      error: 'Backend API service is not reachable on http://localhost:5000.',
       mode: 'FALLBACK_MODE'
     };
   }
@@ -176,7 +223,10 @@ export const testFabricDiagnostics = async () => {
  */
 export const startFabricAuth = async () => {
   try {
-    const res = await fetch(`${API_BASE}/fabric/auth/start`, { method: 'POST' });
+    const res = await fetch(`${API_BASE}/fabric/auth/start`, { 
+      method: 'POST',
+      headers: getAuthHeaders()
+    });
     if (res.ok) {
       return await res.json();
     }
@@ -190,7 +240,9 @@ export const startFabricAuth = async () => {
  */
 export const checkAuthStatus = async () => {
   try {
-    const res = await fetch(`${API_BASE}/fabric/auth/status`);
+    const res = await fetch(`${API_BASE}/fabric/auth/status`, {
+      headers: getAuthHeaders()
+    });
     if (res.ok) {
       return await res.json();
     }
@@ -200,11 +252,14 @@ export const checkAuthStatus = async () => {
 };
 
 /**
- * Get all workers (Fabric live or fallback)
+ * Get all workers (Fabric live or fallback - Authorized)
  */
 export const apiGetWorkers = async () => {
   try {
-    const res = await fetch(`${API_BASE}/workers`, { signal: AbortSignal.timeout(3500) });
+    const res = await fetch(`${API_BASE}/workers`, { 
+      headers: getAuthHeaders(),
+      signal: AbortSignal.timeout(4500) 
+    });
     if (res.ok) {
       const json = await res.json();
       if (json.success && Array.isArray(json.data) && json.data.length > 0) {
@@ -220,15 +275,15 @@ export const apiGetWorkers = async () => {
 };
 
 /**
- * Register worker (Step 1: HR)
+ * Register worker (Step 1: HR - Authorized)
  */
 export const apiRegisterWorker = async (newWorker) => {
   try {
     const res = await fetch(`${API_BASE}/workers`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(newWorker),
-      signal: AbortSignal.timeout(4000)
+      signal: AbortSignal.timeout(5000)
     });
     if (res.ok) {
       const json = await res.json();
@@ -242,15 +297,15 @@ export const apiRegisterWorker = async (newWorker) => {
 };
 
 /**
- * Update Worker Photograph (Direct to Fabric SQL)
+ * Update Worker Photograph (Direct to Fabric SQL - Authorized)
  */
 export const apiUpdateWorkerPhoto = async (workerId, photoUrl) => {
   try {
     const res = await fetch(`${API_BASE}/workers/${workerId}/photo`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ photo: photoUrl }),
-      signal: AbortSignal.timeout(5000)
+      signal: AbortSignal.timeout(6000)
     });
     if (res.ok) {
       const json = await res.json();
@@ -263,15 +318,15 @@ export const apiUpdateWorkerPhoto = async (workerId, photoUrl) => {
 };
 
 /**
- * Update Medical screening (Step 2)
+ * Update Medical screening (Step 2 - Authorized)
  */
 export const apiUpdateMedical = async (workerId, medicalData, updatedWorker) => {
   try {
     const res = await fetch(`${API_BASE}/workers/${workerId}/medical`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ medical: medicalData, worker: updatedWorker }),
-      signal: AbortSignal.timeout(4000)
+      signal: AbortSignal.timeout(5000)
     });
     if (res.ok) {
       const json = await res.json();
@@ -284,15 +339,15 @@ export const apiUpdateMedical = async (workerId, medicalData, updatedWorker) => 
 };
 
 /**
- * Update Safety Induction (Step 3)
+ * Update Safety Induction (Step 3 - Authorized)
  */
 export const apiUpdateSafety = async (workerId, safetyData, updatedWorker) => {
   try {
     const res = await fetch(`${API_BASE}/workers/${workerId}/safety`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ safety: safetyData, worker: updatedWorker }),
-      signal: AbortSignal.timeout(4000)
+      signal: AbortSignal.timeout(5000)
     });
     if (res.ok) {
       const json = await res.json();
@@ -305,15 +360,15 @@ export const apiUpdateSafety = async (workerId, safetyData, updatedWorker) => {
 };
 
 /**
- * Update IT Biometrics (Step 4)
+ * Update IT Biometrics (Step 4 - Authorized)
  */
 export const apiUpdateIT = async (workerId, itData, updatedWorker) => {
   try {
     const res = await fetch(`${API_BASE}/workers/${workerId}/it`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ it: itData, worker: updatedWorker }),
-      signal: AbortSignal.timeout(4000)
+      signal: AbortSignal.timeout(5000)
     });
     if (res.ok) {
       const json = await res.json();
@@ -326,15 +381,15 @@ export const apiUpdateIT = async (workerId, itData, updatedWorker) => {
 };
 
 /**
- * Update Camp Housing (Step 5)
+ * Update Camp Housing (Step 5 - Authorized)
  */
 export const apiUpdateCamp = async (workerId, campData, updatedWorker) => {
   try {
     const res = await fetch(`${API_BASE}/workers/${workerId}/camp`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ camp: campData, worker: updatedWorker }),
-      signal: AbortSignal.timeout(4000)
+      signal: AbortSignal.timeout(5000)
     });
     if (res.ok) {
       const json = await res.json();
@@ -347,17 +402,37 @@ export const apiUpdateCamp = async (workerId, campData, updatedWorker) => {
 };
 
 /**
- * Log audit trail event
+ * Log audit trail event (Authorized)
  */
 export const apiLogAudit = async (entry) => {
   try {
     fetch(`${API_BASE}/audit-logs`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(entry)
     }).catch(() => {});
   } catch (err) {
     // non-blocking
   }
   return logLocalAudit(entry);
+};
+
+/**
+ * Fetch immutable compliance audit logs from server (Authorized)
+ */
+export const apiGetAuditLogs = async () => {
+  try {
+    const res = await fetch(`${API_BASE}/audit-logs`, {
+      headers: getAuthHeaders()
+    });
+    if (res.ok) {
+      const json = await res.json();
+      if (json.success && Array.isArray(json.data)) {
+        return json.data;
+      }
+    }
+  } catch (err) {
+    console.warn('[API] Could not fetch remote audit logs, using local cache.');
+  }
+  return getLocalAuditLogs();
 };

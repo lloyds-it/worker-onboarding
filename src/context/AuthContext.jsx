@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { ROLES, ROLE_LABELS } from '../types/constants';
 import { logAuditEvent } from '../services/auditService';
-import { apiLogin, apiSSOLogin, apiChangePassword, apiUploadUserSignature, apiGetUsers } from '../services/apiService';
+import { apiLogin, apiSSOLogin, apiChangePassword, apiUploadUserSignature, apiGetUsers, apiVerifySession } from '../services/apiService';
 
 const AuthContext = createContext();
 
@@ -45,7 +45,6 @@ export const HARDCODED_ADMIN = {
   name: 'Harshvardhan M. K.',
   designation: 'Chief Administrator & Site Director',
   email: 'hmk@lloydsprojects.in',
-  password: 'Microsoft@003',
   role: ROLES.ADMIN,
   department: 'Executive Administration',
   status: 'ACTIVE',
@@ -59,7 +58,6 @@ export const INITIAL_SYSTEM_USERS = [
     name: 'Pooja Nair',
     designation: 'Senior HR Operations Lead',
     email: 'hr.operations@lloyds.in',
-    password: 'hr@lloyds#2026',
     role: ROLES.HR,
     department: 'Human Resources',
     status: 'ACTIVE',
@@ -70,7 +68,6 @@ export const INITIAL_SYSTEM_USERS = [
     name: 'Dr. Vivek Deshmukh (MBBS, CIH)',
     designation: 'Chief Medical Officer',
     email: 'medical.officer@lloyds.in',
-    password: 'med@lloyds#2026',
     role: ROLES.MEDICAL,
     department: 'Occupational Health & Medical Services',
     status: 'ACTIVE',
@@ -81,7 +78,6 @@ export const INITIAL_SYSTEM_USERS = [
     name: 'Arun Patil',
     designation: 'Lead EHS Safety Engineer',
     email: 'ehs.safety@lloyds.in',
-    password: 'safe@lloyds#2026',
     role: ROLES.SAFETY,
     department: 'Environment, Health & Safety',
     status: 'ACTIVE',
@@ -92,7 +88,6 @@ export const INITIAL_SYSTEM_USERS = [
     name: 'Rajesh Sharma',
     designation: 'Senior IT Biometric Specialist',
     email: 'it.biometrics@lloyds.in',
-    password: 'it@lloyds#2026',
     role: ROLES.IT,
     department: 'Information Technology',
     status: 'ACTIVE',
@@ -103,7 +98,6 @@ export const INITIAL_SYSTEM_USERS = [
     name: 'Mahesh Kulkarni',
     designation: 'Camp Accommodations Supervisor',
     email: 'camp.gondwana@lloyds.in',
-    password: 'camp@lloyds#2026',
     role: ROLES.CAMP,
     department: 'Camp Administration (Gondwana)',
     status: 'ACTIVE',
@@ -192,6 +186,30 @@ export const AuthProvider = ({ children }) => {
       return false;
     }
   });
+
+  // Cryptographic session verification with backend on startup
+  useEffect(() => {
+    const verifySession = async () => {
+      const raw = localStorage.getItem(AUTH_SESSION_KEY);
+      if (!raw) return;
+      try {
+        const res = await apiVerifySession();
+        if (res && res.success && res.user) {
+          setCurrentUser(prev => ({ ...prev, ...res.user }));
+          if (res.user.role) setCurrentRole(res.user.role);
+        } else if (res && res.error && (res.error.includes('expired') || res.error.includes('invalid') || res.error.includes('missing') || res.error.includes('Session expired'))) {
+          console.warn('[Auth] Remote session token expired or invalid, clearing local session.');
+          setIsAuthenticated(false);
+          setCurrentRole(null);
+          setCurrentUser(null);
+          localStorage.removeItem(AUTH_SESSION_KEY);
+        }
+      } catch (e) {
+        // network issue, retain offline session
+      }
+    };
+    verifySession();
+  }, []);
 
   // Helper to persist users
   const commitUsers = (updatedUsers) => {

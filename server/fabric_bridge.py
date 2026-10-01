@@ -387,6 +387,17 @@ def update_camp(worker_id, camp_data, updated_worker):
     conn.close()
     return {"success": True, "workerId": worker_id}
 
+def get_payload():
+    if len(sys.argv) > 2 and sys.argv[2].strip():
+        return json.loads(sys.argv[2])
+    try:
+        content = sys.stdin.read().strip()
+        if content:
+            return json.loads(content)
+    except Exception:
+        pass
+    return {}
+
 if __name__ == "__main__":
     action = sys.argv[1] if len(sys.argv) > 1 else "test"
     try:
@@ -397,23 +408,23 @@ if __name__ == "__main__":
             res = get_workers()
             print(json.dumps({"success": True, "data": res}))
         elif action == "register":
-            payload = json.loads(sys.argv[2])
+            payload = get_payload()
             res = register_worker(payload)
             print(json.dumps(res))
         elif action == "update_medical":
-            payload = json.loads(sys.argv[2])
+            payload = get_payload()
             res = update_medical(payload["workerId"], payload["medical"], payload["worker"])
             print(json.dumps(res))
         elif action == "update_safety":
-            payload = json.loads(sys.argv[2])
+            payload = get_payload()
             res = update_safety(payload["workerId"], payload["safety"], payload["worker"])
             print(json.dumps(res))
         elif action == "update_it":
-            payload = json.loads(sys.argv[2])
+            payload = get_payload()
             res = update_it(payload["workerId"], payload["it"], payload["worker"])
             print(json.dumps(res))
         elif action == "update_camp":
-            payload = json.loads(sys.argv[2])
+            payload = get_payload()
             res = update_camp(payload["workerId"], payload["camp"], payload["worker"])
             print(json.dumps(res))
         else:

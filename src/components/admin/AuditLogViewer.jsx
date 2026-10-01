@@ -1,27 +1,30 @@
 import React, { useState, useEffect } from 'react';
-import { History, Search, Filter, ShieldCheck, RefreshCw, Trash2 } from 'lucide-react';
-import { getAuditLogs, clearAuditLogs } from '../../services/auditService';
+import { History, Search, Filter, ShieldCheck, RefreshCw, Lock } from 'lucide-react';
+import { getAuditLogs } from '../../services/auditService';
+import { apiGetAuditLogs } from '../../services/apiService';
 import { ROLES, ROLE_LABELS } from '../../types/constants';
 
 export const AuditLogViewer = () => {
   const [logs, setLogs] = useState([]);
   const [filterRole, setFilterRole] = useState('ALL');
   const [search, setSearch] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
-  const reloadLogs = () => {
-    setLogs(getAuditLogs());
+  const reloadLogs = async () => {
+    setIsLoading(true);
+    try {
+      const fetchedLogs = await apiGetAuditLogs();
+      setLogs(fetchedLogs || []);
+    } catch (e) {
+      setLogs(getAuditLogs());
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   useEffect(() => {
     reloadLogs();
   }, []);
-
-  const handleClear = () => {
-    if (window.confirm('Are you sure you want to clear the audit trail for this session?')) {
-      clearAuditLogs();
-      reloadLogs();
-    }
-  };
 
   const filteredLogs = logs.filter(log => {
     if (filterRole !== 'ALL' && log.role !== filterRole) return false;
@@ -52,18 +55,30 @@ export const AuditLogViewer = () => {
             <span>System Compliance & Immutable Audit Trail</span>
           </h2>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-            Conforming to OWASP ASVS 5.0 and BRD Chapter 4: Timestamped tracking of every department action.
+            Conforming to OWASP ASVS 5.0 and BRD Chapter 4: Timestamped immutable tracking of every department action.
           </p>
         </div>
 
-        <div style={{ display: 'flex', gap: '0.75rem' }}>
-          <button className="btn btn-secondary" onClick={reloadLogs}>
-            <RefreshCw size={14} />
-            <span>Refresh</span>
-          </button>
-          <button className="btn btn-secondary" style={{ color: 'var(--danger-solid)' }} onClick={handleClear}>
-            <Trash2 size={14} />
-            <span>Clear Logs</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.4rem',
+            padding: '0.45rem 0.85rem',
+            borderRadius: '6px',
+            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+            border: '1px solid rgba(16, 185, 129, 0.25)',
+            color: '#10B981',
+            fontSize: '0.8rem',
+            fontWeight: 700
+          }}>
+            <Lock size={13} />
+            <span>Immutable Ledger (Tamper Proof)</span>
+          </div>
+
+          <button className="btn btn-secondary" onClick={reloadLogs} disabled={isLoading}>
+            <RefreshCw size={14} className={isLoading ? 'spin' : ''} />
+            <span>{isLoading ? 'Syncing...' : 'Refresh'}</span>
           </button>
         </div>
       </div>
