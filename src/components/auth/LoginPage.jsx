@@ -202,8 +202,8 @@ export const LoginPage = () => {
               style={{ height: '28px', width: 'auto', objectFit: 'contain' }}
             />
           </div>
-          <div style={{ marginTop: '0.65rem', fontSize: '0.72rem', letterSpacing: '0.12em', color: 'rgba(255, 255, 255, 0.65)', fontWeight: 800, textTransform: 'uppercase' }}>
-            Lloyds Metals &amp; Energy Limited • Infrastructure Division
+          <div style={{ marginTop: '0.65rem', fontSize: '0.72rem', letterSpacing: '0.12em', color: 'rgba(255, 255, 255, 0.75)', fontWeight: 800, textTransform: 'uppercase' }}>
+            Infrastructure Division - LLOYDS INFRASTRUCTURE CONSTRUCTION LIMITED
           </div>
         </div>
 
@@ -325,10 +325,29 @@ export const LoginPage = () => {
                 <div style={{ fontSize: '0.68rem', color: 'rgba(255, 255, 255, 0.6)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>RFID Gate Pass Issuance</div>
               </div>
             </div>
+
+            <div style={{
+              gridColumn: 'span 2',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.75rem',
+              padding: '0.65rem 0.85rem',
+              background: 'rgba(255, 255, 255, 0.05)',
+              borderRadius: '10px',
+              border: '1px solid rgba(255, 255, 255, 0.1)'
+            }}>
+              <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(5, 150, 105, 0.25)', color: '#34D399', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <Home size={16} />
+              </div>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#FFFFFF' }}>Step 5: Camp Housing</div>
+                <div style={{ fontSize: '0.68rem', color: 'rgba(255, 255, 255, 0.6)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Living Quarters &amp; Bed Allocation</div>
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* Bottom: Live Gateway Status & Security Standards */}
+        {/* Bottom: Security Standards & Compliance */}
         <div style={{
           position: 'relative',
           zIndex: 2,
@@ -340,17 +359,7 @@ export const LoginPage = () => {
           fontSize: '0.75rem',
           color: 'rgba(255, 255, 255, 0.7)'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <span style={{
-              width: '8px',
-              height: '8px',
-              borderRadius: '50%',
-              backgroundColor: '#10B981',
-              boxShadow: '0 0 10px #10B981',
-              display: 'inline-block'
-            }} />
-            <span style={{ fontWeight: 600 }}>Microsoft Fabric SQL Gateway Connected</span>
-          </div>
+          <div style={{ fontWeight: 600 }}>Infrastructure Division - LLOYDS INFRASTRUCTURE CONSTRUCTION LIMITED</div>
           <div style={{ fontWeight: 600 }}>OWASP ASVS 5.0 • JWT &amp; RBAC</div>
         </div>
       </div>
@@ -764,7 +773,7 @@ export const LoginPage = () => {
               <Shield size={13} color="#10B981" />
               <span>TLS 1.3 &amp; 256-Bit Encrypted</span>
             </div>
-            <span>Lloyds Metals &amp; Energy</span>
+            <span>LLOYDS INFRASTRUCTURE CONSTRUCTION LIMITED</span>
           </div>
         </div>
       </div>
