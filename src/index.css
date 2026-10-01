@@ -346,18 +346,12 @@ a {
   border-radius: var(--radius-md);
 }
 
-.sidebar.collapsed .nav-item span:not(.nav-counter) {
+.sidebar.collapsed .nav-item span {
   display: none !important;
 }
 
 .sidebar.collapsed .nav-counter {
-  position: absolute;
-  top: 3px;
-  right: 8px;
-  margin-left: 0;
-  padding: 0.1rem 0.35rem;
-  font-size: 0.65rem;
-  border-radius: var(--radius-full);
+  display: none !important;
 }
 
 .sidebar.collapsed .nav-item:hover::after {

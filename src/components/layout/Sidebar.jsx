@@ -114,12 +114,12 @@ export const Sidebar = ({
               id="nav-pipeline"
               className={`nav-item ${activeView === 'pipeline' ? 'active' : ''}`}
               onClick={() => setActiveView('pipeline')}
-              data-tooltip="Master Pipeline Roster"
-              title={isCollapsed ? "Master Pipeline Roster" : undefined}
+              data-tooltip={isCollapsed ? `Master Pipeline Roster (${activeCount})` : undefined}
+              title={isCollapsed ? `Master Pipeline Roster (${activeCount})` : undefined}
             >
               <Users size={18} />
               <span>Master Pipeline Roster</span>
-              <span className="nav-counter">{activeCount}</span>
+              {!isCollapsed && <span className="nav-counter">{activeCount}</span>}
             </button>
 
             <button
@@ -190,12 +190,12 @@ export const Sidebar = ({
               id="nav-pipeline"
               className={`nav-item ${activeView === 'pipeline' ? 'active' : ''}`}
               onClick={() => setActiveView('pipeline')}
-              data-tooltip="Worker Pipeline"
-              title={isCollapsed ? "Worker Pipeline" : undefined}
+              data-tooltip={isCollapsed ? `Worker Pipeline (${activeCount})` : undefined}
+              title={isCollapsed ? `Worker Pipeline (${activeCount})` : undefined}
             >
               <Users size={18} />
               <span>Worker Pipeline</span>
-              <span className="nav-counter">{activeCount}</span>
+              {!isCollapsed && <span className="nav-counter">{activeCount}</span>}
             </button>
 
             <button
@@ -255,14 +255,16 @@ export const Sidebar = ({
               id="nav-pipeline"
               className={`nav-item ${activeView === 'pipeline' ? 'active' : ''}`}
               onClick={() => setActiveView('pipeline')}
-              data-tooltip="Medical Screening Queue"
-              title={isCollapsed ? "Medical Screening Queue" : undefined}
+              data-tooltip={isCollapsed ? `Medical Screening Queue (${workers.filter(w => w.stage === STAGES.MEDICAL).length})` : undefined}
+              title={isCollapsed ? `Medical Screening Queue (${workers.filter(w => w.stage === STAGES.MEDICAL).length})` : undefined}
             >
               <Stethoscope size={18} />
               <span>Medical Screening Queue</span>
-              <span className="nav-counter">
-                {workers.filter(w => w.stage === STAGES.MEDICAL).length}
-              </span>
+              {!isCollapsed && (
+                <span className="nav-counter">
+                  {workers.filter(w => w.stage === STAGES.MEDICAL).length}
+                </span>
+              )}
             </button>
 
             <button
@@ -298,14 +300,16 @@ export const Sidebar = ({
               id="nav-pipeline"
               className={`nav-item ${activeView === 'pipeline' ? 'active' : ''}`}
               onClick={() => setActiveView('pipeline')}
-              data-tooltip="Safety Induction Queue"
-              title={isCollapsed ? "Safety Induction Queue" : undefined}
+              data-tooltip={isCollapsed ? `Safety Induction Queue (${workers.filter(w => w.stage === STAGES.SAFETY).length})` : undefined}
+              title={isCollapsed ? `Safety Induction Queue (${workers.filter(w => w.stage === STAGES.SAFETY).length})` : undefined}
             >
               <HardHat size={18} />
               <span>Safety Induction Queue</span>
-              <span className="nav-counter">
-                {workers.filter(w => w.stage === STAGES.SAFETY).length}
-              </span>
+              {!isCollapsed && (
+                <span className="nav-counter">
+                  {workers.filter(w => w.stage === STAGES.SAFETY).length}
+                </span>
+              )}
             </button>
 
             <button
@@ -341,14 +345,16 @@ export const Sidebar = ({
               id="nav-pipeline"
               className={`nav-item ${activeView === 'pipeline' ? 'active' : ''}`}
               onClick={() => setActiveView('pipeline')}
-              data-tooltip="IT Enrollment Queue"
-              title={isCollapsed ? "IT Enrollment Queue" : undefined}
+              data-tooltip={isCollapsed ? `IT Enrollment Queue (${workers.filter(w => w.stage === STAGES.IT).length})` : undefined}
+              title={isCollapsed ? `IT Enrollment Queue (${workers.filter(w => w.stage === STAGES.IT).length})` : undefined}
             >
               <Fingerprint size={18} />
               <span>IT Enrollment Queue</span>
-              <span className="nav-counter">
-                {workers.filter(w => w.stage === STAGES.IT).length}
-              </span>
+              {!isCollapsed && (
+                <span className="nav-counter">
+                  {workers.filter(w => w.stage === STAGES.IT).length}
+                </span>
+              )}
             </button>
 
             <button
@@ -384,14 +390,16 @@ export const Sidebar = ({
               id="nav-pipeline"
               className={`nav-item ${activeView === 'pipeline' ? 'active' : ''}`}
               onClick={() => setActiveView('pipeline')}
-              data-tooltip="Accommodation Queue"
-              title={isCollapsed ? "Accommodation Queue" : undefined}
+              data-tooltip={isCollapsed ? `Accommodation Queue (${workers.filter(w => w.stage === STAGES.CAMP).length})` : undefined}
+              title={isCollapsed ? `Accommodation Queue (${workers.filter(w => w.stage === STAGES.CAMP).length})` : undefined}
             >
               <Home size={18} />
               <span>Accommodation Queue</span>
-              <span className="nav-counter">
-                {workers.filter(w => w.stage === STAGES.CAMP).length}
-              </span>
+              {!isCollapsed && (
+                <span className="nav-counter">
+                  {workers.filter(w => w.stage === STAGES.CAMP).length}
+                </span>
+              )}
             </button>
 
             <button
