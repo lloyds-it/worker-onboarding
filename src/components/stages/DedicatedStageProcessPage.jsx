@@ -10,7 +10,8 @@ import {
   Fingerprint, 
   Home, 
   ChevronRight,
-  UserPlus
+  UserPlus,
+  Phone
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useWorkers } from '../../context/WorkerContext';
@@ -254,7 +255,9 @@ export const DedicatedStageProcessPage = ({ worker: propWorker, onSelectWorker, 
             </div>
             <div>
               <span style={{ color: 'var(--text-muted)' }}>Contact Mobile:</span>
-              <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>📱 {worker.hr?.mobileNumber}</div>
+              <div style={{ fontWeight: 600, color: 'var(--text-primary)', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                <Phone size={13} style={{ opacity: 0.7 }} /> {worker.hr?.mobileNumber}
+              </div>
             </div>
             <div>
               <span style={{ color: 'var(--text-muted)' }}>Emergency Contact:</span>

@@ -14,7 +14,8 @@ import {
   Fingerprint,
   UserCheck,
   CreditCard,
-  Camera
+  Camera,
+  Phone
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useWorkers } from '../../context/WorkerContext';
@@ -226,8 +227,8 @@ export const WorkerTable = ({ onOpenProcessModal, onViewInductionDoc, onGenerate
                           <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
                             S/o: {worker.hr?.fatherHusbandName || 'N/A'} • {worker.hr?.age || '—'} yrs • {worker.hr?.gender || '—'}
                           </div>
-                          <div style={{ fontSize: '0.725rem', color: 'var(--text-muted)' }}>
-                            📱 {worker.hr?.mobileNumber || 'N/A'}
+                          <div style={{ fontSize: '0.725rem', color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: '0.25rem', marginTop: '0.15rem' }}>
+                            <Phone size={11} style={{ opacity: 0.7 }} /> {worker.hr?.mobileNumber || 'N/A'}
                           </div>
                         </div>
                       </div>
@@ -270,7 +271,9 @@ export const WorkerTable = ({ onOpenProcessModal, onViewInductionDoc, onGenerate
                       <>
                         <td>
                           <div style={{ fontSize: '0.8rem' }}>{worker.hr?.emergencyPerson} ({worker.hr?.emergencyRelationship})</div>
-                          <div style={{ fontSize: '0.725rem', color: 'var(--text-muted)' }}>📱 {worker.hr?.emergencyMobile}</div>
+                          <div style={{ fontSize: '0.725rem', color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: '0.25rem', marginTop: '0.15rem' }}>
+                            <Phone size={11} style={{ opacity: 0.7 }} /> {worker.hr?.emergencyMobile}
+                          </div>
                         </td>
                         <td>{getStageBadge(worker.stage)}</td>
                       </>

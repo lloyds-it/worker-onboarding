@@ -73,7 +73,7 @@ export const Sidebar = ({
                 <ShieldCheck size={20} />
               </div>
               <div className="sidebar-brand-titles">
-                <h1 className="sidebar-brand-name">LLOYDS METALS</h1>
+                <h1 className="sidebar-brand-name">LLOYDS INFRA &amp; METALS</h1>
                 <span className="sidebar-brand-desc">Worker Onboarding Portal</span>
               </div>
             </div>

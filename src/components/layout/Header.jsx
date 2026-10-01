@@ -10,7 +10,12 @@ import {
   PanelLeftOpen,
   Key,
   FileSignature,
-  ChevronDown
+  ChevronDown,
+  Users,
+  Stethoscope,
+  HardHat,
+  Fingerprint,
+  Home
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
@@ -47,19 +52,19 @@ export const Header = ({ isSidebarCollapsed = false, onToggleSidebarCollapse }) 
   const getRoleBadgeStyle = (role) => {
     switch (role) {
       case ROLES.ADMIN:
-        return { bg: 'rgba(232, 35, 41, 0.12)', text: '#DC2626', border: 'rgba(232, 35, 41, 0.25)', icon: '👑' };
+        return { bg: 'rgba(232, 35, 41, 0.1)', text: '#DC2626', border: 'rgba(232, 35, 41, 0.25)', icon: ShieldCheck };
       case ROLES.HR:
-        return { bg: 'rgba(59, 130, 246, 0.12)', text: '#2563EB', border: 'rgba(59, 130, 246, 0.25)', icon: '📋' };
+        return { bg: 'rgba(2, 132, 199, 0.1)', text: '#0284C7', border: 'rgba(2, 132, 199, 0.25)', icon: Users };
       case ROLES.MEDICAL:
-        return { bg: 'rgba(245, 158, 11, 0.12)', text: '#D97706', border: 'rgba(245, 158, 11, 0.25)', icon: '🩺' };
+        return { bg: 'rgba(234, 88, 12, 0.1)', text: '#EA580C', border: 'rgba(234, 88, 12, 0.25)', icon: Stethoscope };
       case ROLES.SAFETY:
-        return { bg: 'rgba(139, 92, 246, 0.12)', text: '#7C3AED', border: 'rgba(139, 92, 246, 0.25)', icon: '🛡️' };
+        return { bg: 'rgba(217, 119, 6, 0.1)', text: '#D97706', border: 'rgba(217, 119, 6, 0.25)', icon: HardHat };
       case ROLES.IT:
-        return { bg: 'rgba(14, 165, 233, 0.12)', text: '#0284C7', border: 'rgba(14, 165, 233, 0.25)', icon: '💻' };
+        return { bg: 'rgba(37, 99, 235, 0.1)', text: '#2563EB', border: 'rgba(37, 99, 235, 0.25)', icon: Fingerprint };
       case ROLES.CAMP:
-        return { bg: 'rgba(16, 185, 129, 0.12)', text: '#059669', border: 'rgba(16, 185, 129, 0.25)', icon: '🏕️' };
+        return { bg: 'rgba(5, 150, 105, 0.1)', text: '#059669', border: 'rgba(5, 150, 105, 0.25)', icon: Home };
       default:
-        return { bg: 'rgba(15, 23, 42, 0.08)', text: '#334155', border: 'rgba(15, 23, 42, 0.2)', icon: '👤' };
+        return { bg: 'rgba(100, 116, 139, 0.1)', text: '#64748B', border: 'rgba(100, 116, 139, 0.25)', icon: User };
     }
   };
 
@@ -135,17 +140,25 @@ export const Header = ({ isSidebarCollapsed = false, onToggleSidebarCollapse }) 
           </button>
 
           {/* Active Department Role Badge */}
-          <div 
-            className="header-role-pill" 
-            style={{
-              backgroundColor: badgeStyle.bg,
-              color: badgeStyle.text,
-              border: `1px solid ${badgeStyle.border}`
-            }}
-          >
-            <span>{badgeStyle.icon}</span>
-            <span>{ROLE_LABELS[currentRole] || currentRole}</span>
-          </div>
+          {(() => {
+            const RoleIcon = badgeStyle.icon;
+            return (
+              <div 
+                className="header-role-pill" 
+                style={{
+                  backgroundColor: badgeStyle.bg,
+                  color: badgeStyle.text,
+                  border: `1px solid ${badgeStyle.border}`,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.4rem'
+                }}
+              >
+                <RoleIcon size={13} style={{ flexShrink: 0 }} />
+                <span>{ROLE_LABELS[currentRole] || currentRole}</span>
+              </div>
+            );
+          })()}
 
           {/* User Identity Profile with Dropdown */}
           <div className="header-user-wrapper" ref={dropdownRef} style={{ position: 'relative' }}>

@@ -10,7 +10,11 @@ import {
   Mail, 
   Briefcase,
   Key,
-  FileSignature 
+  FileSignature,
+  Stethoscope,
+  HardHat,
+  Fingerprint,
+  Home
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { ROLES, ROLE_LABELS } from '../../types/constants';
@@ -87,17 +91,17 @@ export const UserManagement = () => {
   const getRoleBadge = (role) => {
     switch (role) {
       case ROLES.ADMIN:
-        return <span className="badge badge-purple">👑 {ROLE_LABELS[role]}</span>;
+        return <span className="badge badge-purple" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}><ShieldCheck size={12} /> {ROLE_LABELS[role]}</span>;
       case ROLES.HR:
-        return <span className="badge badge-info">📋 {ROLE_LABELS[role]}</span>;
+        return <span className="badge badge-info" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}><Users size={12} /> {ROLE_LABELS[role]}</span>;
       case ROLES.MEDICAL:
-        return <span className="badge badge-warning">🩺 {ROLE_LABELS[role]}</span>;
+        return <span className="badge badge-warning" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}><Stethoscope size={12} /> {ROLE_LABELS[role]}</span>;
       case ROLES.SAFETY:
-        return <span className="badge badge-purple">🛡️ {ROLE_LABELS[role]}</span>;
+        return <span className="badge badge-purple" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}><HardHat size={12} /> {ROLE_LABELS[role]}</span>;
       case ROLES.IT:
-        return <span className="badge badge-info">💻 {ROLE_LABELS[role]}</span>;
+        return <span className="badge badge-info" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}><Fingerprint size={12} /> {ROLE_LABELS[role]}</span>;
       case ROLES.CAMP:
-        return <span className="badge badge-success">🏕️ {ROLE_LABELS[role]}</span>;
+        return <span className="badge badge-success" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}><Home size={12} /> {ROLE_LABELS[role]}</span>;
       default:
         return <span className="badge badge-info">{role}</span>;
     }
@@ -279,12 +283,12 @@ export const UserManagement = () => {
                 value={formData.role}
                 onChange={(e) => handleRoleChange(e.target.value)}
               >
-                <option value={ROLES.HR}>📋 {ROLE_LABELS[ROLES.HR]} (Step 1)</option>
-                <option value={ROLES.MEDICAL}>🩺 {ROLE_LABELS[ROLES.MEDICAL]} (Step 2)</option>
-                <option value={ROLES.SAFETY}>🛡️ {ROLE_LABELS[ROLES.SAFETY]} (Step 3)</option>
-                <option value={ROLES.IT}>💻 {ROLE_LABELS[ROLES.IT]} (Step 4)</option>
-                <option value={ROLES.CAMP}>🏕️ {ROLE_LABELS[ROLES.CAMP]} (Step 5)</option>
-                <option value={ROLES.ADMIN}>👑 {ROLE_LABELS[ROLES.ADMIN]} (All Access)</option>
+                <option value={ROLES.HR}>HR Operations (Step 1)</option>
+                <option value={ROLES.MEDICAL}>Medical Health (Step 2)</option>
+                <option value={ROLES.SAFETY}>EHS Safety (Step 3)</option>
+                <option value={ROLES.IT}>IT Systems &amp; Biometrics (Step 4)</option>
+                <option value={ROLES.CAMP}>Camp Housing (Step 5)</option>
+                <option value={ROLES.ADMIN}>Chief Administrator (Executive Full Access)</option>
               </select>
             </div>
 

@@ -30,18 +30,20 @@ export const DEPARTMENT_PRESETS = [
   {
     role: 'ADMIN',
     stageName: 'Executive',
-    badge: '👑 Admin',
+    badge: 'Admin',
+    icon: ShieldCheck,
     name: 'Harshvardhan M. K.',
     designation: 'Chief Administrator & Site Director',
     email: 'hmk@lloydsprojects.in',
     alias: 'admin',
     department: 'Site Administration & Master Control',
-    color: '#7C3AED'
+    color: '#6366F1'
   },
   {
     role: 'HR',
     stageName: 'Step 1',
-    badge: '📋 HR',
+    badge: 'HR Ops',
+    icon: Users,
     name: 'Pooja Nair',
     designation: 'Senior HR Operations Lead',
     email: 'hr.operations@lloyds.in',
@@ -52,7 +54,8 @@ export const DEPARTMENT_PRESETS = [
   {
     role: 'MEDICAL',
     stageName: 'Step 2',
-    badge: '🩺 Medical',
+    badge: 'Medical',
+    icon: Stethoscope,
     name: 'Dr. Vivek Deshmukh (MBBS, CIH)',
     designation: 'Chief Medical Officer',
     email: 'medical.officer@lloyds.in',
@@ -63,7 +66,8 @@ export const DEPARTMENT_PRESETS = [
   {
     role: 'SAFETY',
     stageName: 'Step 3',
-    badge: '🛡️ Safety',
+    badge: 'Safety',
+    icon: HardHat,
     name: 'Arun Patil',
     designation: 'Lead EHS Safety Engineer',
     email: 'ehs.safety@lloyds.in',
@@ -74,7 +78,8 @@ export const DEPARTMENT_PRESETS = [
   {
     role: 'IT',
     stageName: 'Step 4',
-    badge: '💻 IT',
+    badge: 'IT Systems',
+    icon: Fingerprint,
     name: 'Rajesh Sharma',
     designation: 'Senior IT Biometric Specialist',
     email: 'it.biometrics@lloyds.in',
@@ -85,7 +90,8 @@ export const DEPARTMENT_PRESETS = [
   {
     role: 'CAMP',
     stageName: 'Step 5',
-    badge: '🏕️ Camp',
+    badge: 'Camp Housing',
+    icon: Home,
     name: 'Mahesh Kulkarni',
     designation: 'Camp Accommodations Supervisor',
     email: 'camp.gondwana@lloyds.in',
@@ -462,28 +468,31 @@ export const LoginPage = () => {
             }}>
               {DEPARTMENT_PRESETS.map((p) => {
                 const isSelected = selectedRole === p.role;
+                const PresetIcon = p.icon;
                 return (
                   <button
                     key={p.role}
                     type="button"
                     onClick={() => handleSelectPreset(p)}
                     style={{
-                      padding: '0.45rem 0.35rem',
+                      padding: '0.55rem 0.5rem',
                       borderRadius: '8px',
-                      border: isSelected ? `2px solid ${p.color}` : '1px solid var(--border-medium)',
+                      border: isSelected ? `1.5px solid ${p.color}` : '1px solid var(--border-medium)',
                       backgroundColor: isSelected ? `${p.color}15` : 'var(--bg-surface-subtle)',
-                      color: isSelected ? p.color : 'var(--text-primary)',
+                      color: isSelected ? p.color : 'var(--text-secondary)',
                       cursor: 'pointer',
-                      textAlign: 'center',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      gap: '0.35rem',
+                      gap: '0.45rem',
                       transition: 'all 0.15s ease',
-                      boxShadow: isSelected ? `0 2px 8px ${p.color}25` : 'none'
+                      boxShadow: isSelected ? `0 2px 8px ${p.color}20` : 'none',
+                      fontSize: '0.78rem',
+                      fontWeight: isSelected ? 700 : 600
                     }}
                   >
-                    <span style={{ fontSize: '0.775rem', fontWeight: 800 }}>{p.badge}</span>
+                    <PresetIcon size={14} style={{ color: isSelected ? p.color : 'var(--text-muted)', flexShrink: 0 }} />
+                    <span>{p.badge}</span>
                   </button>
                 );
               })}
