@@ -21,7 +21,7 @@ export const Step2Medical = ({ initialData, onSave, isReadOnly }) => {
     vertigoTest: initialData?.vertigoTest || 'Fit',
     existingIllness: initialData?.existingIllness || 'No',
     fitnessStatus: initialData?.fitnessStatus || 'FIT',
-    examinerName: initialData?.examinerName || 'Dr. Vivek Deshmukh (MBBS, CIH)',
+    examinerName: initialData?.examinerName || 'Gopal Ray (Chief Medical Officer)',
     remarks: initialData?.remarks || 'Fit for heavy industrial plant work.'
   });
 

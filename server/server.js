@@ -101,30 +101,30 @@ const loginAttempts = new Map();
 
 // Default Account Seed Configurations (Passwords hashed with bcrypt)
 const DEFAULT_ACCOUNT_PASSWORDS = {
-  'USR-ADMIN-01': process.env.ADMIN_PASSWORD || 'Microsoft@003',
-  'USR-HR-04': process.env.HR_PASSWORD || 'hr@lloyds#2026',
-  'USR-MED-02': process.env.MED_PASSWORD || 'med@lloyds#2026',
-  'USR-SAF-08': process.env.SAF_PASSWORD || 'safe@lloyds#2026',
-  'USR-IT-05': process.env.IT_PASSWORD || 'it@lloyds#2026',
-  'USR-CMP-03': process.env.CAMP_PASSWORD || 'camp@lloyds#2026'
+  'USR-ADMIN-01': process.env.ADMIN_PASSWORD || 'Lloyds@2026#',
+  'USR-HR-04': process.env.HR_PASSWORD || 'Lloyds@2026#',
+  'USR-MED-02': process.env.MED_PASSWORD || 'Lloyds@2026#',
+  'USR-SAF-08': process.env.SAF_PASSWORD || 'Lloyds@2026#',
+  'USR-IT-05': process.env.IT_PASSWORD || 'Lloyds@2026#',
+  'USR-CMP-03': process.env.CAMP_PASSWORD || 'Lloyds@2026#'
 };
 
 const SYSTEM_ACCOUNTS = [
   {
     id: 'USR-ADMIN-01',
-    name: 'Harshvardhan M. K.',
-    email: (process.env.ADMIN_EMAIL || 'hmk@lloydsprojects.in').toLowerCase(),
-    aliases: ['admin', 'hmk@lloydsprojects.in', 'admin@lloyds.in', 'hmk@lloyds.in'],
+    name: 'Kolli Hemanth',
+    email: (process.env.ADMIN_EMAIL || 'hmk@lloyds.in').toLowerCase(),
+    aliases: ['admin', 'hmk@lloyds.in', 'hmk', 'kolli', 'kolli.hemanth', 'admin@lloyds.in'],
     passwordHash: bcrypt.hashSync(DEFAULT_ACCOUNT_PASSWORDS['USR-ADMIN-01'], 10),
     role: 'ADMIN',
-    designation: 'Chief Administrator & Site Director',
-    department: 'Executive Administration'
+    designation: 'Site Administrator & Chief Director',
+    department: 'Site Administration & Master Control'
   },
   {
     id: 'USR-HR-04',
-    name: 'Pooja Nair',
-    email: 'hr.operations@lloyds.in',
-    aliases: ['hr', 'hr.operations@lloyds.in', 'pooja'],
+    name: 'Rinku Sharma',
+    email: 'ruv@lloyds.in',
+    aliases: ['hr', 'ruv@lloyds.in', 'rinku', 'ruv', 'rinku.sharma'],
     passwordHash: bcrypt.hashSync(DEFAULT_ACCOUNT_PASSWORDS['USR-HR-04'], 10),
     role: 'HR',
     designation: 'Senior HR Operations Lead',
@@ -132,9 +132,9 @@ const SYSTEM_ACCOUNTS = [
   },
   {
     id: 'USR-MED-02',
-    name: 'Dr. Vivek Deshmukh (MBBS, CIH)',
-    email: 'medical.officer@lloyds.in',
-    aliases: ['medical', 'med', 'medical.officer@lloyds.in', 'doctor'],
+    name: 'Gopal Ray',
+    email: 'glr@lloyds.in',
+    aliases: ['medical', 'glr@lloyds.in', 'gopal', 'glr', 'gopal.ray', 'doctor', 'med'],
     passwordHash: bcrypt.hashSync(DEFAULT_ACCOUNT_PASSWORDS['USR-MED-02'], 10),
     role: 'MEDICAL',
     designation: 'Chief Medical Officer',
@@ -142,9 +142,9 @@ const SYSTEM_ACCOUNTS = [
   },
   {
     id: 'USR-SAF-08',
-    name: 'Arun Patil',
-    email: 'ehs.safety@lloyds.in',
-    aliases: ['safety', 'ehs', 'safe', 'ehs.safety@lloyds.in'],
+    name: 'Jithendra Parida',
+    email: 'jdp@lloyds.in',
+    aliases: ['safety', 'jdp@lloyds.in', 'jithendra', 'jdp', 'jithendra.parida', 'ehs', 'safe'],
     passwordHash: bcrypt.hashSync(DEFAULT_ACCOUNT_PASSWORDS['USR-SAF-08'], 10),
     role: 'SAFETY',
     designation: 'Lead EHS Safety Engineer',
@@ -152,9 +152,9 @@ const SYSTEM_ACCOUNTS = [
   },
   {
     id: 'USR-IT-05',
-    name: 'Rajesh Sharma',
-    email: 'it.biometrics@lloyds.in',
-    aliases: ['it', 'biometrics', 'it.biometrics@lloyds.in'],
+    name: 'Chitta Ranjan Panda',
+    email: 'crp@lloyds.in',
+    aliases: ['it', 'crp@lloyds.in', 'chitta', 'crp', 'chitta.panda', 'biometrics'],
     passwordHash: bcrypt.hashSync(DEFAULT_ACCOUNT_PASSWORDS['USR-IT-05'], 10),
     role: 'IT',
     designation: 'Senior IT Biometric Specialist',
@@ -162,9 +162,9 @@ const SYSTEM_ACCOUNTS = [
   },
   {
     id: 'USR-CMP-03',
-    name: 'Mahesh Kulkarni',
-    email: 'camp.gondwana@lloyds.in',
-    aliases: ['camp', 'housing', 'camp.gondwana@lloyds.in'],
+    name: 'Ripan',
+    email: 'rin@lloyds.in',
+    aliases: ['camp', 'rin@lloyds.in', 'ripan', 'rin', 'housing'],
     passwordHash: bcrypt.hashSync(DEFAULT_ACCOUNT_PASSWORDS['USR-CMP-03'], 10),
     role: 'CAMP',
     designation: 'Camp Accommodations Supervisor',
@@ -220,6 +220,7 @@ const syncAccountsWithStore = () => {
   const store = loadUserStore();
   let modified = false;
 
+  // 1. Sync custom passwords and signatures for seed accounts
   SYSTEM_ACCOUNTS.forEach(acc => {
     if (store[acc.id]) {
       if (store[acc.id].password) {
@@ -231,8 +232,35 @@ const syncAccountsWithStore = () => {
         acc.passwordHash = store[acc.id].password;
       }
       if (store[acc.id].signature) acc.signature = store[acc.id].signature;
+      if (store[acc.id].status) acc.status = store[acc.id].status;
     }
   });
+
+  // 2. Load custom users created via admin panel
+  if (Array.isArray(store.customUsers)) {
+    store.customUsers.forEach(customUser => {
+      const idx = SYSTEM_ACCOUNTS.findIndex(a => a.id === customUser.id || a.email.toLowerCase() === customUser.email.toLowerCase());
+      if (idx === -1) {
+        SYSTEM_ACCOUNTS.push({
+          id: customUser.id,
+          name: customUser.name,
+          email: customUser.email.toLowerCase(),
+          aliases: customUser.aliases || [customUser.email.toLowerCase(), customUser.email.split('@')[0].toLowerCase()],
+          passwordHash: customUser.passwordHash || (customUser.password ? bcrypt.hashSync(customUser.password, 10) : bcrypt.hashSync('Lloyds@2026#', 10)),
+          role: customUser.role,
+          designation: customUser.designation,
+          department: customUser.department,
+          status: customUser.status || 'ACTIVE'
+        });
+      } else {
+        SYSTEM_ACCOUNTS[idx].name = customUser.name;
+        SYSTEM_ACCOUNTS[idx].designation = customUser.designation;
+        SYSTEM_ACCOUNTS[idx].department = customUser.department;
+        SYSTEM_ACCOUNTS[idx].status = customUser.status || 'ACTIVE';
+        if (customUser.passwordHash) SYSTEM_ACCOUNTS[idx].passwordHash = customUser.passwordHash;
+      }
+    });
+  }
 
   if (modified) {
     saveUserStore(store);
@@ -416,6 +444,61 @@ app.post('/api/auth/change-password', authenticateToken, (req, res) => {
   }
 
   if (!matched) {
+    // If Admin is resetting password for a user that was created in UI (e.g. khushi)
+    if (isAdminReset && cleanUser) {
+      let inferredRole = 'IT';
+      if (targetUserId) {
+        const parts = targetUserId.split('-');
+        if (parts.length > 1 && ['ADMIN', 'HR', 'MEDICAL', 'SAFETY', 'IT', 'CAMP'].includes(parts[1])) {
+          inferredRole = parts[1];
+        }
+      }
+      const deptMap = {
+        ADMIN: 'Site Administration & Master Control',
+        HR: 'Human Resources',
+        MEDICAL: 'Occupational Health & Medical Services',
+        SAFETY: 'Environment, Health & Safety',
+        IT: 'Information Technology',
+        CAMP: 'Camp Administration (Gondwana)'
+      };
+      const desigMap = {
+        ADMIN: 'Site Administrator',
+        HR: 'HR Operations Lead',
+        MEDICAL: 'Chief Medical Officer',
+        SAFETY: 'Lead EHS Safety Engineer',
+        IT: 'IT Systems Specialist',
+        CAMP: 'Camp Accommodations Supervisor'
+      };
+
+      const newHash = bcrypt.hashSync(newPassword.trim(), 10);
+      const newId = targetUserId || `USR-${inferredRole}-${Date.now().toString().slice(-4)}`;
+      const cleanName = cleanUser.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+      const newUser = {
+        id: newId,
+        name: cleanName,
+        email: cleanUser,
+        aliases: [cleanUser, cleanUser.split('@')[0], cleanName.toLowerCase().replace(/\s+/g, '.')],
+        passwordHash: newHash,
+        role: inferredRole,
+        designation: desigMap[inferredRole] || 'Staff Specialist',
+        department: deptMap[inferredRole] || 'Operations',
+        status: 'ACTIVE',
+        createdAt: new Date().toISOString()
+      };
+      SYSTEM_ACCOUNTS.push(newUser);
+      const store = loadUserStore();
+      if (!Array.isArray(store.customUsers)) store.customUsers = [];
+      store.customUsers.push(newUser);
+      saveUserStore(store);
+
+      console.log(`[Auth] User ${cleanUser} registered and password set by Admin ${req.user.name}`);
+
+      return res.json({
+        success: true,
+        message: `Password successfully set for ${cleanUser}.`
+      });
+    }
+
     return res.status(404).json({
       success: false,
       error: 'User account not found.'
@@ -447,6 +530,14 @@ app.post('/api/auth/change-password', authenticateToken, (req, res) => {
   if (!store[matched.id]) store[matched.id] = {};
   store[matched.id].password = newHash;
   store[matched.id].passwordUpdatedAt = new Date().toISOString();
+
+  if (Array.isArray(store.customUsers)) {
+    const cUser = store.customUsers.find(u => u.id === matched.id || u.email.toLowerCase() === matched.email.toLowerCase());
+    if (cUser) {
+      cUser.passwordHash = newHash;
+      cUser.password = undefined;
+    }
+  }
   saveUserStore(store);
 
   console.log(`[Auth] Password updated for user ${matched.name} (${matched.email}) by ${req.user.name}`);
@@ -491,7 +582,7 @@ app.post('/api/auth/users/:id/signature', authenticateToken, (req, res) => {
   });
 });
 
-// Get User Directory with Signatures (Authenticated)
+// Get User Directory with Signatures & Status (Authenticated)
 app.get('/api/auth/users', authenticateToken, (req, res) => {
   syncAccountsWithStore();
   const safeUsers = SYSTEM_ACCOUNTS.map(acc => ({
@@ -501,9 +592,133 @@ app.get('/api/auth/users', authenticateToken, (req, res) => {
     role: acc.role,
     designation: acc.designation,
     department: acc.department,
-    signature: acc.signature || null
+    signature: acc.signature || null,
+    status: acc.status || 'ACTIVE'
   }));
   return res.json({ success: true, users: safeUsers });
+});
+
+// Admin Create New Staff Account
+app.post('/api/auth/users', authenticateToken, (req, res) => {
+  syncAccountsWithStore();
+  if (req.user.role !== 'ADMIN') {
+    return res.status(403).json({ success: false, error: 'Unauthorized: Only Chief Administrators can create user accounts.' });
+  }
+
+  const { name, email, role, designation, department, password } = req.body || {};
+  const cleanEmail = (email || '').trim().toLowerCase();
+  const cleanName = (name || '').trim();
+
+  if (!cleanName || !cleanEmail || !cleanEmail.includes('@')) {
+    return res.status(400).json({ success: false, error: 'Staff name and valid work email are required.' });
+  }
+
+  // Check duplicate
+  const exists = SYSTEM_ACCOUNTS.find(acc => acc.email.toLowerCase() === cleanEmail);
+  if (exists) {
+    return res.status(400).json({ success: false, error: 'A staff user with this email address already exists.' });
+  }
+
+  const rawPass = (password || '').trim() || 'Lloyds@2026#';
+  const newId = `USR-${role || 'STAFF'}-${Date.now().toString().slice(-4)}`;
+  const passHash = bcrypt.hashSync(rawPass, 10);
+
+  const newUser = {
+    id: newId,
+    name: cleanName,
+    email: cleanEmail,
+    aliases: [cleanEmail, cleanEmail.split('@')[0], cleanName.toLowerCase().replace(/\s+/g, '.')],
+    passwordHash: passHash,
+    role: role || 'HR',
+    designation: designation || 'Department Specialist',
+    department: department || 'Operations',
+    status: 'ACTIVE',
+    createdAt: new Date().toISOString()
+  };
+
+  SYSTEM_ACCOUNTS.push(newUser);
+
+  const store = loadUserStore();
+  if (!Array.isArray(store.customUsers)) store.customUsers = [];
+  store.customUsers.push(newUser);
+  saveUserStore(store);
+
+  console.log(`[Auth] New staff user ${cleanName} (${cleanEmail}) created by Admin ${req.user.name}`);
+
+  return res.json({
+    success: true,
+    user: {
+      id: newUser.id,
+      name: newUser.name,
+      email: newUser.email,
+      role: newUser.role,
+      designation: newUser.designation,
+      department: newUser.department,
+      status: newUser.status,
+      signature: null
+    }
+  });
+});
+
+// Admin Delete Staff Account
+app.delete('/api/auth/users/:id', authenticateToken, (req, res) => {
+  syncAccountsWithStore();
+  if (req.user.role !== 'ADMIN') {
+    return res.status(403).json({ success: false, error: 'Unauthorized: Only Chief Administrators can delete accounts.' });
+  }
+
+  const { id } = req.params;
+  if (id === 'USR-ADMIN-01') {
+    return res.status(400).json({ success: false, error: 'The primary Chief Administrator account cannot be deleted.' });
+  }
+
+  const idx = SYSTEM_ACCOUNTS.findIndex(acc => acc.id === id);
+  if (idx !== -1) {
+    SYSTEM_ACCOUNTS.splice(idx, 1);
+  }
+
+  const store = loadUserStore();
+  if (Array.isArray(store.customUsers)) {
+    store.customUsers = store.customUsers.filter(u => u.id !== id);
+    saveUserStore(store);
+  }
+
+  console.log(`[Auth] User ${id} deleted by Admin ${req.user.name}`);
+  return res.json({ success: true, message: 'User account successfully deleted.' });
+});
+
+// Admin Toggle User Status
+app.post('/api/auth/users/:id/status', authenticateToken, (req, res) => {
+  syncAccountsWithStore();
+  if (req.user.role !== 'ADMIN') {
+    return res.status(403).json({ success: false, error: 'Unauthorized: Only Chief Administrators can modify account status.' });
+  }
+
+  const { id } = req.params;
+  const { status } = req.body || {};
+
+  if (id === 'USR-ADMIN-01') {
+    return res.status(400).json({ success: false, error: 'The primary Chief Administrator account cannot be deactivated.' });
+  }
+
+  const matched = SYSTEM_ACCOUNTS.find(acc => acc.id === id);
+  if (!matched) {
+    return res.status(404).json({ success: false, error: 'User account not found.' });
+  }
+
+  matched.status = status || (matched.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE');
+
+  const store = loadUserStore();
+  if (!store[id]) store[id] = {};
+  store[id].status = matched.status;
+
+  if (Array.isArray(store.customUsers)) {
+    const cUser = store.customUsers.find(u => u.id === id);
+    if (cUser) cUser.status = matched.status;
+  }
+  saveUserStore(store);
+
+  return res.json({ success: true, status: matched.status });
 });
 
 // Enterprise SSO Authentication Endpoint (Exclusive to Google Workspace @lloyds.in)

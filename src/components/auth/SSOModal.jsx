@@ -68,17 +68,17 @@ export const SSOModal = ({ isOpen, onClose, initialProvider = 'GOOGLE', autoFill
   // Corporate Directory accounts available for fast federation selection (Google Workspace @lloyds.in)
   const directoryAccounts = [
     {
-      name: 'Harshvardhan M. K.',
+      name: 'Kolli Hemanth',
       email: 'hmk@lloyds.in',
       role: ROLES.ADMIN,
-      designation: 'Chief Administrator & Site Director',
-      department: 'Executive Administration',
+      designation: 'Site Administrator & Chief Director',
+      department: 'Site Administration & Master Control',
       domain: 'lloyds.in',
       avatarColor: '#7C3AED'
     },
     {
-      name: 'Pooja Nair',
-      email: 'hr.operations@lloyds.in',
+      name: 'Rinku Sharma',
+      email: 'ruv@lloyds.in',
       role: ROLES.HR,
       designation: 'Senior HR Operations Lead',
       department: 'Human Resources',
@@ -86,8 +86,8 @@ export const SSOModal = ({ isOpen, onClose, initialProvider = 'GOOGLE', autoFill
       avatarColor: '#0284C7'
     },
     {
-      name: 'Dr. Vivek Deshmukh (MBBS, CIH)',
-      email: 'medical.officer@lloyds.in',
+      name: 'Gopal Ray',
+      email: 'glr@lloyds.in',
       role: ROLES.MEDICAL,
       designation: 'Chief Medical Officer',
       department: 'Occupational Health & Medical Services',
@@ -95,8 +95,8 @@ export const SSOModal = ({ isOpen, onClose, initialProvider = 'GOOGLE', autoFill
       avatarColor: '#EA580C'
     },
     {
-      name: 'Arun Patil',
-      email: 'ehs.safety@lloyds.in',
+      name: 'Jithendra Parida',
+      email: 'jdp@lloyds.in',
       role: ROLES.SAFETY,
       designation: 'Lead EHS Safety Engineer',
       department: 'Environment, Health & Safety',
@@ -104,8 +104,8 @@ export const SSOModal = ({ isOpen, onClose, initialProvider = 'GOOGLE', autoFill
       avatarColor: '#D97706'
     },
     {
-      name: 'Rajesh Sharma',
-      email: 'it.biometrics@lloyds.in',
+      name: 'Chitta Ranjan Panda',
+      email: 'crp@lloyds.in',
       role: ROLES.IT,
       designation: 'Senior IT Biometric Specialist',
       department: 'Information Technology',
@@ -113,8 +113,8 @@ export const SSOModal = ({ isOpen, onClose, initialProvider = 'GOOGLE', autoFill
       avatarColor: '#2563EB'
     },
     {
-      name: 'Mahesh Kulkarni',
-      email: 'camp.gondwana@lloyds.in',
+      name: 'Ripan',
+      email: 'rin@lloyds.in',
       role: ROLES.CAMP,
       designation: 'Camp Accommodations Supervisor',
       department: 'Camp Administration (Gondwana)',

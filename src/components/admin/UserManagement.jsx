@@ -14,7 +14,9 @@ import {
   Stethoscope,
   HardHat,
   Fingerprint,
-  Home
+  Home,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { ROLES, ROLE_LABELS } from '../../types/constants';
@@ -33,8 +35,10 @@ export const UserManagement = () => {
     name: '',
     email: '',
     role: ROLES.HR,
-    designation: ''
+    designation: '',
+    password: ''
   });
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
@@ -55,7 +59,7 @@ export const UserManagement = () => {
     });
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setSuccess('');
@@ -69,20 +73,22 @@ export const UserManagement = () => {
       return;
     }
 
-    const created = createUser({
+    const created = await createUser({
       name: formData.name,
       email: formData.email,
       role: formData.role,
-      designation: formData.designation || defaultDesignations[formData.role]
+      designation: formData.designation || defaultDesignations[formData.role],
+      password: formData.password || 'Lloyds@2026#'
     });
 
     if (created) {
-      setSuccess(`Account successfully created for ${formData.name} in ${ROLE_LABELS[formData.role]}.`);
+      setSuccess(`Account successfully created for ${formData.name} in ${ROLE_LABELS[formData.role]}. (Default password: ${formData.password || 'Lloyds@2026#'})`);
       setFormData({
         name: '',
         email: '',
         role: ROLES.HR,
-        designation: ''
+        designation: '',
+        password: ''
       });
       setIsCreating(false);
     }
@@ -164,13 +170,13 @@ export const UserManagement = () => {
           <span>Enterprise SSO &amp; SAML Federation</span>
           <span style={{
             fontSize: '0.65rem',
-            backgroundColor: adminSubTab === 'SSO' ? 'rgba(255,255,255,0.25)' : '#ECFDF5',
-            color: adminSubTab === 'SSO' ? '#FFF' : '#065F46',
+            backgroundColor: adminSubTab === 'SSO' ? 'rgba(255,255,255,0.25)' : 'rgba(239, 68, 68, 0.1)',
+            color: adminSubTab === 'SSO' ? '#FFF' : '#DC2626',
             padding: '0.15rem 0.5rem',
             borderRadius: '10px',
             fontWeight: 800
           }}>
-            Active
+            Disabled for now
           </span>
         </button>
       </div>
@@ -302,6 +308,38 @@ export const UserManagement = () => {
                 value={formData.designation}
                 onChange={(e) => setFormData({ ...formData, designation: e.target.value })}
               />
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="staff-password">Initial Password (Optional)</label>
+              <div style={{ position: 'relative' }}>
+                <input
+                  id="staff-password"
+                  type={showPassword ? 'text' : 'password'}
+                  className="form-input"
+                  placeholder="Leave blank for default (Lloyds@2026#)"
+                  value={formData.password}
+                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  style={{ paddingRight: '2.5rem' }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  style={{
+                    position: 'absolute',
+                    right: '0.75rem',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    color: 'var(--text-muted)'
+                  }}
+                  title={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
             </div>
           </div>
 

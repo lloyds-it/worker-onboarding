@@ -163,6 +163,53 @@ export const apiGetUsers = async () => {
 };
 
 /**
+ * Create a new staff user (Authorized Admin)
+ */
+export const apiCreateUser = async (userData) => {
+  try {
+    const res = await fetch(`${API_BASE}/auth/users`, {
+      method: 'POST',
+      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify(userData)
+    });
+    return await res.json();
+  } catch (err) {
+    return { success: false, error: 'Unable to connect to server to create user.' };
+  }
+};
+
+/**
+ * Delete a staff user (Authorized Admin)
+ */
+export const apiDeleteUser = async (userId) => {
+  try {
+    const res = await fetch(`${API_BASE}/auth/users/${userId}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders()
+    });
+    return await res.json();
+  } catch (err) {
+    return { success: false, error: 'Unable to connect to server to delete user.' };
+  }
+};
+
+/**
+ * Toggle user active/inactive status (Authorized Admin)
+ */
+export const apiToggleUserStatus = async (userId, status) => {
+  try {
+    const res = await fetch(`${API_BASE}/auth/users/${userId}/status`, {
+      method: 'POST',
+      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ status })
+    });
+    return await res.json();
+  } catch (err) {
+    return { success: false, error: 'Unable to connect to server to update user status.' };
+  }
+};
+
+/**
  * Check backend and Fabric connectivity
  */
 export const checkFabricHealth = async () => {

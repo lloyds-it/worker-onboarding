@@ -10,7 +10,7 @@ export const Step3Safety = ({ initialData, onSave, isReadOnly }) => {
     initialData?.ppeIssued || ['helmet', 'jacket', 'shoes', 'gloves', 'earplugs']
   );
   const [safetyOfficerName, setSafetyOfficerName] = useState(
-    initialData?.safetyOfficerName || 'Arun Patil (EHS Safety Lead)'
+    initialData?.safetyOfficerName || 'Jithendra Parida (EHS Safety Lead)'
   );
   const [safetyDate, setSafetyDate] = useState(
     initialData?.safetyDate || new Date().toISOString().slice(0, 10)

@@ -11,7 +11,6 @@ import {
   EyeOff,
   AlertCircle,
   KeyRound,
-  CheckCircle2,
   Key,
   Stethoscope,
   HardHat,
@@ -32,9 +31,9 @@ export const DEPARTMENT_PRESETS = [
     stageName: 'Executive',
     badge: 'Admin',
     icon: ShieldCheck,
-    name: 'Harshvardhan M. K.',
-    designation: 'Chief Administrator & Site Director',
-    email: 'hmk@lloydsprojects.in',
+    name: 'Kolli Hemanth',
+    designation: 'Site Administrator & Chief Director',
+    email: 'hmk@lloyds.in',
     alias: 'admin',
     department: 'Site Administration & Master Control',
     color: '#6366F1'
@@ -44,9 +43,9 @@ export const DEPARTMENT_PRESETS = [
     stageName: 'Step 1',
     badge: 'HR Ops',
     icon: Users,
-    name: 'Pooja Nair',
+    name: 'Rinku Sharma',
     designation: 'Senior HR Operations Lead',
-    email: 'hr.operations@lloyds.in',
+    email: 'ruv@lloyds.in',
     alias: 'hr',
     department: 'Human Resources',
     color: '#0284C7'
@@ -56,9 +55,9 @@ export const DEPARTMENT_PRESETS = [
     stageName: 'Step 2',
     badge: 'Medical',
     icon: Stethoscope,
-    name: 'Dr. Vivek Deshmukh (MBBS, CIH)',
+    name: 'Gopal Ray',
     designation: 'Chief Medical Officer',
-    email: 'medical.officer@lloyds.in',
+    email: 'glr@lloyds.in',
     alias: 'medical',
     department: 'Occupational Health & Medical Services',
     color: '#EA580C'
@@ -68,9 +67,9 @@ export const DEPARTMENT_PRESETS = [
     stageName: 'Step 3',
     badge: 'Safety',
     icon: HardHat,
-    name: 'Arun Patil',
+    name: 'Jithendra Parida',
     designation: 'Lead EHS Safety Engineer',
-    email: 'ehs.safety@lloyds.in',
+    email: 'jdp@lloyds.in',
     alias: 'safety',
     department: 'Environment, Health & Safety',
     color: '#D97706'
@@ -80,9 +79,9 @@ export const DEPARTMENT_PRESETS = [
     stageName: 'Step 4',
     badge: 'IT Systems',
     icon: Fingerprint,
-    name: 'Rajesh Sharma',
+    name: 'Chitta Ranjan Panda',
     designation: 'Senior IT Biometric Specialist',
-    email: 'it.biometrics@lloyds.in',
+    email: 'crp@lloyds.in',
     alias: 'it',
     department: 'Information Technology',
     color: '#2563EB'
@@ -92,9 +91,9 @@ export const DEPARTMENT_PRESETS = [
     stageName: 'Step 5',
     badge: 'Camp Housing',
     icon: Home,
-    name: 'Mahesh Kulkarni',
+    name: 'Ripan',
     designation: 'Camp Accommodations Supervisor',
-    email: 'camp.gondwana@lloyds.in',
+    email: 'rin@lloyds.in',
     alias: 'camp',
     department: 'Camp Administration (Gondwana)',
     color: '#059669'
@@ -107,7 +106,7 @@ export const LoginPage = () => {
 
   // Active form state (default to Admin)
   const [selectedRole, setSelectedRole] = useState('ADMIN');
-  const [username, setUsername] = useState('hmk@lloydsprojects.in');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -116,8 +115,11 @@ export const LoginPage = () => {
   const [ssoProvider, setSsoProvider] = useState('GOOGLE');
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
 
-  // Corporate Domain Auto-Detection
-  const isCorporateDomain = Boolean(
+  // Single Sign-On (SSO) is disabled for now
+  const isSSOEnabled = false;
+
+  // Corporate Domain Auto-Detection (active only when SSO is enabled)
+  const isCorporateDomain = isSSOEnabled && Boolean(
     username && (
       username.toLowerCase().includes('@lloydsprojects.in') || 
       username.toLowerCase().includes('@lloyds.in') || 
@@ -126,10 +128,10 @@ export const LoginPage = () => {
   );
   const detectedDomain = isCorporateDomain ? (username.split('@')[1] || 'lloydsprojects.in') : '';
 
-  // Quick switch preset
+  // Quick switch preset: selects the department profile while keeping email ID input blank for user entry
   const handleSelectPreset = (preset) => {
     setSelectedRole(preset.role);
-    setUsername(preset.email);
+    setUsername('');
     setPassword('');
     setErrorMsg('');
   };
@@ -139,7 +141,7 @@ export const LoginPage = () => {
     setErrorMsg('');
 
     if (!username.trim()) {
-      setErrorMsg('Please enter your username or email address.');
+      setErrorMsg('Please enter your email ID.');
       return;
     }
 
@@ -499,24 +501,6 @@ export const LoginPage = () => {
             </div>
           </div>
 
-          {/* Active Profile Info Banner */}
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            padding: '0.5rem 0.75rem',
-            backgroundColor: `${activePreset.color}12`,
-            borderRadius: '8px',
-            border: `1px solid ${activePreset.color}35`,
-            marginBottom: '1.15rem'
-          }}>
-            <CheckCircle2 size={15} color={activePreset.color} style={{ flexShrink: 0 }} />
-            <div style={{ fontSize: '0.775rem', lineHeight: 1.3, minWidth: 0, overflow: 'hidden' }}>
-              <span style={{ fontWeight: 800, color: activePreset.color }}>{activePreset.name}</span>
-              <span style={{ color: 'var(--text-muted)' }}> • {activePreset.designation}</span>
-            </div>
-          </div>
-
           {/* Error Message Alert */}
           {errorMsg && (
             <div style={{
@@ -551,7 +535,7 @@ export const LoginPage = () => {
                   marginBottom: '0.35rem'
                 }}
               >
-                Work Email or Username
+                Email ID
               </label>
               <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
                 <User 
@@ -566,7 +550,7 @@ export const LoginPage = () => {
                   required
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder="Enter email or department alias"
+                  placeholder="Enter your email ID"
                   style={{
                     width: '100%',
                     padding: '0.65rem 0.85rem 0.65rem 2.45rem',
@@ -581,8 +565,8 @@ export const LoginPage = () => {
                 />
               </div>
 
-              {/* Corporate Domain Auto-Detect Prompt */}
-              {isCorporateDomain && (
+              {/* Corporate Domain Auto-Detect Prompt (Disabled while SSO is inactive) */}
+              {isSSOEnabled && isCorporateDomain && (
                 <div 
                   onClick={() => {
                     setSsoProvider('GOOGLE');
@@ -725,47 +709,50 @@ export const LoginPage = () => {
             </button>
           </form>
 
-          {/* SSO Alternative Separator */}
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            margin: '1.15rem 0 0.75rem 0',
-            color: 'var(--text-muted)'
-          }}>
-            <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--border-light)' }} />
-            <span style={{ padding: '0 0.65rem', fontSize: '0.68rem', fontWeight: 800, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>
-              Or Continue With
-            </span>
-            <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--border-light)' }} />
-          </div>
+          {/* Single Sign-On Option (Disabled for now) */}
+          {isSSOEnabled && (
+            <>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                margin: '1.15rem 0 0.75rem 0',
+                color: 'var(--text-muted)'
+              }}>
+                <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--border-light)' }} />
+                <span style={{ padding: '0 0.65rem', fontSize: '0.68rem', fontWeight: 800, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>
+                  Or Continue With
+                </span>
+                <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--border-light)' }} />
+              </div>
 
-          {/* Google Workspace SSO Button */}
-          <button
-            id="btn-sso-google"
-            type="button"
-            onClick={() => {
-              setSsoProvider('GOOGLE');
-              setShowSSOModal(true);
-            }}
-            className="btn btn-secondary"
-            style={{
-              width: '100%',
-              padding: '0.65rem 1rem',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '0.65rem',
-              fontSize: '0.825rem',
-              fontWeight: 700,
-              backgroundColor: 'var(--bg-surface-subtle)',
-              borderColor: 'var(--border-medium)',
-              color: 'var(--text-primary)',
-              borderRadius: '8px'
-            }}
-          >
-            <GoogleLogo size={18} />
-            <span>Sign in with Google Workspace (@lloyds.in)</span>
-          </button>
+              <button
+                id="btn-sso-google"
+                type="button"
+                onClick={() => {
+                  setSsoProvider('GOOGLE');
+                  setShowSSOModal(true);
+                }}
+                className="btn btn-secondary"
+                style={{
+                  width: '100%',
+                  padding: '0.65rem 1rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.65rem',
+                  fontSize: '0.825rem',
+                  fontWeight: 700,
+                  backgroundColor: 'var(--bg-surface-subtle)',
+                  borderColor: 'var(--border-medium)',
+                  color: 'var(--text-primary)',
+                  borderRadius: '8px'
+                }}
+              >
+                <GoogleLogo size={18} />
+                <span>Sign in with Google Workspace (@lloyds.in)</span>
+              </button>
+            </>
+          )}
 
           {/* Footer Security Badges */}
           <div style={{
@@ -787,13 +774,15 @@ export const LoginPage = () => {
         </div>
       </div>
 
-      {/* SSO Authentication Modal */}
-      <SSOModal
-        isOpen={showSSOModal}
-        onClose={() => setShowSSOModal(false)}
-        initialProvider={ssoProvider}
-        autoFillEmail={username}
-      />
+      {/* SSO Authentication Modal (Rendered only when SSO is enabled) */}
+      {isSSOEnabled && (
+        <SSOModal
+          isOpen={showSSOModal}
+          onClose={() => setShowSSOModal(false)}
+          initialProvider={ssoProvider}
+          autoFillEmail={username}
+        />
+      )}
 
       {/* Change Password Modal */}
       {showChangePasswordModal && (
@@ -801,7 +790,7 @@ export const LoginPage = () => {
           isOpen={true}
           onClose={() => setShowChangePasswordModal(false)}
           targetUser={
-            users?.find(u => u.email.toLowerCase() === username.toLowerCase() || (u.role && u.role.toLowerCase() === username.toLowerCase())) ||
+            users?.find(u => (u.alias && u.alias.toLowerCase() === username.toLowerCase()) || u.email.toLowerCase() === username.toLowerCase() || (u.role && u.role.toLowerCase() === username.toLowerCase())) ||
             users?.find(u => u.role === selectedRole) ||
             { id: username, name: username, email: username, role: selectedRole }
           }

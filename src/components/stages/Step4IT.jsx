@@ -12,7 +12,7 @@ export const Step4IT = ({ initialData, worker, onSave, isReadOnly }) => {
     initialData?.campusMasterUploaded ?? true
   );
   const [itAdminSignature, setItAdminSignature] = useState(
-    initialData?.itAdminSignature || 'Rajesh Sharma (Sr. IT Systems Admin)'
+    initialData?.itAdminSignature || 'Chitta Ranjan Panda (Sr. IT Systems Admin)'
   );
   const [error, setError] = useState(null);
 

@@ -1,0 +1,27 @@
+{
+  "customUsers": [
+    {
+      "id": "USR-IT-0221",
+      "name": "khushi",
+      "email": "kmp@lloyds.in",
+      "aliases": [
+        "kmp@lloyds.in",
+        "kmp",
+        "khushi"
+      ],
+      "passwordHash": "$2b$10$xYRIaPc.3VW0I8HmiN199.78n5OACJztqzXM6uaXAfzgCAN/PnEV6",
+      "role": "IT",
+      "designation": "IT Systems Specialist",
+      "department": "Information Technology",
+      "status": "ACTIVE",
+      "createdAt": "2026-10-01T09:29:10.312Z"
+    }
+  ],
+  "USR-IT-0221": {
+    "password": "$2b$10$xYRIaPc.3VW0I8HmiN199.78n5OACJztqzXM6uaXAfzgCAN/PnEV6",
+    "passwordUpdatedAt": "2026-10-01T09:29:25.088Z"
+  },
+  "USR-HR-4544": {
+    "status": "INACTIVE"
+  }
+}

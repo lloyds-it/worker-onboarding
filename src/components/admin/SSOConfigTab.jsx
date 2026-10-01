@@ -31,7 +31,7 @@ export const SSOConfigTab = () => {
   const [activeSessions, setActiveSessions] = useState([
     {
       id: 'SESS-GO-9901',
-      user: 'Harshvardhan M. K.',
+      user: 'Kolli Hemanth',
       email: 'hmk@lloyds.in',
       role: 'ADMIN',
       provider: 'GOOGLE',
@@ -41,8 +41,8 @@ export const SSOConfigTab = () => {
     },
     {
       id: 'SESS-GO-8842',
-      user: 'Pooja Nair',
-      email: 'hr.operations@lloyds.in',
+      user: 'Rinku Sharma',
+      email: 'ruv@lloyds.in',
       role: 'HR',
       provider: 'GOOGLE',
       ip: '10.240.14.22 (HR Department VLAN)',
@@ -51,8 +51,8 @@ export const SSOConfigTab = () => {
     },
     {
       id: 'SESS-GO-7721',
-      user: 'Dr. Vivek Deshmukh',
-      email: 'medical.officer@lloyds.in',
+      user: 'Gopal Ray',
+      email: 'glr@lloyds.in',
       role: 'MEDICAL',
       provider: 'GOOGLE',
       ip: '10.240.16.10 (OHC Medical Center)',
@@ -171,6 +171,25 @@ export const SSOConfigTab = () => {
             <span>Policy Saved Successfully</span>
           </div>
         )}
+      </div>
+
+      {/* Temporary Notice: SSO Disabled */}
+      <div style={{
+        marginBottom: '1.25rem',
+        padding: '0.75rem 1rem',
+        backgroundColor: 'rgba(239, 68, 68, 0.08)',
+        border: '1px solid rgba(239, 68, 68, 0.25)',
+        borderRadius: '8px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '0.65rem',
+        fontSize: '0.8rem',
+        color: 'var(--text-secondary)'
+      }}>
+        <AlertCircle size={18} color="#EF4444" style={{ flexShrink: 0 }} />
+        <span>
+          <strong>Single Sign-On (SSO) is currently disabled portal-wide.</strong> Department staff and administrators authenticate directly using their email ID and passwords.
+        </span>
       </div>
 
       {/* Identity Provider Configuration Cards */}

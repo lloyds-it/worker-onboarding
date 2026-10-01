@@ -1,3 +1,5 @@
+sign 
+
 # Worker Onboarding Hosting & Deployment Documentation
 
 This document provides a comprehensive runbook of how the **Lloyds Worker Onboarding & Camp Management Application** (Frontend, Backend, and Database) is configured, built, and hosted in production on the Linux server under the domain **`taskai.lloyds.in`**.
@@ -13,7 +15,7 @@ graph TD
     subgraph "Production Linux Server (/var/www/worker-onboarding)"
         Nginx -->|"GET /onboarding/* (Static Web Files)"| ReactStatic["/var/www/worker-onboarding/dist/ (React 19 + Vite)"]
         Nginx -->|"Proxy /onboarding/api/*"| NodeExpress["Node.js Express API (127.0.0.1:5000)"]
-      
+    
         SystemdService["systemd service: worker-onboarding.service"] -.->|Manages / Restarts| NodeExpress
     end
   
@@ -32,7 +34,7 @@ graph TD
 | **Frontend Web Path** | `https://taskai.lloyds.in/workeronboarding/`         |
 | **Backend API Path**  | `https://taskai.lloyds.in/workeronboarding/api/`     |
 | **Internal API Port** | `http://127.0.0.1:5000`                              |
-| **Operating System**  | Linux (Ubuntu / Debian) with `systemd` and `nginx`   |
+| **Operating System**  | Linux (Ubuntu / Debian) with`systemd` and `nginx`  |
 | **Deploy Directory**  | `/var/www/worker-onboarding/`                        |
 | **Process User**      | `www-data`                                           |
 | **GitHub Repository** | `https://github.com/lloyds-it/worker-onboarding.git` |

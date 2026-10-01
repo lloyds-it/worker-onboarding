@@ -253,7 +253,7 @@ export const PrintableInductionDoc = ({ worker, onBack, onGenerateIdCard }) => {
             </div>
           </div>
           <div style={{ textAlign: 'right', fontSize: '0.75rem' }}>
-            <div><strong>Medical Examiner:</strong> {medical.examinerName || 'Dr. Vivek Deshmukh'}</div>
+            <div><strong>Medical Examiner:</strong> {medical.examinerName || 'Gopal Ray'}</div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.4rem', minHeight: '28px', marginTop: '0.2rem' }}>
               <span>Signature & Stamp:</span>
               {medSignature ? (
@@ -305,7 +305,7 @@ export const PrintableInductionDoc = ({ worker, onBack, onGenerateIdCard }) => {
             </tr>
             <tr>
               <td colSpan="2" style={{ padding: '0.5rem', border: '1px solid #CBD5E0', backgroundColor: '#F8FAFC' }}>
-                <strong>Safety Officer Name:</strong> {safety.safetyOfficerName || 'Arun Patil (EHS Lead)'} &nbsp;&nbsp;&nbsp;&nbsp;
+                <strong>Safety Officer Name:</strong> {safety.safetyOfficerName || 'Jithendra Parida (EHS Lead)'} &nbsp;&nbsp;&nbsp;&nbsp;
                 <strong>Signature:</strong> {safetySignature ? (
                   <img src={safetySignature} alt="Safety Sig" style={{ maxHeight: '24px', maxWidth: '85px', verticalAlign: 'middle', objectFit: 'contain' }} />
                 ) : '________________________'} &nbsp;&nbsp;&nbsp;&nbsp;
@@ -340,7 +340,7 @@ export const PrintableInductionDoc = ({ worker, onBack, onGenerateIdCard }) => {
               <td style={{ padding: '0.5rem', border: '1px solid #CBD5E0', width: '35%' }}>
                 <strong>IT Admin Signature:</strong> {itSignature ? (
                   <img src={itSignature} alt="IT Sig" style={{ maxHeight: '24px', maxWidth: '85px', verticalAlign: 'middle', objectFit: 'contain' }} />
-                ) : (it.itAdminSignature || 'Rajesh Sharma')}
+                ) : (it.itAdminSignature || 'Chitta Ranjan Panda')}
               </td>
             </tr>
           </tbody>

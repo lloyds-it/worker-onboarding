@@ -294,7 +294,7 @@ export const DepartmentDashboards = ({ initialTab = 'hr' }) => {
               <div className="stat-info">
                 <h3>Safety Officers</h3>
                 <div className="stat-value">1 Active</div>
-                <div className="stat-sub">Arun Patil (EHS Lead)</div>
+                <div className="stat-sub">Jithendra Parida (EHS Lead)</div>
               </div>
               <div className="stat-icon" style={{ backgroundColor: 'var(--info-bg)', color: 'var(--info-solid)' }}>
                 <Users size={22} />

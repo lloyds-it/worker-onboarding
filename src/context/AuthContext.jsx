@@ -1,15 +1,26 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { ROLES, ROLE_LABELS } from '../types/constants';
 import { logAuditEvent } from '../services/auditService';
-import { apiLogin, apiSSOLogin, apiChangePassword, apiUploadUserSignature, apiGetUsers, apiVerifySession } from '../services/apiService';
+import { 
+  apiLogin, 
+  apiSSOLogin, 
+  apiChangePassword, 
+  apiUploadUserSignature, 
+  apiGetUsers, 
+  apiVerifySession,
+  apiCreateUser,
+  apiDeleteUser,
+  apiToggleUserStatus
+} from '../services/apiService';
 
 const AuthContext = createContext();
 
 const AUTH_SESSION_KEY = 'lloyd_auth_session_v3';
-const USERS_STORAGE_KEY = 'lloyd_system_users_v2';
+const USERS_STORAGE_KEY = 'lloyd_system_users_v3';
 const SSO_SETTINGS_KEY = 'lloyd_sso_settings_v1';
 
 export const DEFAULT_SSO_SETTINGS = {
+  enabled: false,
   enforceSSO: false,
   allowPasswordFallback: true,
   jitProvisioning: true,
@@ -17,11 +28,11 @@ export const DEFAULT_SSO_SETTINGS = {
   allowedDomains: ['lloyds.in'],
   providers: {
     google: { 
-      enabled: true, 
-      name: 'Google Workspace Identity', 
+      enabled: false, 
+      name: 'Google Workspace Identity (Disabled)', 
       domain: 'lloyds.in', 
       clientId: 'lloyds-workforce.apps.googleusercontent.com',
-      status: 'ACTIVE',
+      status: 'INACTIVE',
       protocol: 'Google Workspace OIDC 2.0'
     },
     microsoft: { 
@@ -42,11 +53,14 @@ export const DEFAULT_SSO_SETTINGS = {
 
 export const HARDCODED_ADMIN = {
   id: 'USR-ADMIN-01',
-  name: 'Harshvardhan M. K.',
-  designation: 'Chief Administrator & Site Director',
-  email: 'hmk@lloydsprojects.in',
+  name: 'Kolli Hemanth',
+  designation: 'Site Administrator & Chief Director',
+  email: 'hmk@lloyds.in',
+  alias: 'admin',
+  aliases: ['admin', 'hmk@lloyds.in', 'hmk', 'kolli', 'kolli.hemanth', 'admin@lloyds.in'],
+  password: 'Lloyds@2026#',
   role: ROLES.ADMIN,
-  department: 'Executive Administration',
+  department: 'Site Administration & Master Control',
   status: 'ACTIVE',
   createdAt: '2026-09-01T08:00:00Z'
 };
@@ -55,9 +69,12 @@ export const INITIAL_SYSTEM_USERS = [
   HARDCODED_ADMIN,
   {
     id: 'USR-HR-04',
-    name: 'Pooja Nair',
+    name: 'Rinku Sharma',
     designation: 'Senior HR Operations Lead',
-    email: 'hr.operations@lloyds.in',
+    email: 'ruv@lloyds.in',
+    alias: 'hr',
+    aliases: ['hr', 'ruv@lloyds.in', 'rinku', 'ruv', 'rinku.sharma'],
+    password: 'Lloyds@2026#',
     role: ROLES.HR,
     department: 'Human Resources',
     status: 'ACTIVE',
@@ -65,9 +82,12 @@ export const INITIAL_SYSTEM_USERS = [
   },
   {
     id: 'USR-MED-02',
-    name: 'Dr. Vivek Deshmukh (MBBS, CIH)',
+    name: 'Gopal Ray',
     designation: 'Chief Medical Officer',
-    email: 'medical.officer@lloyds.in',
+    email: 'glr@lloyds.in',
+    alias: 'medical',
+    aliases: ['medical', 'glr@lloyds.in', 'gopal', 'glr', 'gopal.ray', 'doctor', 'med'],
+    password: 'Lloyds@2026#',
     role: ROLES.MEDICAL,
     department: 'Occupational Health & Medical Services',
     status: 'ACTIVE',
@@ -75,9 +95,12 @@ export const INITIAL_SYSTEM_USERS = [
   },
   {
     id: 'USR-SAF-08',
-    name: 'Arun Patil',
+    name: 'Jithendra Parida',
     designation: 'Lead EHS Safety Engineer',
-    email: 'ehs.safety@lloyds.in',
+    email: 'jdp@lloyds.in',
+    alias: 'safety',
+    aliases: ['safety', 'jdp@lloyds.in', 'jithendra', 'jdp', 'jithendra.parida', 'ehs', 'safe'],
+    password: 'Lloyds@2026#',
     role: ROLES.SAFETY,
     department: 'Environment, Health & Safety',
     status: 'ACTIVE',
@@ -85,9 +108,12 @@ export const INITIAL_SYSTEM_USERS = [
   },
   {
     id: 'USR-IT-05',
-    name: 'Rajesh Sharma',
+    name: 'Chitta Ranjan Panda',
     designation: 'Senior IT Biometric Specialist',
-    email: 'it.biometrics@lloyds.in',
+    email: 'crp@lloyds.in',
+    alias: 'it',
+    aliases: ['it', 'crp@lloyds.in', 'chitta', 'crp', 'chitta.panda', 'biometrics'],
+    password: 'Lloyds@2026#',
     role: ROLES.IT,
     department: 'Information Technology',
     status: 'ACTIVE',
@@ -95,9 +121,12 @@ export const INITIAL_SYSTEM_USERS = [
   },
   {
     id: 'USR-CMP-03',
-    name: 'Mahesh Kulkarni',
+    name: 'Ripan',
     designation: 'Camp Accommodations Supervisor',
-    email: 'camp.gondwana@lloyds.in',
+    email: 'rin@lloyds.in',
+    alias: 'camp',
+    aliases: ['camp', 'rin@lloyds.in', 'ripan', 'rin', 'housing'],
+    password: 'Lloyds@2026#',
     role: ROLES.CAMP,
     department: 'Camp Administration (Gondwana)',
     status: 'ACTIVE',
@@ -116,6 +145,7 @@ export const AuthProvider = ({ children }) => {
         u.id === 'USR-ADMIN-01' || 
         u.role === ROLES.ADMIN || 
         u.email === 'admin@lloyds.in' || 
+        u.email === 'hmk@lloyds.in' ||
         u.email === 'hmk@lloydsprojects.in'
       );
       if (adminIdx >= 0) {
@@ -136,7 +166,7 @@ export const AuthProvider = ({ children }) => {
   const [ssoSettings, setSsoSettings] = useState(() => {
     try {
       const saved = localStorage.getItem(SSO_SETTINGS_KEY);
-      return saved ? { ...DEFAULT_SSO_SETTINGS, ...JSON.parse(saved) } : DEFAULT_SSO_SETTINGS;
+      return saved ? { ...DEFAULT_SSO_SETTINGS, ...JSON.parse(saved), enforceSSO: false, enabled: false } : DEFAULT_SSO_SETTINGS;
     } catch {
       return DEFAULT_SSO_SETTINGS;
     }
@@ -258,15 +288,19 @@ export const AuthProvider = ({ children }) => {
     const candidate = (users || []).find(u => 
       u.email.toLowerCase() === lowerInput ||
       u.role.toLowerCase() === lowerInput ||
+      (u.alias && u.alias.toLowerCase() === lowerInput) ||
+      (Array.isArray(u.aliases) && u.aliases.map(a => a.toLowerCase()).includes(lowerInput)) ||
       (lowerInput === 'admin' && u.role === ROLES.ADMIN)
     ) || INITIAL_SYSTEM_USERS.find(u => 
       u.email.toLowerCase() === lowerInput ||
       u.role.toLowerCase() === lowerInput ||
+      (u.alias && u.alias.toLowerCase() === lowerInput) ||
+      (Array.isArray(u.aliases) && u.aliases.map(a => a.toLowerCase()).includes(lowerInput)) ||
       (lowerInput === 'admin' && u.role === ROLES.ADMIN)
     );
 
     if (candidate) {
-      if (ssoSettings?.enforceSSO && candidate.role !== ROLES.ADMIN && (candidate.email.endsWith('@lloydsprojects.in') || candidate.email.endsWith('@lloyds.in'))) {
+      if (ssoSettings?.enabled && ssoSettings?.enforceSSO && candidate.role !== ROLES.ADMIN && (candidate.email.endsWith('@lloydsprojects.in') || candidate.email.endsWith('@lloyds.in'))) {
         return { 
           success: false, 
           error: 'Corporate Security Enforcement: Single Sign-On (SSO) is mandatory for corporate accounts. Please click "Sign in with SSO" below.' 
@@ -439,21 +473,24 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem(AUTH_SESSION_KEY);
   };
 
-  // Admin creates new user
-  const createUser = ({ name, email, role, designation }) => {
+  // Admin creates new user (Synchronized with backend REST API and local state)
+  const createUser = async ({ name, email, role, designation, password }) => {
     if (currentRole !== ROLES.ADMIN) {
       alert('Unauthorized: Only Chief Administrators can create new user accounts.');
       return false;
     }
 
+    const cleanEmail = (email || '').trim().toLowerCase();
+    const cleanName = (name || '').trim();
+
     // Check duplicate email
-    if (users.some(u => u.email.toLowerCase() === email.trim().toLowerCase())) {
+    if (users.some(u => u.email.toLowerCase() === cleanEmail)) {
       alert('A user with this email address already exists.');
       return false;
     }
 
     const deptMap = {
-      [ROLES.ADMIN]: 'Executive Administration',
+      [ROLES.ADMIN]: 'Site Administration & Master Control',
       [ROLES.HR]: 'Human Resources',
       [ROLES.MEDICAL]: 'Occupational Health & Medical Services',
       [ROLES.SAFETY]: 'Environment, Health & Safety',
@@ -461,13 +498,49 @@ export const AuthProvider = ({ children }) => {
       [ROLES.CAMP]: 'Camp Administration (Gondwana)'
     };
 
+    const desigMap = {
+      [ROLES.ADMIN]: 'Site Administrator / Director',
+      [ROLES.HR]: 'HR Induction Officer',
+      [ROLES.MEDICAL]: 'Medical Officer (CIH)',
+      [ROLES.SAFETY]: 'EHS Safety Inspector',
+      [ROLES.IT]: 'IT Biometric Systems Lead',
+      [ROLES.CAMP]: 'Camp Housing Coordinator'
+    };
+
+    const rawPassword = (password || '').trim() || 'Lloyds@2026#';
+    const dept = deptMap[role] || 'Operations';
+    const cleanDesignation = (designation || '').trim() || desigMap[role] || 'Department Specialist';
+    const aliasList = [cleanEmail, cleanEmail.split('@')[0], cleanName.toLowerCase().replace(/\s+/g, '.')];
+
+    let createdId = `USR-${role}-${Date.now().toString().slice(-4)}`;
+
+    // Call backend API
+    try {
+      const res = await apiCreateUser({
+        name: cleanName,
+        email: cleanEmail,
+        role,
+        designation: cleanDesignation,
+        department: dept,
+        password: rawPassword
+      });
+      if (res && res.success && res.user && res.user.id) {
+        createdId = res.user.id;
+      }
+    } catch (e) {
+      console.warn('[Auth] Remote user creation fallback:', e);
+    }
+
     const newUser = {
-      id: `USR-${role}-${Date.now().toString().slice(-4)}`,
-      name: name.trim(),
-      email: email.trim().toLowerCase(),
+      id: createdId,
+      name: cleanName,
+      email: cleanEmail,
+      alias: cleanEmail.split('@')[0],
+      aliases: aliasList,
+      password: rawPassword,
       role,
-      designation: designation.trim(),
-      department: deptMap[role] || 'Operations',
+      designation: cleanDesignation,
+      department: dept,
       status: 'ACTIVE',
       createdAt: new Date().toISOString()
     };
@@ -487,35 +560,52 @@ export const AuthProvider = ({ children }) => {
   };
 
   // Admin toggles user status (Active / Inactive)
-  const toggleUserStatus = (userId) => {
+  const toggleUserStatus = async (userId) => {
     if (currentRole !== ROLES.ADMIN) return;
+
+    const user = users.find(u => u.id === userId);
+    if (!user) return;
+    if (userId === 'USR-ADMIN-01') {
+      alert('The primary Chief Administrator account cannot be deactivated.');
+      return;
+    }
+
+    const newStatus = user.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
+
+    try {
+      await apiToggleUserStatus(userId, newStatus);
+    } catch (e) {
+      console.warn('[Auth] Remote user status update error:', e);
+    }
 
     const updated = users.map(u => {
       if (u.id !== userId) return u;
-      if (u.id === 'USR-ADMIN-01') {
-        alert('The primary Chief Administrator account cannot be deactivated.');
-        return u;
-      }
-      const newStatus = u.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
-      logAuditEvent({
-        role: ROLES.ADMIN,
-        action: 'ADMIN_USER_STATUS_CHANGED',
-        workerId: 'N/A',
-        workerName: u.name,
-        details: `Changed account status of ${u.name} to ${newStatus}.`
-      });
       return { ...u, status: newStatus };
     });
 
     commitUsers(updated);
+
+    logAuditEvent({
+      role: ROLES.ADMIN,
+      action: 'ADMIN_USER_STATUS_CHANGED',
+      workerId: 'N/A',
+      workerName: user.name,
+      details: `Changed account status of ${user.name} to ${newStatus}.`
+    });
   };
 
   // Admin deletes user
-  const deleteUser = (userId) => {
+  const deleteUser = async (userId) => {
     if (currentRole !== ROLES.ADMIN) return;
     if (userId === 'USR-ADMIN-01') {
       alert('The primary Chief Administrator account cannot be deleted.');
       return;
+    }
+
+    try {
+      await apiDeleteUser(userId);
+    } catch (e) {
+      console.warn('[Auth] Remote user delete error:', e);
     }
 
     const target = users.find(u => u.id === userId);
@@ -540,12 +630,33 @@ export const AuthProvider = ({ children }) => {
         const res = await apiGetUsers();
         if (res && res.success && Array.isArray(res.users)) {
           setUsers(prevUsers => {
-            const merged = prevUsers.map(u => {
-              const remote = res.users.find(ru => ru.id === u.id || ru.email.toLowerCase() === u.email.toLowerCase());
-              if (remote && remote.signature && remote.signature !== u.signature) {
-                return { ...u, signature: remote.signature };
+            const merged = [...prevUsers];
+            res.users.forEach(ru => {
+              const idx = merged.findIndex(u => u.id === ru.id || u.email.toLowerCase() === ru.email.toLowerCase());
+              if (idx !== -1) {
+                merged[idx] = {
+                  ...merged[idx],
+                  status: ru.status || merged[idx].status,
+                  designation: ru.designation || merged[idx].designation,
+                  department: ru.department || merged[idx].department,
+                  signature: ru.signature || merged[idx].signature
+                };
+              } else {
+                merged.push({
+                  id: ru.id,
+                  name: ru.name,
+                  email: ru.email,
+                  alias: ru.email.split('@')[0],
+                  aliases: [ru.email.toLowerCase(), ru.email.split('@')[0].toLowerCase()],
+                  password: 'Lloyds@2026#',
+                  role: ru.role,
+                  designation: ru.designation,
+                  department: ru.department,
+                  status: ru.status || 'ACTIVE',
+                  signature: ru.signature || null,
+                  createdAt: ru.createdAt || new Date().toISOString()
+                });
               }
-              return u;
             });
             localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(merged));
             return merged;
@@ -565,6 +676,8 @@ export const AuthProvider = ({ children }) => {
     const cleanUser = (username || currentUser?.email || '').trim().toLowerCase();
 
     // 1. Attempt backend API first
+    let remoteSuccess = false;
+    let remoteMsg = '';
     try {
       const res = await apiChangePassword({
         username: cleanUser,
@@ -573,8 +686,13 @@ export const AuthProvider = ({ children }) => {
         isAdminReset,
         targetUserId
       });
-      if (res && res.error && !res.error.includes('Unable to connect')) {
-        return { success: false, error: res.error };
+      if (res && res.success) {
+        remoteSuccess = true;
+        remoteMsg = res.message;
+      } else if (res && res.error) {
+        if (!res.error.includes('Unable to connect') && !res.error.includes('not found') && !res.error.includes('Invalid or expired session')) {
+          return { success: false, error: res.error };
+        }
       }
     } catch (e) {
       console.warn('[Auth] Remote change-password call fallback:', e);
@@ -587,45 +705,50 @@ export const AuthProvider = ({ children }) => {
       (u.role && u.role.toLowerCase() === cleanUser)
     );
 
-    if (targetIdx === -1) {
+    if (targetIdx === -1 && !remoteSuccess) {
       return { success: false, error: 'User account not found.' };
     }
 
-    const targetUser = users[targetIdx];
+    if (targetIdx !== -1) {
+      const targetUser = users[targetIdx];
 
-    // If not admin reset, verify current password
-    if (!isAdminReset) {
-      if (targetUser.password && currentPassword !== targetUser.password) {
+      // If not admin reset and not verified remotely, check local current password
+      if (!isAdminReset && !remoteSuccess && targetUser.password && currentPassword !== targetUser.password) {
         return { success: false, error: 'Current password does not match.' };
       }
+
+      const updatedUser = {
+        ...targetUser,
+        password: newPassword.trim(),
+        passwordUpdatedAt: new Date().toISOString()
+      };
+
+      const updatedUsers = [...users];
+      updatedUsers[targetIdx] = updatedUser;
+      commitUsers(updatedUsers);
+
+      // If changing own password, update currentUser
+      if (currentUser && (currentUser.id === targetUser.id || currentUser.email === targetUser.email)) {
+        setCurrentUser(updatedUser);
+      }
+
+      logAuditEvent({
+        role: currentRole || ROLES.ADMIN,
+        action: isAdminReset ? 'ADMIN_PASSWORD_RESET' : 'USER_PASSWORD_CHANGED',
+        workerId: 'N/A',
+        workerName: targetUser.name,
+        details: `${isAdminReset ? 'Administrator reset password' : 'Password changed'} for ${targetUser.name} (${targetUser.email}).`
+      });
+
+      return {
+        success: true,
+        message: remoteMsg || `Password successfully updated for ${targetUser.name}.`
+      };
     }
-
-    const updatedUser = {
-      ...targetUser,
-      password: newPassword.trim(),
-      passwordUpdatedAt: new Date().toISOString()
-    };
-
-    const updatedUsers = [...users];
-    updatedUsers[targetIdx] = updatedUser;
-    commitUsers(updatedUsers);
-
-    // If changing own password, update currentUser
-    if (currentUser && (currentUser.id === targetUser.id || currentUser.email === targetUser.email)) {
-      setCurrentUser(updatedUser);
-    }
-
-    logAuditEvent({
-      role: currentRole || ROLES.ADMIN,
-      action: isAdminReset ? 'ADMIN_PASSWORD_RESET' : 'USER_PASSWORD_CHANGED',
-      workerId: 'N/A',
-      workerName: targetUser.name,
-      details: `${isAdminReset ? 'Administrator reset password' : 'Password changed'} for ${targetUser.name} (${targetUser.email}).`
-    });
 
     return {
       success: true,
-      message: `Password successfully updated for ${targetUser.name}.`
+      message: remoteMsg || 'Password successfully updated.'
     };
   };
 

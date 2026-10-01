@@ -10,7 +10,7 @@ export const Step5Camp = ({ initialData, worker, onSave, isReadOnly }) => {
     bedNumber: initialData?.bedNumber || 'Bed 1',
     contractorSupervisor: initialData?.contractorSupervisor || 'Sunil Verma (Site Supervisor)',
     supervisorMobile: initialData?.supervisorMobile || '9822001144',
-    allocatedBy: initialData?.allocatedBy || 'Mahesh Kulkarni (Camp Supv)',
+    allocatedBy: initialData?.allocatedBy || 'Ripan (Camp Supv)',
     allocationDate: initialData?.allocationDate || new Date().toISOString().slice(0, 10)
   });
 
