@@ -15,7 +15,9 @@ import {
   Stethoscope,
   HardHat,
   Fingerprint,
-  Home
+  Home,
+  RefreshCw,
+  Trash2
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
@@ -29,7 +31,7 @@ import logoInfra from '../../assets/logo_infra.png';
 export const Header = ({ isSidebarCollapsed = false, onToggleSidebarCollapse }) => {
   const { currentRole, currentUser, logout } = useAuth();
   const { theme, toggleTheme, isDark } = useTheme();
-  const { searchQuery, setSearchQuery } = useWorkers();
+  const { searchQuery, setSearchQuery, refreshWorkers, clearLocalCache, isSyncing } = useWorkers();
 
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -128,6 +130,25 @@ export const Header = ({ isSidebarCollapsed = false, onToggleSidebarCollapse }) 
         </div>
 
         <div className="header-right">
+          {/* Live Database Sync Button */}
+          <button
+            id="btn-header-sync"
+            className="header-icon-btn"
+            onClick={() => refreshWorkers && refreshWorkers()}
+            title={isSyncing ? "Synchronizing with Microsoft Fabric / Database..." : "Sync live data from database"}
+            aria-label="Sync with database"
+            disabled={isSyncing}
+            style={{ position: 'relative' }}
+          >
+            <RefreshCw 
+              size={16} 
+              style={{ 
+                color: isSyncing ? 'var(--brand-primary)' : 'var(--text-muted)',
+                animation: isSyncing ? 'spin 1s linear infinite' : 'none'
+              }} 
+            />
+          </button>
+
           {/* Compact Theme Toggle */}
           <button
             id="btn-header-theme-toggle"
@@ -302,6 +323,34 @@ export const Header = ({ isSidebarCollapsed = false, onToggleSidebarCollapse }) 
                 >
                   <FileSignature size={15} style={{ color: '#2563EB' }} />
                   <span>Digital Signature</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsDropdownOpen(false);
+                    if (clearLocalCache) clearLocalCache();
+                  }}
+                  style={{
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.65rem',
+                    padding: '0.55rem 0.65rem',
+                    borderRadius: '8px',
+                    border: 'none',
+                    background: 'transparent',
+                    color: '#D97706',
+                    fontSize: '0.8rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    textAlign: 'left'
+                  }}
+                  className="dropdown-hover-item"
+                  title="Purge cached browser data and resynchronize directly from backend database"
+                >
+                  <Trash2 size={15} style={{ color: '#D97706' }} />
+                  <span>Clear Cache & Resync</span>
                 </button>
 
                 <div style={{ height: '1px', backgroundColor: 'var(--border-light)', margin: '0.4rem 0' }} />

@@ -27,6 +27,33 @@ export const Step2Medical = ({ initialData, onSave, isReadOnly }) => {
 
   const [errors, setErrors] = useState({});
 
+  React.useEffect(() => {
+    if (initialData) {
+      setFormData({
+        bloodGroup: initialData.bloodGroup || 'B+',
+        heightCm: initialData.heightCm || '',
+        weightKg: initialData.weightKg || '',
+        bmi: initialData.bmi || '',
+        bmiCategory: initialData.bmiCategory || '',
+        bpSystolic: initialData.bpSystolic || '120',
+        bpDiastolic: initialData.bpDiastolic || '80',
+        spo2: initialData.spo2 || '98',
+        pulseRate: initialData.pulseRate || '72',
+        respirationRate: initialData.respirationRate || '16',
+        rbs: initialData.rbs || '100',
+        alcoholTest: initialData.alcoholTest || 'Pass',
+        visionTest: initialData.visionTest || 'Normal',
+        hearingTest: initialData.hearingTest || 'Normal',
+        vertigoTest: initialData.vertigoTest || 'Fit',
+        existingIllness: initialData.existingIllness || 'No',
+        fitnessStatus: initialData.fitnessStatus || 'FIT',
+        examinerName: initialData.examinerName || 'Gopal Ray (Chief Medical Officer)',
+        remarks: initialData.remarks || 'Fit for heavy industrial plant work.'
+      });
+      setErrors({});
+    }
+  }, [initialData]);
+
   const handleVitalChange = (field, val) => {
     if (isReadOnly) return;
     const next = { ...formData, [field]: val };

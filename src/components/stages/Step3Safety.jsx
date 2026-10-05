@@ -17,6 +17,16 @@ export const Step3Safety = ({ initialData, onSave, isReadOnly }) => {
   );
   const [error, setError] = useState(null);
 
+  React.useEffect(() => {
+    if (initialData) {
+      setTopicsCovered(initialData.topicsCovered || SAFETY_TOPICS);
+      setPpeIssued(initialData.ppeIssued || ['helmet', 'jacket', 'shoes', 'gloves', 'earplugs']);
+      setSafetyOfficerName(initialData.safetyOfficerName || 'Jithendra Parida (EHS Safety Lead)');
+      setSafetyDate(initialData.safetyDate || new Date().toISOString().slice(0, 10));
+      setError(null);
+    }
+  }, [initialData]);
+
   const toggleTopic = (topic) => {
     if (isReadOnly) return;
     if (topicsCovered.includes(topic)) {
@@ -39,18 +49,17 @@ export const Step3Safety = ({ initialData, onSave, isReadOnly }) => {
     e.preventDefault();
     if (isReadOnly) return;
 
-    if (topicsCovered.length < 3) {
-      setError('At least 3 core safety briefing topics must be confirmed.');
+    if (!safetyOfficerName?.trim()) {
+      setError('EHS Safety Officer Name is required.');
       return;
     }
-    if (!ppeIssued.includes('helmet') || !ppeIssued.includes('jacket') || !ppeIssued.includes('shoes')) {
-      setError('Mandatory baseline PPE (Helmet, Reflective Jacket, Safety Shoes) MUST be issued before advancing.');
+
+    if (!topicsCovered || topicsCovered.length === 0) {
+      setError('Please select at least one safety induction briefing topic.');
       return;
     }
-    if (!safetyOfficerName.trim()) {
-      setError('Safety Officer Name is required.');
-      return;
-    }
+
+    setError(null);
 
     onSave({
       briefingDone: true,

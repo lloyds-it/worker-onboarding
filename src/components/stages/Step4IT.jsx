@@ -16,6 +16,16 @@ export const Step4IT = ({ initialData, worker, onSave, isReadOnly }) => {
   );
   const [error, setError] = useState(null);
 
+  React.useEffect(() => {
+    if (initialData) {
+      setFaceBiometricRegistered(initialData.faceBiometricRegistered ?? true);
+      setCwmsRegistered(initialData.cwmsRegistered ?? true);
+      setCampusMasterUploaded(initialData.campusMasterUploaded ?? true);
+      setItAdminSignature(initialData.itAdminSignature || 'Chitta Ranjan Panda (Sr. IT Systems Admin)');
+      setError(null);
+    }
+  }, [initialData]);
+
   const handleSubmit = (e) => {
     e.preventDefault();
     if (isReadOnly) return;

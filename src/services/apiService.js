@@ -305,17 +305,18 @@ export const apiGetWorkers = async () => {
   try {
     const res = await fetch(`${API_BASE}/workers`, { 
       headers: getAuthHeaders(),
-      signal: AbortSignal.timeout(4500) 
+      signal: AbortSignal.timeout(6000) 
     });
     if (res.ok) {
       const json = await res.json();
-      if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+      if (json.success && Array.isArray(json.data)) {
         backendAvailable = true;
+        saveWorkers(json.data);
         return json.data;
       }
     }
   } catch (err) {
-    // Fallback to localStorage
+    console.warn('[API] Could not fetch remote workers, falling back to local cache:', err);
   }
 
   return getStoredWorkers();

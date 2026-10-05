@@ -1174,76 +1174,32 @@ export const getStoredWorkers = () => {
   try {
     const raw = localStorage.getItem(WORKER_STORAGE_KEY);
     if (!raw) {
-      localStorage.setItem(WORKER_STORAGE_KEY, JSON.stringify(INITIAL_WORKERS));
       return INITIAL_WORKERS;
     }
     const parsed = JSON.parse(raw);
-    
-    // Automatically synchronize any missing dummy workers from INITIAL_WORKERS
-    let modified = false;
-    const existingIds = new Set(parsed.map(w => w.id));
-    const missingWorkers = INITIAL_WORKERS.filter(iw => !existingIds.has(iw.id));
-    
-    let currentList = parsed;
-    if (missingWorkers.length > 0) {
-      currentList = [...parsed, ...missingWorkers];
-      modified = true;
+    if (Array.isArray(parsed)) {
+      return parsed;
     }
-
-    // Ensure photo, address, and ID card address data is properly populated
-    const enriched = currentList.map(w => {
-      let changed = false;
-      const hrUpdate = { ...w.hr };
-
-      // Ensure ID card address defaults to LLOYDS METALS AND ENERGY LIMITED HEDRI
-      if (!hrUpdate.idCardAddress || hrUpdate.idCardAddress !== 'LLOYDS METALS AND ENERGY LIMITED HEDRI') {
-        hrUpdate.idCardAddress = 'LLOYDS METALS AND ENERGY LIMITED HEDRI';
-        changed = true;
-      }
-
-      // Default working location to Hedri if previously default Konsari
-      if (!hrUpdate.workingLocation || hrUpdate.workingLocation === 'Konsari Plant Site / Phase 3') {
-        hrUpdate.workingLocation = 'LLOYDS METALS AND ENERGY LIMITED HEDRI';
-        changed = true;
-      }
-
-      const initMatch = INITIAL_WORKERS.find(i => i.id === w.id);
-      if (initMatch) {
-        if (!w.hr?.photo && initMatch.hr?.photo) {
-          hrUpdate.photo = initMatch.hr.photo;
-          changed = true;
-        }
-        if (!w.hr?.address && initMatch.hr?.address) {
-          hrUpdate.address = initMatch.hr.address;
-          changed = true;
-        }
-        if (!w.hr?.activity && initMatch.hr?.activity) {
-          hrUpdate.activity = initMatch.hr.activity;
-          changed = true;
-        }
-      }
-
-      if (changed) {
-        modified = true;
-        return { ...w, hr: hrUpdate };
-      }
-      return w;
-    });
-
-    if (modified) {
-      localStorage.setItem(WORKER_STORAGE_KEY, JSON.stringify(enriched));
-      return enriched;
-    }
-    return enriched;
+    return [];
   } catch (err) {
     console.error('Failed to parse workers from localStorage:', err);
-    return INITIAL_WORKERS;
+    return [];
+  }
+};
+
+export const clearStoredWorkers = () => {
+  try {
+    localStorage.removeItem(WORKER_STORAGE_KEY);
+  } catch (err) {
+    console.error('Failed to clear workers storage:', err);
   }
 };
 
 export const saveWorkers = (workers) => {
   try {
-    localStorage.setItem(WORKER_STORAGE_KEY, JSON.stringify(workers));
+    if (Array.isArray(workers)) {
+      localStorage.setItem(WORKER_STORAGE_KEY, JSON.stringify(workers));
+    }
   } catch (err) {
     console.error('Failed to save workers:', err);
   }
@@ -1253,3 +1209,4 @@ export const resetToInitialData = () => {
   localStorage.setItem(WORKER_STORAGE_KEY, JSON.stringify(INITIAL_WORKERS));
   return INITIAL_WORKERS;
 };
+

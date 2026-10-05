@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { ROLES, ROLE_LABELS } from '../types/constants';
 import { logAuditEvent } from '../services/auditService';
+import { clearStoredWorkers } from '../services/storageService';
 import { 
   apiLogin, 
   apiSSOLogin, 
@@ -471,6 +472,7 @@ export const AuthProvider = ({ children }) => {
     setCurrentRole(null);
     setCurrentUser(null);
     localStorage.removeItem(AUTH_SESSION_KEY);
+    clearStoredWorkers();
 
     // Strip stale URL hash (e.g. #departments, #users, #pipeline) upon logout
     try {
@@ -634,8 +636,9 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // Sync remote signatures and users on mount
+  // Sync remote signatures and users on mount or login
   useEffect(() => {
+    if (!isAuthenticated) return;
     const syncBackendUsers = async () => {
       try {
         const res = await apiGetUsers();
@@ -676,7 +679,7 @@ export const AuthProvider = ({ children }) => {
       } catch (e) {}
     };
     syncBackendUsers();
-  }, []);
+  }, [isAuthenticated]);
 
   // Change password for any account or self
   const changePassword = async ({ username, currentPassword, newPassword, isAdminReset = false, targetUserId = null }) => {

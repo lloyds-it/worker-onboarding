@@ -16,6 +16,22 @@ export const Step5Camp = ({ initialData, worker, onSave, isReadOnly }) => {
 
   const [errors, setErrors] = useState({});
 
+  React.useEffect(() => {
+    if (initialData) {
+      setFormData({
+        campName: initialData.campName || CAMPS[0],
+        blockNumber: initialData.blockNumber || BLOCKS[0],
+        roomNumber: initialData.roomNumber || 'A-104',
+        bedNumber: initialData.bedNumber || 'Bed 1',
+        contractorSupervisor: initialData.contractorSupervisor || 'Sunil Verma (Site Supervisor)',
+        supervisorMobile: initialData.supervisorMobile || '9822001144',
+        allocatedBy: initialData.allocatedBy || 'Ripan (Camp Supv)',
+        allocationDate: initialData.allocationDate || new Date().toISOString().slice(0, 10)
+      });
+      setErrors({});
+    }
+  }, [initialData]);
+
   const handleChange = (field, val) => {
     if (isReadOnly) return;
     setFormData({ ...formData, [field]: val });
@@ -30,10 +46,7 @@ export const Step5Camp = ({ initialData, worker, onSave, isReadOnly }) => {
 
     const errs = {};
     if (!formData.campName) errs.campName = 'Camp selection is required.';
-    if (!formData.blockNumber) errs.blockNumber = 'Block selection is required.';
-    if (!formData.roomNumber.trim()) errs.roomNumber = 'Room number is required.';
-    if (!formData.bedNumber.trim()) errs.bedNumber = 'Bed number is required.';
-    if (!formData.contractorSupervisor.trim()) errs.contractorSupervisor = 'Contractor Supervisor is required.';
+    if (!formData.roomNumber?.trim()) errs.roomNumber = 'Room number is required.';
 
     if (Object.keys(errs).length > 0) {
       setErrors(errs);
@@ -42,6 +55,9 @@ export const Step5Camp = ({ initialData, worker, onSave, isReadOnly }) => {
 
     onSave({
       ...formData,
+      blockNumber: formData.blockNumber || BLOCKS[0],
+      bedNumber: formData.bedNumber || 'Bed 1',
+      contractorSupervisor: formData.contractorSupervisor || 'Sunil Verma (Site Supervisor)',
       gatePassActive: true
     });
   };
@@ -57,6 +73,25 @@ export const Step5Camp = ({ initialData, worker, onSave, isReadOnly }) => {
           <span className="badge badge-success">Onboarding Completed & Gate Pass Active</span>
         )}
       </div>
+
+      {Object.keys(errors).length > 0 && (
+        <div style={{
+          backgroundColor: 'rgba(239, 68, 68, 0.08)',
+          border: '1px solid var(--danger-solid, #EF4444)',
+          borderRadius: '8px',
+          padding: '0.85rem 1rem',
+          marginBottom: '1.25rem'
+        }}>
+          <div style={{ fontWeight: 700, color: 'var(--danger-solid, #EF4444)', fontSize: '0.88rem', marginBottom: '0.25rem' }}>
+            Please correct the following accommodation field(s):
+          </div>
+          <ul style={{ margin: 0, paddingLeft: '1.2rem', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+            {Object.entries(errors).map(([field, msg]) => (
+              <li key={field} style={{ marginBottom: '2px' }}>{msg}</li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* Accommodation Details */}
       <h4 style={{ fontSize: '0.875rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.75rem' }}>

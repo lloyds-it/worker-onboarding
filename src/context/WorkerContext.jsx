@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
-import { getStoredWorkers, saveWorkers, resetToInitialData } from '../services/storageService';
+import { getStoredWorkers, saveWorkers, resetToInitialData, clearStoredWorkers } from '../services/storageService';
 import { logAuditEvent } from '../services/auditService';
 import { ROLES, STAGES } from '../types/constants';
 import { useAuth } from './AuthContext';
@@ -21,7 +21,7 @@ import {
 const WorkerContext = createContext();
 
 export const WorkerProvider = ({ children }) => {
-  const { currentRole, currentUser } = useAuth();
+  const { currentRole, currentUser, isAuthenticated } = useAuth();
   const [workers, setWorkers] = useState([]);
   const [activeWorker, setActiveWorker] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -39,39 +39,54 @@ export const WorkerProvider = ({ children }) => {
   });
   const [isSyncing, setIsSyncing] = useState(false);
 
-  // Initial load from storage and background Fabric sync
-  useEffect(() => {
-    // 1. Instant local load for zero-delay UX
-    const loaded = getStoredWorkers();
-    setWorkers(loaded);
-    if (loaded.length > 0) {
-      setActiveWorker(loaded[0]);
+  // Background sync worker data with backend
+  const syncFabricData = useCallback(async (silent = false) => {
+    if (!isAuthenticated) {
+      setWorkers([]);
+      setActiveWorker(null);
+      return;
     }
 
-    // 2. Query Fabric backend health & data asynchronously
-    const syncFabricData = async () => {
-      setIsSyncing(true);
-      try {
-        const health = await checkFabricHealth();
-        setFabricStatus(health);
+    setIsSyncing(true);
+    try {
+      const health = await checkFabricHealth();
+      setFabricStatus(health);
 
-        const remoteWorkers = await apiGetWorkers();
-        if (remoteWorkers && remoteWorkers.length > 0) {
-          setWorkers(remoteWorkers);
-          saveWorkers(remoteWorkers);
-          if (!activeWorker && remoteWorkers.length > 0) {
-            setActiveWorker(remoteWorkers[0]);
-          }
-        }
-      } catch (err) {
-        console.warn('[WorkerContext] Fabric sync notice:', err);
-      } finally {
-        setIsSyncing(false);
+      const remoteWorkers = await apiGetWorkers();
+      if (Array.isArray(remoteWorkers)) {
+        setWorkers(remoteWorkers);
+        saveWorkers(remoteWorkers);
+        setActiveWorker(prev => {
+          if (!prev) return remoteWorkers[0] || null;
+          const match = remoteWorkers.find(w => w.id === prev.id);
+          return match || remoteWorkers[0] || null;
+        });
       }
-    };
+    } catch (err) {
+      console.warn('[WorkerContext] Fabric sync notice:', err);
+    } finally {
+      setIsSyncing(false);
+    }
+  }, [isAuthenticated]);
 
-    syncFabricData();
-  }, []);
+  // Initial load from storage and live backend sync on login or session restore
+  useEffect(() => {
+    if (isAuthenticated) {
+      // 1. Instant local load for zero-delay initial rendering
+      const loaded = getStoredWorkers();
+      if (loaded.length > 0) {
+        setWorkers(loaded);
+        setActiveWorker(loaded[0]);
+      }
+
+      // 2. Fetch fresh live data from database/Fabric
+      syncFabricData();
+    } else {
+      // Clear in-memory worker roster when logged out
+      setWorkers([]);
+      setActiveWorker(null);
+    }
+  }, [isAuthenticated, syncFabricData]);
 
   const refreshFabricStatus = useCallback(async () => {
     try {
@@ -497,6 +512,14 @@ export const WorkerProvider = ({ children }) => {
     showToast('Worker photograph saved to Microsoft Fabric SQL database.', 'success');
   }, []);
 
+  // Clear local browser cache and force live resync from database
+  const clearLocalCache = useCallback(async () => {
+    clearStoredWorkers();
+    showToast('Clearing local browser cache and refreshing from database...', 'info');
+    await syncFabricData();
+    showToast('Browser cache cleared & live database synced.', 'success');
+  }, [syncFabricData]);
+
   const value = useMemo(() => ({
     workers,
     activeWorker,
@@ -513,6 +536,8 @@ export const WorkerProvider = ({ children }) => {
     startFabricAuth,
     checkAuthStatus,
     isSyncing,
+    refreshWorkers: syncFabricData,
+    clearLocalCache,
     registerWorkerHR,
     updateWorkerHR,
     updateWorkerMedical,
@@ -532,6 +557,8 @@ export const WorkerProvider = ({ children }) => {
     refreshFabricStatus,
     runFabricDiagnostics,
     isSyncing,
+    syncFabricData,
+    clearLocalCache,
     updateWorkerPhoto,
     currentRole
   ]);
