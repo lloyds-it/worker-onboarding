@@ -21,6 +21,7 @@ const DedicatedRegistrationPage = lazy(() => import('./components/stages/Dedicat
 const AdminOverrideModal = lazy(() => import('./components/admin/AdminOverrideModal').then(m => ({ default: m.AdminOverrideModal })));
 const UserManagement = lazy(() => import('./components/admin/UserManagement').then(m => ({ default: m.UserManagement })));
 const TemporaryGatePassIdCard = lazy(() => import('./components/induction/TemporaryGatePassIdCard').then(m => ({ default: m.default || m.TemporaryGatePassIdCard })));
+const ContractorMaster = lazy(() => import('./components/admin/ContractorMaster').then(m => ({ default: m.ContractorMaster })));
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -112,7 +113,8 @@ const VIEW_TO_HASH = {
   audit_log: 'audit',
   induction_doc: 'induction',
   id_card: 'idcard',
-  user_management: 'users'
+  user_management: 'users',
+  contractors: 'contractors'
 };
 
 const HASH_TO_VIEW = {
@@ -125,7 +127,8 @@ const HASH_TO_VIEW = {
   audit: 'audit_log',
   induction: 'induction_doc',
   idcard: 'id_card',
-  users: 'user_management'
+  users: 'user_management',
+  contractors: 'contractors'
 };
 
 const AppContent = () => {
@@ -176,7 +179,7 @@ const AppContent = () => {
       const [route, param] = rawHash.split('/');
 
       // Role-Based Access Control Route Guards
-      if (['admin', 'reports', 'audit', 'users'].includes(route) && currentRole !== ROLES.ADMIN) {
+      if (['admin', 'reports', 'audit', 'users', 'contractors'].includes(route) && currentRole !== ROLES.ADMIN) {
         window.location.hash = '#pipeline';
         setActiveView('pipeline');
         return;
@@ -401,6 +404,7 @@ const AppContent = () => {
                   onNavigateToAudit={() => navigate('audit_log')}
                   onNavigateToUsers={() => navigate('user_management')}
                   onNavigateToIdCard={() => handleOpenIdCard(workers[0])}
+                  onNavigateToContractors={() => navigate('contractors')}
                 />
               )}
 
@@ -432,6 +436,11 @@ const AppContent = () => {
               {/* VIEW 7: AUDIT LOG VIEWER */}
               {activeView === 'audit_log' && (
                 <AuditLogViewer />
+              )}
+
+              {/* VIEW 10: CONTRACTOR MASTER REGISTER (Admin Only) */}
+              {activeView === 'contractors' && currentRole === ROLES.ADMIN && (
+                <ContractorMaster />
               )}
 
               {/* VIEW 8: PRINTABLE INDUCTION DOCUMENT (Admin Only) */}

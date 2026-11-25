@@ -20,6 +20,7 @@
     "jsonwebtoken": "^9.0.3",
     "lucide-react": "^0.475.0",
     "mssql": "^12.7.2",
+    "nodemailer": "^10.6.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },

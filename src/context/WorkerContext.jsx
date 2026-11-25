@@ -2,15 +2,17 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { getStoredWorkers, saveWorkers, resetToInitialData, clearStoredWorkers } from '../services/storageService';
 import { logAuditEvent } from '../services/auditService';
 import { ROLES, STAGES } from '../types/constants';
+import { generateEmployeeId } from '../services/validationService';
 import { useAuth } from './AuthContext';
-import { 
-  apiGetWorkers, 
+import {
+  apiGetWorkers,
   apiRegisterWorker,
   apiUpdateWorkerPhoto,
-  apiUpdateMedical, 
-  apiUpdateSafety, 
-  apiUpdateIT, 
-  apiUpdateCamp, 
+  apiUpdateMedical,
+  apiUpdateSafety,
+  apiUpdateIT,
+  apiUpdateCamp,
+  apiOverrideWorker,
   apiLogAudit,
   checkFabricHealth,
   testFabricDiagnostics,
@@ -111,6 +113,18 @@ export const WorkerProvider = ({ children }) => {
     }, 4000);
   };
 
+  const handleEmailFeedback = (emailNotification) => {
+    if (!emailNotification) return;
+    const roleLabel = (emailNotification.nextRoles || []).join(', ');
+    if (emailNotification.status === 'SENT') {
+      showToast(`Notification email sent to ${roleLabel}: ${emailNotification.recipients.join(', ')}`, 'info');
+    } else if (emailNotification.status === 'QUEUED_NO_SMTP') {
+      showToast(`Email queued for ${roleLabel} (${emailNotification.recipients.join(', ')}) — configure SMTP in .env to deliver.`, 'info');
+    } else if (emailNotification.status === 'NO_ACTIVE_RECIPIENTS') {
+      showToast(`No active ${roleLabel} user account found to email.`, 'warning');
+    }
+  };
+
   // Helper to persist worker mutations
   const commitWorkers = (updatedList) => {
     setWorkers(updatedList);
@@ -124,15 +138,26 @@ export const WorkerProvider = ({ children }) => {
       return null;
     }
 
-    const newId = `WRK-2026-${String(workers.length + 1).padStart(3, '0')}`;
+    const { assignedWorkerId: inputEmployeeId, ...cleanHrData } = hrData || {};
+    const employeeId = (inputEmployeeId || '').trim() || generateEmployeeId(workers);
+    const year = new Date().getFullYear();
+    let maxRef = 0;
+    workers.forEach(w => {
+      const m = String(w.id || '').match(/-(\d+)$/);
+      if (m) {
+        const n = parseInt(m[1], 10);
+        if (n > maxRef) maxRef = n;
+      }
+    });
+    const newId = `WRK-${year}-${String(maxRef + 1).padStart(3, '0')}`;
     const newWorker = {
       id: newId,
-      assignedWorkerId: '',
+      assignedWorkerId: employeeId,
       stage: STAGES.MEDICAL, // Automatically routes to Medical Team per BRD
       status: 'IN_PROGRESS',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      hr: hrData,
+      hr: cleanHrData,
       medical: {
         bloodGroup: '',
         heightCm: '',
@@ -163,20 +188,22 @@ export const WorkerProvider = ({ children }) => {
     commitWorkers(updated);
     setActiveWorker(newWorker);
 
-    // Sync to Microsoft Fabric in background
-    apiRegisterWorker(newWorker).catch(err => console.warn('[Fabric] Registration sync warning:', err));
+    // Sync to Microsoft Fabric & trigger Medical notification email in background
+    apiRegisterWorker(newWorker)
+      .then(res => handleEmailFeedback(res?._emailNotification))
+      .catch(err => console.warn('[Fabric] Registration sync warning:', err));
 
     const auditEntry = {
       role: currentRole,
       action: 'HR_WORKER_REGISTERED',
       workerId: newId,
-      workerName: hrData.fullName,
-      details: `Registered profile under contractor ${hrData.contractorName}. Auto-routed to Medical Team.`
+      workerName: cleanHrData.fullName,
+      details: `Registered profile (${employeeId}) under contractor ${cleanHrData.contractorName}. Auto-routed to Medical Team.`
     };
     logAuditEvent(auditEntry);
     apiLogAudit(auditEntry);
 
-    showToast(`Worker ${hrData.fullName} registered successfully and routed to Medical Team.`, 'success');
+    showToast(`Worker ${cleanHrData.fullName} (${employeeId}) registered and routed to Medical Team.`, 'success');
     return newWorker;
   };
 
@@ -187,16 +214,19 @@ export const WorkerProvider = ({ children }) => {
       return;
     }
 
+    const { assignedWorkerId: inputEmployeeId, ...cleanHrData } = hrData || {};
+
     const updated = workers.map(w => {
       if (w.id !== workerId) return w;
       const nextStage = w.stage === STAGES.HR ? STAGES.MEDICAL : w.stage;
       return {
         ...w,
+        assignedWorkerId: (inputEmployeeId || '').trim() || w.assignedWorkerId,
         stage: nextStage,
         updatedAt: new Date().toISOString(),
         hr: {
           ...w.hr,
-          ...hrData
+          ...cleanHrData
         }
       };
     });
@@ -205,17 +235,22 @@ export const WorkerProvider = ({ children }) => {
     const updatedTarget = updated.find(w => w.id === workerId);
     setActiveWorker(updatedTarget);
 
+    if (updatedTarget) {
+      apiRegisterWorker({ ...updatedTarget, _isUpdate: true })
+        .catch(err => console.warn('[Fabric] HR update sync warning:', err));
+    }
+
     const auditEntry = {
       role: currentRole,
       action: 'HR_WORKER_UPDATED',
       workerId,
-      workerName: hrData.fullName || updatedTarget?.hr?.fullName,
+      workerName: cleanHrData.fullName || updatedTarget?.hr?.fullName,
       details: `Updated candidate personal and trade information.`
     };
     logAuditEvent(auditEntry);
     apiLogAudit(auditEntry);
 
-    showToast(`Worker ${hrData.fullName || 'profile'} updated successfully.`, 'success');
+    showToast(`Worker ${cleanHrData.fullName || 'profile'} updated successfully.`, 'success');
   };
 
   // Step 2: Medical Examination
@@ -256,7 +291,9 @@ export const WorkerProvider = ({ children }) => {
 
     // Sync to Microsoft Fabric in background
     if (updatedTarget) {
-      apiUpdateMedical(workerId, medicalData, updatedTarget).catch(err => console.warn('[Fabric] Medical sync warning:', err));
+      apiUpdateMedical(workerId, medicalData, updatedTarget)
+        .then(res => handleEmailFeedback(res?._emailNotification))
+        .catch(err => console.warn('[Fabric] Medical sync warning:', err));
     }
 
     const isFit = medicalData.fitnessStatus === 'FIT';
@@ -265,7 +302,7 @@ export const WorkerProvider = ({ children }) => {
       action: isFit ? 'MEDICAL_FIT_APPROVED' : 'MEDICAL_UNFIT_FLAGGED',
       workerId,
       workerName: updatedTarget?.hr?.fullName,
-      details: isFit 
+      details: isFit
         ? `Medical examination PASSED. Auto-routed to EHS Safety Team.`
         : `Medical UNFIT: ${medicalData.remarks}. Candidate onboarding halted.`
     };
@@ -316,7 +353,9 @@ export const WorkerProvider = ({ children }) => {
 
     // Sync to Microsoft Fabric in background
     if (updatedTarget) {
-      apiUpdateSafety(workerId, safetyData, updatedTarget).catch(err => console.warn('[Fabric] Safety sync warning:', err));
+      apiUpdateSafety(workerId, safetyData, updatedTarget)
+        .then(res => handleEmailFeedback(res?._emailNotification))
+        .catch(err => console.warn('[Fabric] Safety sync warning:', err));
     }
 
     const auditEntry = {
@@ -370,7 +409,9 @@ export const WorkerProvider = ({ children }) => {
 
     // Sync to Microsoft Fabric in background
     if (updatedTarget) {
-      apiUpdateIT(workerId, itData, updatedTarget).catch(err => console.warn('[Fabric] IT sync warning:', err));
+      apiUpdateIT(workerId, itData, updatedTarget)
+        .then(res => handleEmailFeedback(res?._emailNotification))
+        .catch(err => console.warn('[Fabric] IT sync warning:', err));
     }
 
     const auditEntry = {
@@ -415,7 +456,9 @@ export const WorkerProvider = ({ children }) => {
 
     // Sync to Microsoft Fabric in background
     if (updatedTarget) {
-      apiUpdateCamp(workerId, campData, updatedTarget).catch(err => console.warn('[Fabric] Camp sync warning:', err));
+      apiUpdateCamp(workerId, campData, updatedTarget)
+        .then(res => handleEmailFeedback(res?._emailNotification))
+        .catch(err => console.warn('[Fabric] Camp sync warning:', err));
     }
 
     const auditEntry = {
@@ -446,6 +489,9 @@ export const WorkerProvider = ({ children }) => {
     commitWorkers(updated);
     const updatedTarget = updated.find(w => w.id === workerId);
     setActiveWorker(updatedTarget);
+
+    const resolvedStatus = newStage === STAGES.FLAGGED ? 'FLAGGED' : (newStage === STAGES.COMPLETED ? 'COMPLETED' : 'IN_PROGRESS');
+    apiOverrideWorker(workerId, newStage, resolvedStatus).catch(err => console.warn('[Fabric] Override sync warning:', err));
 
     const auditEntry = {
       role: 'ADMIN_OVERRIDE',

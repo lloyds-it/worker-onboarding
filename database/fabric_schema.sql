@@ -157,14 +157,10 @@ BEGIN
     ALTER TABLE dbo.SystemUsers ADD CONSTRAINT PK_SystemUsers PRIMARY KEY NONCLUSTERED (id) NOT ENFORCED;
 END;
 
--- Seed Default Administrative Staff Credentials
+-- Seed Sole Default Administrative Staff Credential (hmk@lloyds.in)
 IF NOT EXISTS (SELECT 1 FROM dbo.SystemUsers WHERE id = 'USR-ADMIN-01')
 BEGIN
     INSERT INTO dbo.SystemUsers (id, name, email, role, designation, department, status) VALUES
-    ('USR-ADMIN-01', 'Sunil Kumar Sharma', 'admin@lloyds.in', 'ADMIN', 'Chief Security & HR Administrator', 'Executive Administration', 'ACTIVE'),
-    ('USR-HR-01', 'Pooja Verma', 'hr.intake@lloyds.in', 'HR', 'Senior HR Intake Officer', 'Human Resources', 'ACTIVE'),
-    ('USR-MED-01', 'Dr. Vivek Deshmukh', 'medical@lloyds.in', 'MEDICAL', 'Chief Industrial Medical Officer (CIH)', 'Occupational Health', 'ACTIVE'),
-    ('USR-SAF-01', 'Rajesh K. Mohite', 'safety@lloyds.in', 'SAFETY', 'Head of Plant Safety (EHS)', 'Environment, Health & Safety', 'ACTIVE'),
-    ('USR-IT-01', 'Ankit Bhattacharya', 'it.systems@lloyds.in', 'IT', 'CWMS & Biometrics Lead', 'Information Technology', 'ACTIVE'),
-    ('USR-CAMP-01', 'Mahesh Patil', 'camp.admin@lloyds.in', 'CAMP', 'Gondwana Housing Warden', 'Camp Administration', 'ACTIVE');
+    ('USR-ADMIN-01', 'Kolli Hemanth', 'hmk@lloyds.in', 'ADMIN', 'Site Administrator & Chief Director', 'Site Administration & Master Control', 'ACTIVE');
 END;
+`

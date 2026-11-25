@@ -1,15 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  ShieldCheck, 
-  Lock, 
-  ArrowRight, 
-  CheckCircle2, 
-  AlertCircle, 
-  X, 
-  Building2, 
-  User, 
-  KeyRound, 
-  Server, 
+import {
+  ShieldCheck,
+  Lock,
+  ArrowRight,
+  CheckCircle2,
+  AlertCircle,
+  X,
+  Building2,
+  User,
+  KeyRound,
+  Server,
   RefreshCw,
   Fingerprint
 } from 'lucide-react';
@@ -19,26 +19,26 @@ import { ROLES, ROLE_LABELS } from '../../types/constants';
 // Official SVG Brand Logos
 export const MicrosoftLogo = ({ size = 18 }) => (
   <svg width={size} height={size} viewBox="0 0 21 21" style={{ flexShrink: 0 }}>
-    <rect x="1" y="1" width="9" height="9" fill="#F25022"/>
-    <rect x="11" y="1" width="9" height="9" fill="#7FBA00"/>
-    <rect x="1" y="11" width="9" height="9" fill="#00A4EF"/>
-    <rect x="11" y="11" width="9" height="9" fill="#FFB900"/>
+    <rect x="1" y="1" width="9" height="9" fill="#F25022" />
+    <rect x="11" y="1" width="9" height="9" fill="#7FBA00" />
+    <rect x="1" y="11" width="9" height="9" fill="#00A4EF" />
+    <rect x="11" y="11" width="9" height="9" fill="#FFB900" />
   </svg>
 );
 
 export const GoogleLogo = ({ size = 18 }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
-    <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.8-2.4 3.65v3.03h3.88c2.27-2.09 3.66-5.17 3.66-9.12z"/>
-    <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.03c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.24v3.13C3.26 21.36 7.33 24 12 24z"/>
-    <path fill="#FBBC05" d="M5.28 14.29c-.25-.72-.38-1.49-.38-2.29s.13-1.57.38-2.29V6.57H1.24C.45 8.14 0 9.99 0 12s.45 3.86 1.24 5.43l4.04-3.14z"/>
-    <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.24 6.57l4.04 3.14c.95-2.83 3.6-4.96 6.72-4.96z"/>
+    <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.8-2.4 3.65v3.03h3.88c2.27-2.09 3.66-5.17 3.66-9.12z" />
+    <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.03c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.24v3.13C3.26 21.36 7.33 24 12 24z" />
+    <path fill="#FBBC05" d="M5.28 14.29c-.25-.72-.38-1.49-.38-2.29s.13-1.57.38-2.29V6.57H1.24C.45 8.14 0 9.99 0 12s.45 3.86 1.24 5.43l4.04-3.14z" />
+    <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.24 6.57l4.04 3.14c.95-2.83 3.6-4.96 6.72-4.96z" />
   </svg>
 );
 
 export const SamlLogo = ({ size = 18 }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-    <path d="m9 12 2 2 4-4"/>
+    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+    <path d="m9 12 2 2 4-4" />
   </svg>
 );
 
@@ -75,51 +75,6 @@ export const SSOModal = ({ isOpen, onClose, initialProvider = 'GOOGLE', autoFill
       department: 'Site Administration & Master Control',
       domain: 'lloyds.in',
       avatarColor: '#7C3AED'
-    },
-    {
-      name: 'Rinku Sharma',
-      email: 'ruv@lloyds.in',
-      role: ROLES.HR,
-      designation: 'Senior HR Operations Lead',
-      department: 'Human Resources',
-      domain: 'lloyds.in',
-      avatarColor: '#0284C7'
-    },
-    {
-      name: 'Gopal Ray',
-      email: 'glr@lloyds.in',
-      role: ROLES.MEDICAL,
-      designation: 'Chief Medical Officer',
-      department: 'Occupational Health & Medical Services',
-      domain: 'lloyds.in',
-      avatarColor: '#EA580C'
-    },
-    {
-      name: 'Jithendra Parida',
-      email: 'jdp@lloyds.in',
-      role: ROLES.SAFETY,
-      designation: 'Lead EHS Safety Engineer',
-      department: 'Environment, Health & Safety',
-      domain: 'lloyds.in',
-      avatarColor: '#D97706'
-    },
-    {
-      name: 'Chitta Ranjan Panda',
-      email: 'crp@lloyds.in',
-      role: ROLES.IT,
-      designation: 'Senior IT Biometric Specialist',
-      department: 'Information Technology',
-      domain: 'lloyds.in',
-      avatarColor: '#2563EB'
-    },
-    {
-      name: 'Ripan',
-      email: 'rin@lloyds.in',
-      role: ROLES.CAMP,
-      designation: 'Camp Accommodations Supervisor',
-      department: 'Camp Administration (Gondwana)',
-      domain: 'lloyds.in',
-      avatarColor: '#059669'
     }
   ];
 
@@ -195,10 +150,10 @@ export const SSOModal = ({ isOpen, onClose, initialProvider = 'GOOGLE', autoFill
       name: cleanInput.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
       email: cleanInput,
       role: cleanInput.includes('admin') ? ROLES.ADMIN :
-            cleanInput.includes('medical') ? ROLES.MEDICAL :
-            cleanInput.includes('safe') ? ROLES.SAFETY :
+        cleanInput.includes('medical') ? ROLES.MEDICAL :
+          cleanInput.includes('safe') ? ROLES.SAFETY :
             cleanInput.includes('it') ? ROLES.IT :
-            cleanInput.includes('camp') ? ROLES.CAMP : ROLES.HR,
+              cleanInput.includes('camp') ? ROLES.CAMP : ROLES.HR,
       designation: 'Enterprise Staff Member (Google SSO Verified)',
       department: 'Corporate Operations',
       domain: 'lloyds.in',
@@ -569,7 +524,7 @@ export const SSOModal = ({ isOpen, onClose, initialProvider = 'GOOGLE', autoFill
                   style={{
                     width: '100%',
                     padding: '0.65rem',
-                    border: '1px dashed var(--border-medium, #CBD5E1)',
+                    border: '1px dashed var(--border-medium, #96979953)',
                     borderRadius: '8px',
                     backgroundColor: 'transparent',
                     color: 'var(--brand-primary, #E82329)',

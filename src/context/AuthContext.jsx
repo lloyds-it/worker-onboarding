@@ -17,7 +17,7 @@ import {
 const AuthContext = createContext();
 
 const AUTH_SESSION_KEY = 'lloyd_auth_session_v3';
-const USERS_STORAGE_KEY = 'lloyd_system_users_v3';
+const USERS_STORAGE_KEY = 'lloyd_system_users_v4';
 const SSO_SETTINGS_KEY = 'lloyd_sso_settings_v1';
 
 export const DEFAULT_SSO_SETTINGS = {
@@ -67,72 +67,7 @@ export const HARDCODED_ADMIN = {
 };
 
 export const INITIAL_SYSTEM_USERS = [
-  HARDCODED_ADMIN,
-  {
-    id: 'USR-HR-04',
-    name: 'Rinku Sharma',
-    designation: 'Senior HR Operations Lead',
-    email: 'ruv@lloyds.in',
-    alias: 'hr',
-    aliases: ['hr', 'ruv@lloyds.in', 'rinku', 'ruv', 'rinku.sharma'],
-    password: 'Lloyds@2026#',
-    role: ROLES.HR,
-    department: 'Human Resources',
-    status: 'ACTIVE',
-    createdAt: '2026-09-02T09:00:00Z'
-  },
-  {
-    id: 'USR-MED-02',
-    name: 'Gopal Ray',
-    designation: 'Chief Medical Officer',
-    email: 'glr@lloyds.in',
-    alias: 'medical',
-    aliases: ['medical', 'glr@lloyds.in', 'gopal', 'glr', 'gopal.ray', 'doctor', 'med'],
-    password: 'Lloyds@2026#',
-    role: ROLES.MEDICAL,
-    department: 'Occupational Health & Medical Services',
-    status: 'ACTIVE',
-    createdAt: '2026-09-02T09:30:00Z'
-  },
-  {
-    id: 'USR-SAF-08',
-    name: 'Jithendra Parida',
-    designation: 'Lead EHS Safety Engineer',
-    email: 'jdp@lloyds.in',
-    alias: 'safety',
-    aliases: ['safety', 'jdp@lloyds.in', 'jithendra', 'jdp', 'jithendra.parida', 'ehs', 'safe'],
-    password: 'Lloyds@2026#',
-    role: ROLES.SAFETY,
-    department: 'Environment, Health & Safety',
-    status: 'ACTIVE',
-    createdAt: '2026-09-03T10:00:00Z'
-  },
-  {
-    id: 'USR-IT-05',
-    name: 'Chitta Ranjan Panda',
-    designation: 'Senior IT Biometric Specialist',
-    email: 'crp@lloyds.in',
-    alias: 'it',
-    aliases: ['it', 'crp@lloyds.in', 'chitta', 'crp', 'chitta.panda', 'biometrics'],
-    password: 'Lloyds@2026#',
-    role: ROLES.IT,
-    department: 'Information Technology',
-    status: 'ACTIVE',
-    createdAt: '2026-09-03T10:30:00Z'
-  },
-  {
-    id: 'USR-CMP-03',
-    name: 'Ripan',
-    designation: 'Camp Accommodations Supervisor',
-    email: 'rin@lloyds.in',
-    alias: 'camp',
-    aliases: ['camp', 'rin@lloyds.in', 'ripan', 'rin', 'housing'],
-    password: 'Lloyds@2026#',
-    role: ROLES.CAMP,
-    department: 'Camp Administration (Gondwana)',
-    status: 'ACTIVE',
-    createdAt: '2026-09-04T11:00:00Z'
-  }
+  HARDCODED_ADMIN
 ];
 
 export const AuthProvider = ({ children }) => {
@@ -301,6 +236,13 @@ export const AuthProvider = ({ children }) => {
     );
 
     if (candidate) {
+      if (candidate.status === 'INACTIVE') {
+        return {
+          success: false,
+          error: 'This account has been deactivated. Please contact the Chief Administrator.'
+        };
+      }
+
       if (ssoSettings?.enabled && ssoSettings?.enforceSSO && candidate.role !== ROLES.ADMIN && (candidate.email.endsWith('@lloydsprojects.in') || candidate.email.endsWith('@lloyds.in'))) {
         return { 
           success: false, 

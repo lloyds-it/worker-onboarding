@@ -1,11 +1,15 @@
 import React, { useState } from 'react';
-import { User, Briefcase, Phone, AlertCircle, CheckCircle2, MapPin, Building2, Wrench } from 'lucide-react';
+import { User, Briefcase, Phone, AlertCircle, CheckCircle2, MapPin, Building2, Wrench, RefreshCw, BadgeCheck } from 'lucide-react';
 import { TRADES, ID_TYPES, CONTRACTORS } from '../../types/constants';
-import { validateHRStep, calculateAge } from '../../services/validationService';
+import { validateHRStep, calculateAge, generateEmployeeId } from '../../services/validationService';
+import { useWorkers } from '../../context/WorkerContext';
 import { WorkerPhotoUpload } from '../common/WorkerPhotoUpload';
 
 export const Step1HR = ({ initialData, onSave, isReadOnly }) => {
+  const { workers = [] } = useWorkers();
+
   const [formData, setFormData] = useState({
+    assignedWorkerId: initialData?.assignedWorkerId || generateEmployeeId(workers),
     fullName: initialData?.fullName || '',
     fatherHusbandName: initialData?.fatherHusbandName || '',
     dob: initialData?.dob || '',
@@ -32,6 +36,7 @@ export const Step1HR = ({ initialData, onSave, isReadOnly }) => {
   React.useEffect(() => {
     if (initialData) {
       setFormData({
+        assignedWorkerId: initialData?.assignedWorkerId || generateEmployeeId(workers),
         fullName: initialData?.fullName || '',
         fatherHusbandName: initialData?.fatherHusbandName || '',
         dob: initialData?.dob || '',
@@ -140,6 +145,44 @@ export const Step1HR = ({ initialData, onSave, isReadOnly }) => {
       />
 
       <div className="form-grid">
+        {/* Employee ID (Created at HR Start Page) */}
+        <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+          <label htmlFor="worker-employee-id" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+            <BadgeCheck size={15} color="var(--brand-primary)" />
+            <span>Employee ID (Assigned at HR Intake) <span className="required">*</span></span>
+          </label>
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+            <input
+              id="worker-employee-id"
+              type="text"
+              className={`form-input ${errors.assignedWorkerId ? 'error' : ''}`}
+              placeholder="e.g. LME-2026-1001"
+              value={formData.assignedWorkerId}
+              onChange={(e) => handleChange('assignedWorkerId', e.target.value.toUpperCase())}
+              disabled={isReadOnly}
+              style={{
+                fontFamily: 'var(--font-family-mono)',
+                fontWeight: 800,
+                letterSpacing: '0.03em',
+                color: 'var(--brand-primary)'
+              }}
+            />
+            {!isReadOnly && (
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => handleChange('assignedWorkerId', generateEmployeeId(workers))}
+                title="Generate next sequential Employee ID"
+                style={{ whiteSpace: 'nowrap', padding: '0.55rem 0.85rem' }}
+              >
+                <RefreshCw size={14} />
+                <span>Regenerate ID</span>
+              </button>
+            )}
+          </div>
+          {errors.assignedWorkerId && <span className="error-text">{errors.assignedWorkerId}</span>}
+        </div>
+
         {/* Worker Full Name */}
         <div className="form-group">
           <label htmlFor="worker-full-name">

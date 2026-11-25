@@ -1,14 +1,14 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { 
-  ArrowLeft, 
-  User, 
-  ShieldAlert, 
-  CheckCircle2, 
-  Clock, 
-  Stethoscope, 
-  HardHat, 
-  Fingerprint, 
-  Home, 
+import {
+  ArrowLeft,
+  User,
+  ShieldAlert,
+  CheckCircle2,
+  Clock,
+  Stethoscope,
+  HardHat,
+  Fingerprint,
+  Home,
   ChevronRight,
   UserPlus,
   Phone
@@ -24,13 +24,13 @@ import { Step5Camp } from './Step5Camp';
 
 export const DedicatedStageProcessPage = ({ worker: propWorker, onSelectWorker, onBack }) => {
   const { currentRole, canEditStage } = useAuth();
-  const { 
-    workers = [], 
-    updateWorkerHR, 
-    updateWorkerMedical, 
-    updateWorkerSafety, 
-    updateWorkerIT, 
-    updateWorkerCamp 
+  const {
+    workers = [],
+    updateWorkerHR,
+    updateWorkerMedical,
+    updateWorkerSafety,
+    updateWorkerIT,
+    updateWorkerCamp
   } = useWorkers();
 
   // Resilient worker resolution - never allow a null/blank page if workers exist
@@ -52,8 +52,8 @@ export const DedicatedStageProcessPage = ({ worker: propWorker, onSelectWorker, 
       return roleStageMap[currentRole];
     }
     if (!worker) return STAGES.HR;
-    return worker.stage === STAGES.FLAGGED 
-      ? STAGES.MEDICAL 
+    return worker.stage === STAGES.FLAGGED
+      ? STAGES.MEDICAL
       : (worker.stage === STAGES.COMPLETED ? STAGES.CAMP : (worker.stage || STAGES.HR));
   });
 
@@ -65,8 +65,8 @@ export const DedicatedStageProcessPage = ({ worker: propWorker, onSelectWorker, 
     }
     if (worker) {
       setSelectedStageTab(
-        worker.stage === STAGES.FLAGGED 
-          ? STAGES.MEDICAL 
+        worker.stage === STAGES.FLAGGED
+          ? STAGES.MEDICAL
           : (worker.stage === STAGES.COMPLETED ? STAGES.CAMP : (worker.stage || STAGES.HR))
       );
     }
@@ -109,8 +109,8 @@ export const DedicatedStageProcessPage = ({ worker: propWorker, onSelectWorker, 
             <ArrowLeft size={16} />
             <span>Return to Roster</span>
           </button>
-          <button 
-            className="btn btn-primary" 
+          <button
+            className="btn btn-primary"
             onClick={() => { window.location.hash = '#register'; }}
           >
             <UserPlus size={16} />
@@ -310,7 +310,7 @@ export const DedicatedStageProcessPage = ({ worker: propWorker, onSelectWorker, 
               {isAuthorized ? '● Active Processing Authority' : '⚠ Read-Only Audit Record'}
             </div>
             <div style={{ color: isAuthorized ? 'var(--info-text)' : 'var(--warning-text)' }}>
-              {isAuthorized 
+              {isAuthorized
                 ? `You have authority to record or modify Step ${selectedStageTab} as ${ROLE_LABELS[currentRole]}.`
                 : `Logged in as ${ROLE_LABELS[currentRole]}. Only assigned department or Admin can modify.`}
             </div>
@@ -385,7 +385,7 @@ export const DedicatedStageProcessPage = ({ worker: propWorker, onSelectWorker, 
           {selectedStageTab === STAGES.HR && (
             <Step1HR
               key={worker.id}
-              initialData={worker.hr}
+              initialData={worker.hr ? { ...worker.hr, assignedWorkerId: worker.assignedWorkerId } : null}
               onSave={(hrData) => {
                 if (updateWorkerHR) updateWorkerHR(worker.id, hrData);
               }}

@@ -84,9 +84,23 @@ export const Step4IT = ({ initialData, worker, onSave, isReadOnly }) => {
         padding: '1.25rem',
         marginBottom: '1.5rem'
       }}>
-        <h4 style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.75rem' }}>
-          Digital Enrollment & Site Gate Access Master
-        </h4>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.75rem' }}>
+          <h4 style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
+            Digital Enrollment & Site Gate Access Master
+          </h4>
+          <span style={{
+            fontFamily: 'var(--font-family-mono)',
+            fontSize: '0.8rem',
+            fontWeight: 800,
+            padding: '0.25rem 0.65rem',
+            borderRadius: '6px',
+            backgroundColor: 'rgba(37, 99, 235, 0.1)',
+            color: '#2563EB',
+            border: '1px solid rgba(37, 99, 235, 0.25)'
+          }}>
+            Employee ID: {worker?.assignedWorkerId || 'Pending'}
+          </span>
+        </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' }}>
           {/* Face Biometric Punch Toggle */}

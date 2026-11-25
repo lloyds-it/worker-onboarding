@@ -16,7 +16,7 @@ const resolveApiBase = () => {
   }
   if (typeof window !== 'undefined' && window.location?.pathname) {
     const segments = window.location.pathname.split('/').filter(Boolean);
-    if (segments.length > 0 && !segments[0].startsWith('api')) {
+    if (segments.length > 0 && ['workeronboarding', 'onboarding'].includes(segments[0])) {
       return `/${segments[0]}/api`;
     }
   }
@@ -37,7 +37,7 @@ export const getAuthToken = () => {
       const parsed = JSON.parse(raw);
       return parsed.token || null;
     }
-  } catch (e) {}
+  } catch (e) { }
   return null;
 };
 
@@ -270,7 +270,7 @@ export const testFabricDiagnostics = async () => {
  */
 export const startFabricAuth = async () => {
   try {
-    const res = await fetch(`${API_BASE}/fabric/auth/start`, { 
+    const res = await fetch(`${API_BASE}/fabric/auth/start`, {
       method: 'POST',
       headers: getAuthHeaders()
     });
@@ -303,9 +303,9 @@ export const checkAuthStatus = async () => {
  */
 export const apiGetWorkers = async () => {
   try {
-    const res = await fetch(`${API_BASE}/workers`, { 
+    const res = await fetch(`${API_BASE}/workers`, {
       headers: getAuthHeaders(),
-      signal: AbortSignal.timeout(6000) 
+      signal: AbortSignal.timeout(6000)
     });
     if (res.ok) {
       const json = await res.json();
@@ -322,6 +322,19 @@ export const apiGetWorkers = async () => {
   return getStoredWorkers();
 };
 
+const attachEmailNotification = (data, emailNotification) => {
+  if (data && typeof data === 'object' && emailNotification) {
+    try {
+      Object.defineProperty(data, '_emailNotification', {
+        value: emailNotification,
+        enumerable: false,
+        configurable: true
+      });
+    } catch (e) {}
+  }
+  return data;
+};
+
 /**
  * Register worker (Step 1: HR - Authorized)
  */
@@ -335,7 +348,7 @@ export const apiRegisterWorker = async (newWorker) => {
     });
     if (res.ok) {
       const json = await res.json();
-      return json.data;
+      return attachEmailNotification(json.data, json.emailNotification);
     }
   } catch (err) {
     console.warn('[API] Could not reach backend, saved locally.');
@@ -378,7 +391,7 @@ export const apiUpdateMedical = async (workerId, medicalData, updatedWorker) => 
     });
     if (res.ok) {
       const json = await res.json();
-      return json.data;
+      return attachEmailNotification(json.data, json.emailNotification);
     }
   } catch (err) {
     console.warn('[API] Medical update saved locally.');
@@ -399,7 +412,7 @@ export const apiUpdateSafety = async (workerId, safetyData, updatedWorker) => {
     });
     if (res.ok) {
       const json = await res.json();
-      return json.data;
+      return attachEmailNotification(json.data, json.emailNotification);
     }
   } catch (err) {
     console.warn('[API] Safety update saved locally.');
@@ -420,7 +433,7 @@ export const apiUpdateIT = async (workerId, itData, updatedWorker) => {
     });
     if (res.ok) {
       const json = await res.json();
-      return json.data;
+      return attachEmailNotification(json.data, json.emailNotification);
     }
   } catch (err) {
     console.warn('[API] IT update saved locally.');
@@ -441,12 +454,33 @@ export const apiUpdateCamp = async (workerId, campData, updatedWorker) => {
     });
     if (res.ok) {
       const json = await res.json();
-      return json.data;
+      return attachEmailNotification(json.data, json.emailNotification);
     }
   } catch (err) {
     console.warn('[API] Camp update saved locally.');
   }
   return updatedWorker;
+};
+
+/**
+ * Admin Stage Override (Authorized Admin)
+ */
+export const apiOverrideWorker = async (workerId, stage, status = null) => {
+  try {
+    const res = await fetch(`${API_BASE}/workers/${workerId}/override`, {
+      method: 'PATCH',
+      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ stage, status }),
+      signal: AbortSignal.timeout(5000)
+    });
+    if (res.ok) {
+      const json = await res.json();
+      return json.data;
+    }
+  } catch (err) {
+    console.warn('[API] Stage override saved locally.');
+  }
+  return { id: workerId, stage, status };
 };
 
 /**
@@ -458,7 +492,7 @@ export const apiLogAudit = async (entry) => {
       method: 'POST',
       headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(entry)
-    }).catch(() => {});
+    }).catch(() => { });
   } catch (err) {
     // non-blocking
   }

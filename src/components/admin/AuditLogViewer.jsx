@@ -30,9 +30,9 @@ export const AuditLogViewer = () => {
     if (filterRole !== 'ALL' && log.role !== filterRole) return false;
     if (search.trim()) {
       const q = search.toLowerCase();
-      const matchAction = log.action.toLowerCase().includes(q);
-      const matchWorker = log.workerName.toLowerCase().includes(q) || log.workerId.toLowerCase().includes(q);
-      const matchDetails = log.details.toLowerCase().includes(q);
+      const matchAction = (log.action || '').toLowerCase().includes(q);
+      const matchWorker = (log.workerName || '').toLowerCase().includes(q) || (log.workerId || '').toLowerCase().includes(q);
+      const matchDetails = (log.details || '').toLowerCase().includes(q);
       return matchAction || matchWorker || matchDetails;
     }
     return true;
@@ -146,8 +146,8 @@ export const AuditLogViewer = () => {
                   </td>
                 </tr>
               ) : (
-                filteredLogs.map(log => (
-                  <tr key={log.id}>
+                filteredLogs.map((log, idx) => (
+                  <tr key={log.id || log.logId || idx}>
                     <td style={{ fontSize: '0.75rem', fontFamily: 'var(--font-family-mono)', color: 'var(--text-secondary)' }}>
                       {new Date(log.timestamp).toLocaleString()}
                     </td>
@@ -161,7 +161,7 @@ export const AuditLogViewer = () => {
                         fontFamily: 'var(--font-family-mono)',
                         fontSize: '0.75rem',
                         fontWeight: 700,
-                        color: log.action.includes('FLAGGED') ? 'var(--danger-solid)' : (log.action.includes('FIT') || log.action.includes('COMPLETED') ? 'var(--success-solid)' : 'var(--info-solid)')
+                        color: (log.action || '').includes('FLAGGED') ? 'var(--danger-solid)' : ((log.action || '').includes('FIT') || (log.action || '').includes('COMPLETED') ? 'var(--success-solid)' : 'var(--info-solid)')
                       }}>
                         {log.action}
                       </span>
@@ -174,7 +174,7 @@ export const AuditLogViewer = () => {
                       {log.details}
                     </td>
                     <td style={{ fontSize: '0.725rem', color: 'var(--text-muted)', fontFamily: 'var(--font-family-mono)' }}>
-                      {log.ip}
+                      {log.ip || log.ipAddress || '—'}
                     </td>
                   </tr>
                 ))

@@ -21,11 +21,11 @@ import helmet from 'helmet';
 // Ensure IPv4 first on Linux servers to avoid AAAA/IPv6 connection timeouts
 try {
   dns.setDefaultResultOrder('ipv4first');
-} catch (e) {}
+} catch (e) { }
 
-import { 
-  connectToFabric, 
-  getConnectionStatus, 
+import {
+  connectToFabric,
+  getConnectionStatus,
   testFabricConnection,
   startDeviceCodeLogin,
   getAuthStatus,
@@ -36,9 +36,16 @@ import {
   dbUpdateSafety,
   dbUpdateIT,
   dbUpdateCamp,
+  dbOverrideWorkerStage,
   dbLogAudit,
   dbGetAuditLogs
 } from './fabricDb.js';
+import {
+  notifyNextStageUsers,
+  getEmailLogs,
+  getSmtpStatus,
+  sendTestEmail
+} from './emailService.js';
 
 dotenv.config();
 
@@ -55,7 +62,8 @@ app.use(helmet({
       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
       fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
       imgSrc: ["'self'", "data:", "blob:", "https:"],
-      connectSrc: ["'self'", "https:", "http:"]
+      connectSrc: ["'self'", "https:", "http:"],
+      upgradeInsecureRequests: null
     }
   },
   crossOriginEmbedderPolicy: false,
@@ -101,12 +109,7 @@ const loginAttempts = new Map();
 
 // Default Account Seed Configurations (Passwords hashed with bcrypt)
 const DEFAULT_ACCOUNT_PASSWORDS = {
-  'USR-ADMIN-01': process.env.ADMIN_PASSWORD || 'Lloyds@2026#',
-  'USR-HR-04': process.env.HR_PASSWORD || 'Lloyds@2026#',
-  'USR-MED-02': process.env.MED_PASSWORD || 'Lloyds@2026#',
-  'USR-SAF-08': process.env.SAF_PASSWORD || 'Lloyds@2026#',
-  'USR-IT-05': process.env.IT_PASSWORD || 'Lloyds@2026#',
-  'USR-CMP-03': process.env.CAMP_PASSWORD || 'Lloyds@2026#'
+  'USR-ADMIN-01': process.env.ADMIN_PASSWORD || 'Lloyds@2026#'
 };
 
 const SYSTEM_ACCOUNTS = [
@@ -119,56 +122,6 @@ const SYSTEM_ACCOUNTS = [
     role: 'ADMIN',
     designation: 'Site Administrator & Chief Director',
     department: 'Site Administration & Master Control'
-  },
-  {
-    id: 'USR-HR-04',
-    name: 'Rinku Sharma',
-    email: 'ruv@lloyds.in',
-    aliases: ['hr', 'ruv@lloyds.in', 'rinku', 'ruv', 'rinku.sharma'],
-    passwordHash: bcrypt.hashSync(DEFAULT_ACCOUNT_PASSWORDS['USR-HR-04'], 10),
-    role: 'HR',
-    designation: 'Senior HR Operations Lead',
-    department: 'Human Resources'
-  },
-  {
-    id: 'USR-MED-02',
-    name: 'Gopal Ray',
-    email: 'glr@lloyds.in',
-    aliases: ['medical', 'glr@lloyds.in', 'gopal', 'glr', 'gopal.ray', 'doctor', 'med'],
-    passwordHash: bcrypt.hashSync(DEFAULT_ACCOUNT_PASSWORDS['USR-MED-02'], 10),
-    role: 'MEDICAL',
-    designation: 'Chief Medical Officer',
-    department: 'Occupational Health & Medical Services'
-  },
-  {
-    id: 'USR-SAF-08',
-    name: 'Jithendra Parida',
-    email: 'jdp@lloyds.in',
-    aliases: ['safety', 'jdp@lloyds.in', 'jithendra', 'jdp', 'jithendra.parida', 'ehs', 'safe'],
-    passwordHash: bcrypt.hashSync(DEFAULT_ACCOUNT_PASSWORDS['USR-SAF-08'], 10),
-    role: 'SAFETY',
-    designation: 'Lead EHS Safety Engineer',
-    department: 'Environment, Health & Safety'
-  },
-  {
-    id: 'USR-IT-05',
-    name: 'Chitta Ranjan Panda',
-    email: 'crp@lloyds.in',
-    aliases: ['it', 'crp@lloyds.in', 'chitta', 'crp', 'chitta.panda', 'biometrics'],
-    passwordHash: bcrypt.hashSync(DEFAULT_ACCOUNT_PASSWORDS['USR-IT-05'], 10),
-    role: 'IT',
-    designation: 'Senior IT Biometric Specialist',
-    department: 'Information Technology'
-  },
-  {
-    id: 'USR-CMP-03',
-    name: 'Ripan',
-    email: 'rin@lloyds.in',
-    aliases: ['camp', 'rin@lloyds.in', 'ripan', 'rin', 'housing'],
-    passwordHash: bcrypt.hashSync(DEFAULT_ACCOUNT_PASSWORDS['USR-CMP-03'], 10),
-    role: 'CAMP',
-    designation: 'Camp Accommodations Supervisor',
-    department: 'Camp Administration (Gondwana)'
   }
 ];
 
@@ -338,12 +291,19 @@ app.post('/api/auth/login', (req, res) => {
   const { username, password } = req.body || {};
   const cleanUser = (username || '').trim().toLowerCase();
 
-  const matched = SYSTEM_ACCOUNTS.find(acc => 
+  const matched = SYSTEM_ACCOUNTS.find(acc =>
     acc.email.toLowerCase() === cleanUser ||
     acc.aliases.map(a => a.toLowerCase()).includes(cleanUser)
   );
 
   if (matched && isPasswordValid(password, matched.passwordHash)) {
+    if (matched.status === 'INACTIVE') {
+      return res.status(403).json({
+        success: false,
+        error: 'This account has been deactivated. Please contact the Chief Administrator.'
+      });
+    }
+
     loginAttempts.delete(ip);
 
     // Issue cryptographic, signed JWT token valid for 12 hours
@@ -434,7 +394,7 @@ app.post('/api/auth/change-password', authenticateToken, (req, res) => {
     matched = SYSTEM_ACCOUNTS.find(acc => acc.id === targetUserId);
   }
   if (!matched && cleanUser) {
-    matched = SYSTEM_ACCOUNTS.find(acc => 
+    matched = SYSTEM_ACCOUNTS.find(acc =>
       acc.email.toLowerCase() === cleanUser ||
       acc.aliases.map(a => a.toLowerCase()).includes(cleanUser)
     );
@@ -725,7 +685,7 @@ app.post('/api/auth/users/:id/status', authenticateToken, (req, res) => {
 app.post('/api/auth/sso', (req, res) => {
   const { provider, email, token, tenantId } = req.body || {};
   const cleanEmail = (email || '').trim().toLowerCase();
-  
+
   if (!cleanEmail) {
     return res.status(400).json({ success: false, error: 'Email claim is required from Identity Provider.' });
   }
@@ -739,12 +699,19 @@ app.post('/api/auth/sso', (req, res) => {
   }
 
   // Check against known system accounts first (by email or aliases)
-  const matched = SYSTEM_ACCOUNTS.find(acc => 
-    acc.email.toLowerCase() === cleanEmail || 
+  const matched = SYSTEM_ACCOUNTS.find(acc =>
+    acc.email.toLowerCase() === cleanEmail ||
     acc.aliases.map(a => a.toLowerCase()).includes(cleanEmail)
   );
 
   if (matched) {
+    if (matched.status === 'INACTIVE') {
+      return res.status(403).json({
+        success: false,
+        error: 'This account has been deactivated. Please contact the Chief Administrator.'
+      });
+    }
+
     const ssoJwt = jwt.sign(
       {
         id: matched.id,
@@ -783,12 +750,12 @@ app.post('/api/auth/sso', (req, res) => {
   // JIT Provisioning for verified @lloyds.in corporate staff
   const namePart = cleanEmail.split('@')[0].replace(/[._]/g, ' ');
   const formattedName = namePart.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-  
-  const role = cleanEmail.includes('admin') ? 'ADMIN' : 
-               cleanEmail.includes('medical') ? 'MEDICAL' : 
-               cleanEmail.includes('safe') ? 'SAFETY' : 
-               cleanEmail.includes('it') ? 'IT' : 
-               cleanEmail.includes('camp') ? 'CAMP' : 'HR';
+
+  const role = cleanEmail.includes('admin') ? 'ADMIN' :
+    cleanEmail.includes('medical') ? 'MEDICAL' :
+      cleanEmail.includes('safe') ? 'SAFETY' :
+        cleanEmail.includes('it') ? 'IT' :
+          cleanEmail.includes('camp') ? 'CAMP' : 'HR';
 
   const jitUser = {
     id: `USR-SSO-${Date.now().toString().slice(-4)}`,
@@ -825,8 +792,33 @@ app.get('/api/health', (req, res) => {
     status: 'ONLINE',
     system: 'Lloyds Metals & Energy - Worker Onboarding System',
     fabric: status,
+    smtp: getSmtpStatus(),
     timestamp: new Date().toISOString()
   });
+});
+
+// Email Notification Logs & SMTP Diagnostics (Admin Only)
+app.get('/api/notifications/emails', authenticateToken, requireRole(['ADMIN']), (req, res) => {
+  res.json({
+    success: true,
+    smtp: getSmtpStatus(),
+    count: getEmailLogs().length,
+    data: getEmailLogs()
+  });
+});
+
+app.post('/api/notifications/test-email', authenticateToken, requireRole(['ADMIN']), async (req, res) => {
+  try {
+    const targetEmail = (req.body?.to || req.user?.email || '').trim();
+    if (!targetEmail) {
+      return res.status(400).json({ success: false, error: 'Recipient email is required.' });
+    }
+    const result = await sendTestEmail(targetEmail);
+    res.status(result.success ? 200 : 400).json(result);
+  } catch (err) {
+    console.error('[API POST /api/notifications/test-email] Error:', err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
 });
 
 // Fabric Live Status & Realtime Diagnostic Ping (Guarded to authenticated staff)
@@ -838,6 +830,22 @@ app.get('/api/fabric-status', authenticateToken, async (req, res) => {
     console.error('[Diagnostic /api/fabric-status] Error:', err.message);
     res.status(500).json({ success: false, error: 'Database diagnostics unavailable.' });
   }
+});
+
+// Start Microsoft Entra ID Device Code Authentication (Admin Only)
+app.post('/api/fabric/auth/start', authenticateToken, requireRole(['ADMIN']), async (req, res) => {
+  try {
+    const session = await startDeviceCodeLogin();
+    res.json({ success: true, ...session });
+  } catch (err) {
+    console.error('[API POST /api/fabric/auth/start] Error:', err.message);
+    res.status(500).json({ success: false, error: 'Failed to initiate Entra ID Device Code login.' });
+  }
+});
+
+// Check Microsoft Entra ID Device Code Authentication Status (Admin Only)
+app.get('/api/fabric/auth/status', authenticateToken, requireRole(['ADMIN']), (req, res) => {
+  res.json({ success: true, ...getAuthStatus() });
 });
 
 // ============================================================================
@@ -858,7 +866,7 @@ app.get('/api/workers', authenticateToken, async (req, res) => {
 // POST new worker (Step 1: HR Registration - Restricted to ADMIN and HR)
 app.post('/api/workers', authenticateToken, requireRole(['ADMIN', 'HR']), async (req, res) => {
   try {
-    const newWorker = req.body;
+    const { _isUpdate, ...newWorker } = req.body || {};
     if (!newWorker || !newWorker.id || !newWorker.hr || !newWorker.hr.fullName) {
       return res.status(400).json({ success: false, error: 'Invalid worker registration payload: Missing candidate full name or ID.' });
     }
@@ -868,8 +876,39 @@ app.post('/api/workers', authenticateToken, requireRole(['ADMIN', 'HR']), async 
       return res.status(400).json({ success: false, error: 'Candidate age must be between 18 and 75 years per statutory regulations.' });
     }
 
+    // Ensure Employee ID is created at HR intake if not already provided
+    if (!newWorker.assignedWorkerId || !String(newWorker.assignedWorkerId).trim()) {
+      const existing = await dbGetAllWorkers();
+      const year = new Date().getFullYear();
+      let maxNum = 1000;
+      existing.forEach(w => {
+        const match = String(w.assignedWorkerId || '').match(/-(\d+)$/);
+        if (match) {
+          const n = parseInt(match[1], 10);
+          if (n > maxNum) maxNum = n;
+        }
+      });
+      newWorker.assignedWorkerId = `LME-${year}-${maxNum + 1}`;
+    } else {
+      newWorker.assignedWorkerId = String(newWorker.assignedWorkerId).trim();
+    }
+
     const saved = await dbRegisterWorkerHR(newWorker);
-    res.status(201).json({ success: true, data: saved });
+
+    let emailNotification = null;
+    if (!_isUpdate && saved.stage === 2) {
+      syncAccountsWithStore();
+      emailNotification = await notifyNextStageUsers({
+        transitionKey: 'STEP_1_TO_MEDICAL',
+        nextRoles: ['MEDICAL'],
+        worker: saved,
+        accounts: SYSTEM_ACCOUNTS,
+        actor: req.user,
+        extraDetails: `Contractor: ${saved.hr?.contractorName || 'N/A'} | Trade: ${saved.hr?.trade || 'N/A'}`
+      });
+    }
+
+    res.status(201).json({ success: true, data: saved, emailNotification });
   } catch (err) {
     console.error('[API POST /api/workers] Error:', err.message);
     res.status(500).json({ success: false, error: 'Database write error during candidate registration.' });
@@ -909,7 +948,17 @@ app.patch('/api/workers/:id/medical', authenticateToken, requireRole(['ADMIN', '
     }
 
     const updated = await dbUpdateMedical(id, medical, worker);
-    res.json({ success: true, data: updated });
+    syncAccountsWithStore();
+    const isFit = medical.fitnessStatus === 'FIT';
+    const emailNotification = await notifyNextStageUsers({
+      transitionKey: isFit ? 'STEP_2_TO_SAFETY' : 'STEP_2_UNFIT_ALERT',
+      nextRoles: isFit ? ['SAFETY'] : ['ADMIN', 'HR'],
+      worker: updated,
+      accounts: SYSTEM_ACCOUNTS,
+      actor: req.user,
+      extraDetails: `Fitness: ${medical.fitnessStatus || 'N/A'} | Examiner: ${medical.examinerName || 'Medical Officer'} | Remarks: ${medical.remarks || '—'}`
+    });
+    res.json({ success: true, data: updated, emailNotification });
   } catch (err) {
     console.error('[API PATCH /api/workers/:id/medical] Error:', err.message);
     res.status(500).json({ success: false, error: 'Failed to record medical clearance.' });
@@ -925,7 +974,16 @@ app.patch('/api/workers/:id/safety', authenticateToken, requireRole(['ADMIN', 'S
       return res.status(400).json({ success: false, error: 'Invalid safety payload.' });
     }
     const updated = await dbUpdateSafety(id, safety, worker);
-    res.json({ success: true, data: updated });
+    syncAccountsWithStore();
+    const emailNotification = await notifyNextStageUsers({
+      transitionKey: 'STEP_3_TO_IT',
+      nextRoles: ['IT'],
+      worker: updated,
+      accounts: SYSTEM_ACCOUNTS,
+      actor: req.user,
+      extraDetails: `Topics: ${(safety.topicsCovered || []).length} | PPE Items: ${(safety.ppeIssued || []).length} | Officer: ${safety.safetyOfficerName || 'EHS Lead'}`
+    });
+    res.json({ success: true, data: updated, emailNotification });
   } catch (err) {
     console.error('[API PATCH /api/workers/:id/safety] Error:', err.message);
     res.status(500).json({ success: false, error: 'Failed to record EHS safety briefing.' });
@@ -941,7 +999,16 @@ app.patch('/api/workers/:id/it', authenticateToken, requireRole(['ADMIN', 'IT'])
       return res.status(400).json({ success: false, error: 'Invalid IT biometrics payload.' });
     }
     const updated = await dbUpdateIT(id, it, worker);
-    res.json({ success: true, data: updated });
+    syncAccountsWithStore();
+    const emailNotification = await notifyNextStageUsers({
+      transitionKey: 'STEP_4_TO_CAMP',
+      nextRoles: ['CAMP'],
+      worker: updated,
+      accounts: SYSTEM_ACCOUNTS,
+      actor: req.user,
+      extraDetails: `Face Biometric: ${it.faceBiometricRegistered ? 'Enrolled' : 'Pending'} | CWMS: ${it.cwmsRegistered ? 'Synced' : 'Pending'}`
+    });
+    res.json({ success: true, data: updated, emailNotification });
   } catch (err) {
     console.error('[API PATCH /api/workers/:id/it] Error:', err.message);
     res.status(500).json({ success: false, error: 'Failed to update IT biometric enrollment.' });
@@ -957,10 +1024,35 @@ app.patch('/api/workers/:id/camp', authenticateToken, requireRole(['ADMIN', 'CAM
       return res.status(400).json({ success: false, error: 'Invalid camp accommodation payload.' });
     }
     const updated = await dbUpdateCamp(id, camp, worker);
-    res.json({ success: true, data: updated });
+    syncAccountsWithStore();
+    const emailNotification = await notifyNextStageUsers({
+      transitionKey: 'STEP_5_COMPLETED',
+      nextRoles: ['ADMIN', 'HR'],
+      worker: updated,
+      accounts: SYSTEM_ACCOUNTS,
+      actor: req.user,
+      extraDetails: `Camp: ${camp.campName || 'N/A'}, ${camp.blockNumber || ''}, Room ${camp.roomNumber || ''}, ${camp.bedNumber || ''} — Gate Pass ACTIVE`
+    });
+    res.json({ success: true, data: updated, emailNotification });
   } catch (err) {
     console.error('[API PATCH /api/workers/:id/camp] Error:', err.message);
     res.status(500).json({ success: false, error: 'Failed to update camp accommodation record.' });
+  }
+});
+
+// PATCH Admin Stage Override (Restricted to ADMIN)
+app.patch('/api/workers/:id/override', authenticateToken, requireRole(['ADMIN']), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { stage, status } = req.body || {};
+    if (stage === undefined || stage === null) {
+      return res.status(400).json({ success: false, error: 'Target stage is required.' });
+    }
+    const updated = await dbOverrideWorkerStage(id, Number(stage), status);
+    res.json({ success: true, data: updated });
+  } catch (err) {
+    console.error('[API PATCH /api/workers/:id/override] Error:', err.message);
+    res.status(500).json({ success: false, error: 'Failed to apply admin stage override.' });
   }
 });
 

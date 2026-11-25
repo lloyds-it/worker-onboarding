@@ -20,7 +20,8 @@ import {
   ChevronRight,
   Sun,
   Moon,
-  CreditCard
+  CreditCard,
+  Briefcase
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
@@ -177,6 +178,20 @@ export const Sidebar = ({
             >
               <History size={18} />
               <span>System Compliance Audit</span>
+            </button>
+
+            <div className="nav-section-title">Master Data</div>
+
+            <button
+              id="nav-contractors"
+              className={`nav-item ${activeView === 'contractors' ? 'active' : ''}`}
+              onClick={() => setActiveView('contractors')}
+              data-tooltip="Contractor Master Register"
+              title={isCollapsed ? "Contractor Master Register" : undefined}
+            >
+              <Briefcase size={18} />
+              <span>Contractor Master</span>
+              {!isCollapsed && <span className="nav-counter" style={{ backgroundColor: 'var(--brand-primary)', color: '#FFF' }}>NEW</span>}
             </button>
           </>
         )}

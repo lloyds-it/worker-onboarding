@@ -14,13 +14,14 @@ import {
   Fingerprint,
   Building2,
   UserCog,
-  CreditCard
+  CreditCard,
+  Briefcase
 } from 'lucide-react';
 import { useWorkers } from '../../context/WorkerContext';
 import { getDepartmentStats } from '../../services/reportService';
 import { STAGES } from '../../types/constants';
 
-export const AdminDashboard = ({ onNavigateToDept, onNavigateToReports, onNavigateToAudit, onNavigateToUsers, onNavigateToIdCard }) => {
+export const AdminDashboard = ({ onNavigateToDept, onNavigateToReports, onNavigateToAudit, onNavigateToUsers, onNavigateToIdCard, onNavigateToContractors }) => {
   const { workers } = useWorkers();
 
   const stats = getDepartmentStats(workers);
@@ -344,6 +345,40 @@ export const AdminDashboard = ({ onNavigateToDept, onNavigateToReports, onNaviga
             </span>
           </div>
         </div>
+        {/* Contractor Master Hub */}
+        {onNavigateToContractors && (
+          <div
+            onClick={onNavigateToContractors}
+            style={{
+              backgroundColor: 'var(--bg-surface)',
+              border: '1px solid var(--border-light)',
+              borderRadius: 'var(--radius-lg)',
+              padding: '1.25rem',
+              cursor: 'pointer',
+              transition: 'all var(--transition-fast)',
+              boxShadow: 'var(--shadow-xs)'
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
+            onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <div style={{ padding: '0.5rem', borderRadius: '8px', backgroundColor: 'var(--brand-primary)', color: '#FFF' }}>
+                  <Briefcase size={18} />
+                </div>
+                <h4 style={{ fontWeight: 700, fontSize: '0.95rem' }}>Contractor Master</h4>
+              </div>
+              <ArrowUpRight size={18} color="var(--text-muted)" />
+            </div>
+            <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '1rem' }}>
+              Manage contractor/agency company details, compliance codes, PF/ESIC, GST, and validity.
+            </p>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', borderTop: '1px solid var(--border-light)', paddingTop: '0.5rem' }}>
+              <span style={{ color: 'var(--text-muted)' }}>Registered:</span>
+              <span style={{ fontWeight: 700, color: 'var(--brand-primary)' }}>Manage All Contractors →</span>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -9,6 +9,7 @@ import dotenv from 'dotenv';
 import { DeviceCodeCredential, ClientSecretCredential } from '@azure/identity';
 import { execFile, spawn } from 'child_process';
 import path from 'path';
+import fs from 'fs';
 import https from 'https';
 import querystring from 'querystring';
 import dns from 'dns';
@@ -16,7 +17,7 @@ import dns from 'dns';
 // Force IPv4 DNS resolution first on Linux to avoid AAAA IPv6 timeouts / network_error
 try {
   dns.setDefaultResultOrder('ipv4first');
-} catch (e) {}
+} catch (e) { }
 
 dotenv.config();
 
@@ -49,13 +50,16 @@ export const runPyBridge = (action, payload = null) => {
     if (payload) {
       try {
         child.stdin.write(JSON.stringify(payload));
-      } catch (err) {}
+      } catch (err) { }
     }
     child.stdin.end();
   });
 };
 
 export const syncToPyBridge = (action, payload) => {
+  if (connectionStatus.mode !== 'FABRIC_ONLINE') {
+    return;
+  }
   runPyBridge(action, payload)
     .then(res => {
       if (res && res.success) {
@@ -76,6 +80,33 @@ const FABRIC_PORT = parseInt(process.env.FABRIC_PORT || '1433', 10);
 let pool = null;
 let liveAccessToken = null;
 let tokenExpiresAt = 0;
+let lastFabricFailureAt = 0;
+const FABRIC_RETRY_COOLDOWN_MS = 60000;
+
+const WORKERS_STORE_PATH = path.join(process.cwd(), 'server', 'data', 'workers_store.json');
+const AUDIT_STORE_PATH = path.join(process.cwd(), 'server', 'data', 'audit_store.json');
+
+const loadJsonStore = (filePath, fallbackValue) => {
+  try {
+    if (fs.existsSync(filePath)) {
+      const parsed = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch (e) {
+    console.warn(`[Local Store] Notice reading ${path.basename(filePath)}:`, e.message);
+  }
+  return fallbackValue;
+};
+
+const saveJsonStore = (filePath, data) => {
+  try {
+    const dir = path.dirname(filePath);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf8');
+  } catch (e) {
+    console.warn(`[Local Store] Notice writing ${path.basename(filePath)}:`, e.message);
+  }
+};
 let activeAuthSession = {
   status: 'IDLE', // IDLE | PENDING | AUTHENTICATED | FAILED
   userCode: null,
@@ -93,310 +124,13 @@ let connectionStatus = {
   mode: 'FALLBACK_MODE'
 };
 
-// Initial verified fallback dataset
-let fallbackWorkersCache = [
-  {
-    id: 'WRK-2026-001',
-    assignedWorkerId: 'LME-2026-1001',
-    stage: 6,
-    status: 'COMPLETED',
-    createdAt: '2026-09-20T08:30:00Z',
-    updatedAt: '2026-09-21T11:15:00Z',
-    hr: {
-      fullName: 'Rameshwar Kumar Gond',
-      fatherHusbandName: 'Sohan Lal Gond',
-      dob: '1992-05-14',
-      age: 34,
-      gender: 'M',
-      mobileNumber: '9823456712',
-      idProofType: 'Govt ID / Aadhaar',
-      idProofRef: '8821 4452 9012',
-      contractorName: 'L&T Construction Heavy Civil',
-      contractorLicense: 'LIC-MH-2024-8841',
-      trade: 'Welder',
-      emergencyPerson: 'Sunita Gond',
-      emergencyRelationship: 'Wife',
-      emergencyMobile: '9765432109'
-    },
-    medical: {
-      bloodGroup: 'B+',
-      heightCm: 168,
-      weightKg: 64,
-      bmi: '22.7',
-      bmiCategory: 'Normal',
-      bpSystolic: 120,
-      bpDiastolic: 80,
-      spo2: 98,
-      pulseRate: 74,
-      respirationRate: 16,
-      rbs: 110,
-      alcoholTest: 'Pass',
-      visionTest: 'Normal',
-      hearingTest: 'Normal',
-      vertigoTest: 'Fit',
-      existingIllness: 'No',
-      fitnessStatus: 'FIT',
-      examinerName: 'Dr. Vivek Deshmukh (MBBS, CIH)',
-      remarks: 'Fit for heavy industrial plant work.'
-    },
-    safety: {
-      briefingDone: true,
-      topicsCovered: [
-        'General Site Rules & Hazardous Zones',
-        'Mandatory Daily Biometric Face Punch (No Punch = No Pay)',
-        'Zero-Tolerance Alcohol & Substance Prohibition',
-        'PPE Usage, Inspection & Maintenance Standards',
-        'Work at Height & Double Lanyard Safety Harness Rules'
-      ],
-      ppeIssued: ['helmet', 'jacket', 'shoes', 'gloves', 'goggles', 'harness', 'earplugs'],
-      safetyOfficerName: 'Arun Patil (EHS Lead)',
-      safetyDate: '2026-09-20'
-    },
-    it: {
-      workerIdGenerated: true,
-      faceBiometricRegistered: true,
-      cwmsRegistered: true,
-      campusMasterUploaded: true,
-      undertakingAccepted: true,
-      itAdminSignature: 'Rajesh Sharma (Sr. IT Admin)',
-      itDate: '2026-09-21'
-    },
-    camp: {
-      campName: 'Gondwana Phase 3',
-      blockNumber: 'Block A',
-      roomNumber: 'A-102',
-      bedNumber: 'Bed 1',
-      allocatedBy: 'Mahesh Kulkarni (Camp Supv)',
-      allocationDate: '2026-09-21',
-      gatePassActive: true
-    }
-  },
-  {
-    id: 'WRK-2026-002',
-    assignedWorkerId: 'LME-2026-1002',
-    stage: 5,
-    status: 'IN_PROGRESS',
-    createdAt: '2026-09-21T09:00:00Z',
-    updatedAt: '2026-09-22T08:10:00Z',
-    hr: {
-      fullName: 'Sunil Arjun Shinde',
-      fatherHusbandName: 'Arjun Shinde',
-      dob: '1988-11-03',
-      age: 37,
-      gender: 'M',
-      mobileNumber: '9145678901',
-      idProofType: 'Govt ID / Aadhaar',
-      idProofRef: '4512 8891 0023',
-      contractorName: 'Tata Projects Engineering',
-      contractorLicense: 'LIC-MH-2025-1940',
-      trade: 'Fitter',
-      emergencyPerson: 'Kavita Shinde',
-      emergencyRelationship: 'Wife',
-      emergencyMobile: '9145678999'
-    },
-    medical: {
-      bloodGroup: 'O+',
-      heightCm: 172,
-      weightKg: 70,
-      bmi: '23.7',
-      bmiCategory: 'Normal',
-      bpSystolic: 124,
-      bpDiastolic: 82,
-      spo2: 99,
-      pulseRate: 72,
-      respirationRate: 15,
-      rbs: 104,
-      alcoholTest: 'Pass',
-      visionTest: 'Normal',
-      hearingTest: 'Normal',
-      vertigoTest: 'Fit',
-      existingIllness: 'No',
-      fitnessStatus: 'FIT',
-      examinerName: 'Dr. Vivek Deshmukh (MBBS, CIH)',
-      remarks: 'All vitals optimal.'
-    },
-    safety: {
-      briefingDone: true,
-      topicsCovered: [
-        'General Site Rules & Hazardous Zones',
-        'Mandatory Daily Biometric Face Punch (No Punch = No Pay)',
-        'Zero-Tolerance Alcohol & Substance Prohibition',
-        'PPE Usage, Inspection & Maintenance Standards'
-      ],
-      ppeIssued: ['helmet', 'jacket', 'shoes', 'gloves', 'earplugs'],
-      safetyOfficerName: 'Arun Patil (EHS Lead)',
-      safetyDate: '2026-09-21'
-    },
-    it: {
-      workerIdGenerated: true,
-      faceBiometricRegistered: true,
-      cwmsRegistered: true,
-      campusMasterUploaded: true,
-      undertakingAccepted: true,
-      itAdminSignature: 'Rajesh Sharma (Sr. IT Admin)',
-      itDate: '2026-09-22'
-    },
-    camp: {
-      campName: '',
-      blockNumber: '',
-      roomNumber: '',
-      bedNumber: '',
-      gatePassActive: false
-    }
-  },
-  {
-    id: 'WRK-2026-003',
-    assignedWorkerId: '',
-    stage: -1,
-    status: 'FLAGGED',
-    createdAt: '2026-09-21T10:45:00Z',
-    updatedAt: '2026-09-21T12:00:00Z',
-    hr: {
-      fullName: 'Pradip Mohan Yadav',
-      fatherHusbandName: 'Mohan Yadav',
-      dob: '1981-08-20',
-      age: 45,
-      gender: 'M',
-      mobileNumber: '9922334455',
-      idProofType: 'Voter ID',
-      idProofRef: 'MH/24/104/899120',
-      contractorName: 'Afcons Infrastructure Projects',
-      contractorLicense: 'LIC-MH-2024-5519',
-      trade: 'Scaffolder',
-      emergencyPerson: 'Radha Yadav',
-      emergencyRelationship: 'Sister',
-      emergencyMobile: '9922334466'
-    },
-    medical: {
-      bloodGroup: 'AB+',
-      heightCm: 165,
-      weightKg: 84,
-      bmi: '30.9',
-      bmiCategory: 'Obese',
-      bpSystolic: 178,
-      bpDiastolic: 110,
-      spo2: 92,
-      pulseRate: 105,
-      respirationRate: 24,
-      rbs: 260,
-      alcoholTest: 'Pass',
-      visionTest: 'Impaired',
-      hearingTest: 'Normal',
-      vertigoTest: 'Unfit',
-      existingIllness: 'Severe uncontrolled hypertension & severe vertigo attack during height test.',
-      fitnessStatus: 'UNFIT',
-      examinerName: 'Dr. Vivek Deshmukh (MBBS, CIH)',
-      remarks: 'UNFIT: Stage 2 Hypertension (178/110 mmHg) and acute vertigo.'
-    },
-    safety: null,
-    it: null,
-    camp: null
-  },
-  {
-    id: 'WRK-2026-004',
-    assignedWorkerId: '',
-    stage: 3,
-    status: 'IN_PROGRESS',
-    createdAt: '2026-09-22T08:00:00Z',
-    updatedAt: '2026-09-22T08:45:00Z',
-    hr: {
-      fullName: 'Deepak Ramdas Meshram',
-      fatherHusbandName: 'Ramdas Meshram',
-      dob: '1998-02-18',
-      age: 28,
-      gender: 'M',
-      mobileNumber: '9654123890',
-      idProofType: 'Govt ID / Aadhaar',
-      idProofRef: '7721 9901 3412',
-      contractorName: 'Shapoorji Pallonji Infra Ltd',
-      contractorLicense: 'LIC-MH-2023-4102',
-      trade: 'Electrician',
-      emergencyPerson: 'Ramdas Meshram',
-      emergencyRelationship: 'Father',
-      emergencyMobile: '9654123800'
-    },
-    medical: {
-      bloodGroup: 'A+',
-      heightCm: 170,
-      weightKg: 62,
-      bmi: '21.5',
-      bmiCategory: 'Normal',
-      bpSystolic: 118,
-      bpDiastolic: 78,
-      spo2: 99,
-      pulseRate: 68,
-      respirationRate: 16,
-      rbs: 92,
-      alcoholTest: 'Pass',
-      visionTest: 'Normal',
-      hearingTest: 'Normal',
-      vertigoTest: 'Fit',
-      existingIllness: 'No',
-      fitnessStatus: 'FIT',
-      examinerName: 'Dr. Vivek Deshmukh (MBBS, CIH)',
-      remarks: 'Fit for all standard general site duties.'
-    },
-    safety: {
-      briefingDone: false,
-      topicsCovered: [],
-      ppeIssued: [],
-      safetyOfficerName: '',
-      safetyDate: ''
-    },
-    it: null,
-    camp: null
-  },
-  {
-    id: 'WRK-2026-005',
-    assignedWorkerId: '',
-    stage: 2,
-    status: 'IN_PROGRESS',
-    createdAt: '2026-09-22T08:30:00Z',
-    updatedAt: '2026-09-22T08:30:00Z',
-    hr: {
-      fullName: 'Mohammad Shahid Ansari',
-      fatherHusbandName: 'Abdul Ansari',
-      dob: '1995-12-10',
-      age: 30,
-      gender: 'M',
-      mobileNumber: '9876543201',
-      idProofType: 'Driving License',
-      idProofRef: 'DL-142022009812',
-      contractorName: 'Gondwana Allied Engineering',
-      contractorLicense: 'LIC-MH-2026-0044',
-      trade: 'Crane / Rigging Operator',
-      emergencyPerson: 'Abdul Ansari',
-      emergencyRelationship: 'Father',
-      emergencyMobile: '9876543200'
-    },
-    medical: {
-      bloodGroup: '',
-      heightCm: '',
-      weightKg: '',
-      bmi: '',
-      bmiCategory: '',
-      bpSystolic: '',
-      bpDiastolic: '',
-      spo2: '',
-      pulseRate: '',
-      respirationRate: '',
-      rbs: '',
-      alcoholTest: '',
-      visionTest: 'Normal',
-      hearingTest: 'Normal',
-      vertigoTest: 'Fit',
-      existingIllness: 'No',
-      fitnessStatus: '',
-      examinerName: '',
-      remarks: ''
-    },
-    safety: null,
-    it: null,
-    camp: null
-  }
-];
+// Clean initial fallback dataset (zero pre-seeded records)
+let fallbackWorkersCache = [];
 
-let fallbackAuditLogs = [];
+let fallbackAuditLogs = loadJsonStore(AUDIT_STORE_PATH, []);
+
+// Hydrate local worker store from disk if available
+fallbackWorkersCache = loadJsonStore(WORKERS_STORE_PATH, fallbackWorkersCache);
 
 /**
  * Configure SQL connection options for Microsoft Fabric
@@ -410,8 +144,8 @@ const getSqlConfig = (token = null) => {
       encrypt: true,
       trustServerCertificate: false,
       enableArithAbort: true,
-      connectTimeout: 25000,
-      requestTimeout: 25000
+      connectTimeout: 8000,
+      requestTimeout: 10000
     },
     pool: {
       max: 10,
@@ -516,7 +250,7 @@ export const acquireDirectToken = async (tenantId, clientId, clientSecret) => {
 export const connectWithToken = async (token) => {
   try {
     if (pool) {
-      try { await pool.close(); } catch (e) {}
+      try { await pool.close(); } catch (e) { }
       pool = null;
     }
     const config = getSqlConfig(token);
@@ -526,7 +260,7 @@ export const connectWithToken = async (token) => {
       pool = null;
     });
     await pool.connect();
-    
+
     // Auto-verify photo column in dbo.WorkerHRData
     try {
       await pool.request().query(`
@@ -535,7 +269,7 @@ export const connectWithToken = async (token) => {
           ALTER TABLE dbo.WorkerHRData ADD photo VARCHAR(MAX) NULL;
         END
       `);
-    } catch (scErr) {}
+    } catch (scErr) { }
 
     connectionStatus = {
       isConnected: true,
@@ -551,6 +285,7 @@ export const connectWithToken = async (token) => {
     console.error('[Microsoft Fabric] Token connection error:', err.message);
     connectionStatus.error = err.message;
     connectionStatus.isConnected = false;
+    connectionStatus.lastChecked = new Date().toISOString();
     connectionStatus.mode = 'FALLBACK_MODE';
     pool = null;
     return null;
@@ -621,13 +356,19 @@ export const getAuthStatus = () => activeAuthSession;
 /**
  * Connect to Fabric using current config
  */
-export const connectToFabric = async () => {
+export const connectToFabric = async (force = false) => {
+  if (!force && lastFabricFailureAt && Date.now() - lastFabricFailureAt < FABRIC_RETRY_COOLDOWN_MS) {
+    return null;
+  }
+
   // Reuse valid cached token (with 5 min safety buffer)
   if (liveAccessToken && Date.now() < tokenExpiresAt - 300000) {
     if (pool && pool.connected) {
       return pool;
     }
-    return connectWithToken(liveAccessToken);
+    const reconnected = await connectWithToken(liveAccessToken);
+    if (!reconnected) lastFabricFailureAt = Date.now();
+    return reconnected;
   }
 
   // 1. Primary: Acquire Azure Entra ID token directly via HTTPS (IPv4 forced)
@@ -643,11 +384,17 @@ export const connectToFabric = async () => {
         liveAccessToken = tokenResult.token;
         tokenExpiresAt = Date.now() + (tokenResult.expiresIn * 1000);
         console.log('[Microsoft Fabric] Acquired Entra ID Token via Direct OAuth2 (IPv4)!');
-        return await connectWithToken(tokenResult.token);
+        const connectedPool = await connectWithToken(tokenResult.token);
+        if (!connectedPool) {
+          lastFabricFailureAt = Date.now();
+        } else {
+          lastFabricFailureAt = 0;
+        }
+        return connectedPool;
       }
     } catch (directErr) {
       console.warn('[Microsoft Fabric] Direct OAuth2 token notice:', directErr.message);
-      
+
       // Fallback to @azure/identity ClientSecretCredential if direct HTTPS had unexpected issue
       try {
         const credential = new ClientSecretCredential(
@@ -691,7 +438,7 @@ export const connectToFabric = async () => {
     const config = getSqlConfig();
     pool = new sql.ConnectionPool(config);
     await pool.connect();
-    
+
     connectionStatus = {
       isConnected: true,
       server: FABRIC_SERVER,
@@ -724,7 +471,7 @@ export const testFabricConnection = async () => {
   // 1. Primary: Direct Node TDS Pool Check (fastest and native)
   try {
     if (!pool || !pool.connected) {
-      await connectToFabric();
+      await connectToFabric(true);
     }
     if (pool && pool.connected) {
       const result = await pool.request().query('SELECT 1 AS isAlive, DB_NAME() AS currentDb, GETUTCDATE() AS serverTime');
@@ -777,8 +524,8 @@ export const testFabricConnection = async () => {
         authMethod: pyResult.authMethod,
         appId: pyResult.appId,
         servicePrincipal: pyResult.servicePrincipal,
-        message: isSP 
-          ? 'Connected to Microsoft Fabric using Workspace Service Principal!' 
+        message: isSP
+          ? 'Connected to Microsoft Fabric using Workspace Service Principal!'
           : 'Connected to Microsoft Fabric live SQL Database (AD Fallback while SP permissions propagate).'
       };
     }
@@ -813,11 +560,9 @@ export const testFabricConnection = async () => {
  * Retrieve all workers (Live Fabric or Fallback)
  */
 export const dbGetAllWorkers = async () => {
-  // 1. Ensure live connection
+  // 1. Trigger non-blocking background reconnect if disconnected so API responses never stall
   if (!pool || !pool.connected) {
-    try {
-      await connectToFabric();
-    } catch (e) {}
+    connectToFabric().catch(() => {});
   }
 
   if (pool && pool.connected) {
@@ -839,7 +584,7 @@ export const dbGetAllWorkers = async () => {
         ORDER BY w.createdAt DESC
       `;
       const result = await pool.request().query(query);
-      
+
       const records = result.recordset.map(row => ({
         id: row.id,
         assignedWorkerId: row.assignedWorkerId || '',
@@ -987,6 +732,7 @@ export const dbRegisterWorkerHR = async (newWorker) => {
 
   // Keep fallback cache synced and dispatch live Fabric background sync
   fallbackWorkersCache = [newWorker, ...fallbackWorkersCache.filter(w => w.id !== newWorker.id)];
+  saveJsonStore(WORKERS_STORE_PATH, fallbackWorkersCache);
   syncToPyBridge('register', newWorker);
   return newWorker;
 };
@@ -1021,6 +767,7 @@ export const dbUpdateWorkerPhoto = async (workerId, photoUrl) => {
     }
     return w;
   });
+  saveJsonStore(WORKERS_STORE_PATH, fallbackWorkersCache);
 
   return { success: true, workerId, photo: photoUrl };
 };
@@ -1079,6 +826,7 @@ export const dbUpdateMedical = async (workerId, medicalData, updatedWorker) => {
   }
 
   fallbackWorkersCache = fallbackWorkersCache.map(w => w.id === workerId ? updatedWorker : w);
+  saveJsonStore(WORKERS_STORE_PATH, fallbackWorkersCache);
   syncToPyBridge('update_medical', { workerId, medical: medicalData, worker: updatedWorker });
   return updatedWorker;
 };
@@ -1125,6 +873,7 @@ export const dbUpdateSafety = async (workerId, safetyData, updatedWorker) => {
   }
 
   fallbackWorkersCache = fallbackWorkersCache.map(w => w.id === workerId ? updatedWorker : w);
+  saveJsonStore(WORKERS_STORE_PATH, fallbackWorkersCache);
   syncToPyBridge('update_safety', { workerId, safety: safetyData, worker: updatedWorker });
   return updatedWorker;
 };
@@ -1170,6 +919,7 @@ export const dbUpdateIT = async (workerId, itData, updatedWorker) => {
   }
 
   fallbackWorkersCache = fallbackWorkersCache.map(w => w.id === workerId ? updatedWorker : w);
+  saveJsonStore(WORKERS_STORE_PATH, fallbackWorkersCache);
   syncToPyBridge('update_it', { workerId, it: itData, worker: updatedWorker });
   return updatedWorker;
 };
@@ -1216,8 +966,48 @@ export const dbUpdateCamp = async (workerId, campData, updatedWorker) => {
   }
 
   fallbackWorkersCache = fallbackWorkersCache.map(w => w.id === workerId ? updatedWorker : w);
+  saveJsonStore(WORKERS_STORE_PATH, fallbackWorkersCache);
   syncToPyBridge('update_camp', { workerId, camp: campData, worker: updatedWorker });
   return updatedWorker;
+};
+
+/**
+ * Admin Stage Override
+ */
+export const dbOverrideWorkerStage = async (workerId, newStage, newStatus = null) => {
+  const now = new Date().toISOString();
+  const resolvedStatus = newStatus || (newStage === -1 ? 'FLAGGED' : (newStage === 6 ? 'COMPLETED' : 'IN_PROGRESS'));
+
+  if (pool && pool.connected) {
+    try {
+      const request = new sql.Request(pool);
+      await request
+        .input('workerId', sql.VarChar(50), workerId)
+        .input('stage', sql.Int, newStage)
+        .input('status', sql.VarChar(50), resolvedStatus)
+        .input('updatedAt', sql.VarChar(50), now)
+        .query(`
+          UPDATE dbo.WorkersMaster
+          SET stage = @stage, status = @status, updatedAt = @updatedAt
+          WHERE id = @workerId;
+        `);
+      console.log(`[Microsoft Fabric] Admin stage override saved for ${workerId} -> Stage ${newStage}`);
+    } catch (err) {
+      console.error('[Microsoft Fabric] Stage override error:', err.message);
+    }
+  }
+
+  let updatedRecord = null;
+  fallbackWorkersCache = fallbackWorkersCache.map(w => {
+    if (w.id === workerId) {
+      updatedRecord = { ...w, stage: newStage, status: resolvedStatus, updatedAt: now };
+      return updatedRecord;
+    }
+    return w;
+  });
+  saveJsonStore(WORKERS_STORE_PATH, fallbackWorkersCache);
+
+  return updatedRecord || { id: workerId, stage: newStage, status: resolvedStatus, updatedAt: now };
 };
 
 /**
@@ -1247,6 +1037,8 @@ export const dbLogAudit = async (entry) => {
   }
 
   fallbackAuditLogs.unshift({ ...entry, id: logId, timestamp: entry.timestamp || now });
+  if (fallbackAuditLogs.length > 500) fallbackAuditLogs = fallbackAuditLogs.slice(0, 500);
+  saveJsonStore(AUDIT_STORE_PATH, fallbackAuditLogs);
   return entry;
 };
 

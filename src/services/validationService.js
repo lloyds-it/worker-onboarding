@@ -1,7 +1,27 @@
 // Validation Service conforming to OWASP ASVS 5.0 Input Validation
 
+export const generateEmployeeId = (existingWorkers = []) => {
+  const year = new Date().getFullYear();
+  let maxSeq = 1000;
+  if (Array.isArray(existingWorkers)) {
+    existingWorkers.forEach(w => {
+      const candidate = String(w?.assignedWorkerId || '');
+      const match = candidate.match(/-(\d+)$/);
+      if (match) {
+        const num = parseInt(match[1], 10);
+        if (!Number.isNaN(num) && num > maxSeq) maxSeq = num;
+      }
+    });
+  }
+  return `LME-${year}-${maxSeq + 1}`;
+};
+
 export const validateHRStep = (data) => {
   const errors = {};
+
+  if (!data?.assignedWorkerId?.trim()) {
+    errors.assignedWorkerId = 'Employee ID is required.';
+  }
 
   if (!data?.fullName?.trim()) {
     errors.fullName = 'Worker full name is required.';
