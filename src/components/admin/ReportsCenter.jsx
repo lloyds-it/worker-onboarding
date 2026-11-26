@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { useWorkers } from '../../context/WorkerContext';
 import { exportWorkersToCSV } from '../../services/reportService';
+import { formatTimestamp, formatDuration } from '../../services/validationService';
 import { STAGES, STAGE_META, TRADES } from '../../types/constants';
 
 export const ReportsCenter = () => {
@@ -172,6 +173,7 @@ export const ReportsCenter = () => {
                 <th>EHS Briefing</th>
                 <th>Biometrics</th>
                 <th>Camp Housing</th>
+                <th>Process Timeline</th>
               </tr>
             </thead>
             <tbody>
@@ -221,6 +223,22 @@ export const ReportsCenter = () => {
                       </div>
                     ) : (
                       <span style={{ color: 'var(--text-muted)' }}>Unallocated</span>
+                    )}
+                  </td>
+                  <td style={{ fontSize: '0.74rem', lineHeight: 1.45, minWidth: '175px' }}>
+                    <div><strong>Start:</strong> {formatTimestamp(w.createdAt)}</div>
+                    <div>
+                      <strong>End:</strong>{' '}
+                      {w.completedAt ? (
+                        <span style={{ color: 'var(--success-text, #047857)', fontWeight: 600 }}>{formatTimestamp(w.completedAt)}</span>
+                      ) : (
+                        <span style={{ color: 'var(--text-muted)' }}>In Progress</span>
+                      )}
+                    </div>
+                    {w.completedAt && formatDuration(w.createdAt, w.completedAt) && (
+                      <div style={{ fontSize: '0.68rem', color: 'var(--brand-primary)', fontWeight: 700 }}>
+                        Duration: {formatDuration(w.createdAt, w.completedAt)}
+                      </div>
                     )}
                   </td>
                 </tr>

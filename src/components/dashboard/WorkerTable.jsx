@@ -20,6 +20,7 @@ import {
 import { useAuth } from '../../context/AuthContext';
 import { useWorkers } from '../../context/WorkerContext';
 import { STAGES, STAGE_META, ROLES } from '../../types/constants';
+import { formatTimestamp, formatDuration } from '../../services/validationService';
 
 export const WorkerTable = ({ onOpenProcessModal, onViewInductionDoc, onGenerateIdCard, onOpenAdminOverride }) => {
   const { currentRole } = useAuth();
@@ -170,13 +171,14 @@ export const WorkerTable = ({ onOpenProcessModal, onViewInductionDoc, onGenerate
                 </>
               )}
 
+              <th>Process Timeline</th>
               <th style={{ textAlign: 'right' }}>Department Action</th>
             </tr>
           </thead>
           <tbody>
             {filteredWorkers.length === 0 ? (
               <tr>
-                <td colSpan="7" style={{ textAlign: 'center', padding: '3rem 1rem', color: 'var(--text-muted)' }}>
+                <td colSpan="8" style={{ textAlign: 'center', padding: '3rem 1rem', color: 'var(--text-muted)' }}>
                   No candidates currently in your department's queue.
                 </td>
               </tr>
@@ -384,6 +386,29 @@ export const WorkerTable = ({ onOpenProcessModal, onViewInductionDoc, onGenerate
                         </td>
                       </>
                     )}
+
+                    {/* PROCESS TIMELINE COLUMN */}
+                    <td>
+                      <div style={{ fontSize: '0.73rem', lineHeight: 1.45, minWidth: '175px' }}>
+                        <div>
+                          <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>Start: </span>
+                          <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{formatTimestamp(worker.createdAt)}</span>
+                        </div>
+                        <div>
+                          <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>End: </span>
+                          {worker.completedAt ? (
+                            <span style={{ color: 'var(--success-text, #047857)', fontWeight: 600 }}>{formatTimestamp(worker.completedAt)}</span>
+                          ) : (
+                            <span style={{ color: 'var(--text-muted)' }}>In Progress</span>
+                          )}
+                        </div>
+                        {worker.completedAt && formatDuration(worker.createdAt, worker.completedAt) && (
+                          <div style={{ fontSize: '0.68rem', color: 'var(--brand-primary)', fontWeight: 700, marginTop: '1px' }}>
+                            Duration: {formatDuration(worker.createdAt, worker.completedAt)}
+                          </div>
+                        )}
+                      </div>
+                    </td>
 
                     {/* ACTION COLUMN */}
                     <td style={{ textAlign: 'right' }}>

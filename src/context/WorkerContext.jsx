@@ -200,6 +200,7 @@ export const WorkerProvider = ({ children }) => {
       status: 'IN_PROGRESS',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
+      completedAt: null,
       hr: cleanHrData,
       medical: {
         bloodGroup: '',
@@ -480,15 +481,17 @@ export const WorkerProvider = ({ children }) => {
     const updated = workers.map(w => {
       if (w.id !== workerId) return w;
 
+      const completedAt = new Date().toISOString();
       return {
         ...w,
         stage: STAGES.COMPLETED,
         status: 'COMPLETED',
-        updatedAt: new Date().toISOString(),
+        updatedAt: completedAt,
+        completedAt,
         camp: {
           ...campData,
           gatePassActive: true,
-          allocationDate: campData.allocationDate || new Date().toISOString().slice(0, 10)
+          allocationDate: campData.allocationDate || completedAt.slice(0, 10)
         }
       };
     });
@@ -519,13 +522,15 @@ export const WorkerProvider = ({ children }) => {
 
   // Admin Override
   const adminOverrideWorker = (workerId, newStage, reason) => {
+    const now = new Date().toISOString();
     const updated = workers.map(w => {
       if (w.id !== workerId) return w;
       return {
         ...w,
         stage: newStage,
         status: newStage === STAGES.FLAGGED ? 'FLAGGED' : (newStage === STAGES.COMPLETED ? 'COMPLETED' : 'IN_PROGRESS'),
-        updatedAt: new Date().toISOString()
+        updatedAt: now,
+        completedAt: newStage === STAGES.COMPLETED ? (w.completedAt || now) : null
       };
     });
 

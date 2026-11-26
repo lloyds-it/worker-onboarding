@@ -16,6 +16,7 @@ import {
 import { useAuth } from '../../context/AuthContext';
 import { useWorkers } from '../../context/WorkerContext';
 import { STAGES, STAGE_META, ROLES, ROLE_LABELS } from '../../types/constants';
+import { formatTimestamp, formatDuration } from '../../services/validationService';
 import { Step1HR } from './Step1HR';
 import { Step2Medical } from './Step2Medical';
 import { Step3Safety } from './Step3Safety';
@@ -296,6 +297,23 @@ export const DedicatedStageProcessPage = ({ worker: propWorker, onSelectWorker, 
               <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
                 {worker.hr?.emergencyPerson} ({worker.hr?.emergencyRelationship}) • {worker.hr?.emergencyMobile}
               </div>
+            </div>
+            <div>
+              <span style={{ color: 'var(--text-muted)' }}>Process Started (HR Creation):</span>
+              <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                {formatTimestamp(worker.createdAt)}
+              </div>
+            </div>
+            <div>
+              <span style={{ color: 'var(--text-muted)' }}>Process Ended (Completed):</span>
+              <div style={{ fontWeight: 600, color: worker.completedAt ? 'var(--success-text, #047857)' : 'var(--text-muted)' }}>
+                {worker.completedAt ? formatTimestamp(worker.completedAt) : 'In Progress'}
+              </div>
+              {worker.completedAt && formatDuration(worker.createdAt, worker.completedAt) && (
+                <div style={{ fontSize: '0.72rem', color: 'var(--brand-primary)', fontWeight: 700, marginTop: '2px' }}>
+                  Total Duration: {formatDuration(worker.createdAt, worker.completedAt)}
+                </div>
+              )}
             </div>
           </div>
 

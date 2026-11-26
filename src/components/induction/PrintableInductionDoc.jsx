@@ -144,8 +144,10 @@ export const PrintableInductionDoc = ({ worker, onBack, onGenerateIdCard }) => {
               <td style={{ padding: '0.5rem', border: '1px solid #CBD5E0', width: '25%' }}>
                 <strong>Doc Ref No:</strong> {worker.id}
               </td>
-              <td style={{ padding: '0.5rem', border: '1px solid #CBD5E0', width: '20%' }}>
-                <strong>Date:</strong> {new Date(worker.createdAt).toLocaleDateString()}
+              <td style={{ padding: '0.5rem', border: '1px solid #CBD5E0', width: '24%' }}>
+                <strong>Started:</strong> {worker.createdAt ? new Date(worker.createdAt).toLocaleString('en-IN') : '—'}
+                <br />
+                <strong>Completed:</strong> {worker.completedAt ? new Date(worker.completedAt).toLocaleString('en-IN') : 'In Progress'}
               </td>
               <td style={{ padding: '0.5rem', border: '1px solid #CBD5E0', width: '20%' }}>
                 <strong>Gate Pass / ID:</strong> <span style={{ fontWeight: 800, color: '#E82329' }}>{worker.assignedWorkerId || 'PENDING'}</span>

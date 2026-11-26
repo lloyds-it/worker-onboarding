@@ -266,6 +266,10 @@ export const connectWithToken = async (token) => {
     // Auto-verify photo & contractorCode columns and ContractorsMaster table
     try {
       await pool.request().query(`
+        IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'WorkersMaster' AND COLUMN_NAME = 'completedAt')
+        BEGIN
+          ALTER TABLE dbo.WorkersMaster ADD completedAt VARCHAR(50) NULL;
+        END;
         IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'WorkerHRData' AND COLUMN_NAME = 'photo')
         BEGIN
           ALTER TABLE dbo.WorkerHRData ADD photo VARCHAR(MAX) NULL;
@@ -616,12 +620,12 @@ export const dbGetAllWorkers = async () => {
     try {
       const query = `
         SELECT 
-          w.id, w.assignedWorkerId, w.stage, w.status, w.fullName, w.contractorName, w.trade, w.mobileNumber, w.createdAt, w.updatedAt,
+          w.id, w.assignedWorkerId, w.stage, w.status, w.fullName, w.contractorName, w.trade, w.mobileNumber, w.createdAt, w.updatedAt, w.completedAt,
           hr.fatherHusbandName, hr.dob, hr.age, hr.gender, hr.idProofType, hr.idProofRef, hr.contractorCode, hr.locationCode, hr.contractorLicense, hr.emergencyPerson, hr.emergencyRelationship, hr.emergencyMobile, hr.photo,
           m.bloodGroup, m.heightCm, m.weightKg, m.bmi, m.bmiCategory, m.bpSystolic, m.bpDiastolic, m.spo2, m.pulseRate, m.respirationRate, m.rbs, m.alcoholTest, m.visionTest, m.hearingTest, m.vertigoTest, m.existingIllness, m.fitnessStatus, m.examinerName, m.remarks AS medicalRemarks,
           s.briefingDone, s.topicsCovered, s.ppeIssued, s.safetyOfficerName, s.safetyDate,
           it.faceBiometricRegistered, it.cwmsRegistered, it.campusMasterUploaded, it.undertakingAccepted, it.itAdminSignature, it.itDate,
-          c.campName, c.blockNo, c.roomNo, c.bedNo, c.gatePassActive, c.allocatedBy, c.allocationDate
+          c.campName, c.blockNo, c.roomNo, c.bedNo, c.gatePassActive, c.allocatedBy, c.allocationDate, c.allocatedAt
         FROM dbo.WorkersMaster w
         LEFT JOIN dbo.WorkerHRData hr ON w.id = hr.workerId
         LEFT JOIN dbo.WorkerMedicalVitals m ON w.id = m.workerId
@@ -639,6 +643,7 @@ export const dbGetAllWorkers = async () => {
         status: row.status,
         createdAt: row.createdAt,
         updatedAt: row.updatedAt,
+        completedAt: row.completedAt || (row.stage === 6 ? (row.allocatedAt || row.updatedAt || null) : null),
         hr: {
           fullName: row.fullName,
           fatherHusbandName: row.fatherHusbandName || '',
@@ -979,6 +984,8 @@ export const dbUpdateIT = async (workerId, itData, updatedWorker) => {
  */
 export const dbUpdateCamp = async (workerId, campData, updatedWorker) => {
   const now = new Date().toISOString();
+  const completedAt = updatedWorker.completedAt || now;
+  const persistedWorker = { ...updatedWorker, updatedAt: now, completedAt };
   if (pool && pool.connected) {
     try {
       const request = new sql.Request(pool);
@@ -991,9 +998,10 @@ export const dbUpdateCamp = async (workerId, campData, updatedWorker) => {
         .input('gatePassActive', sql.Bit, campData.gatePassActive ? 1 : 0)
         .input('allocatedBy', sql.VarChar(200), campData.allocatedBy || '')
         .input('allocationDate', sql.VarChar(50), campData.allocationDate || now.slice(0, 10))
-        .input('stage', sql.Int, updatedWorker.stage)
-        .input('status', sql.VarChar(50), updatedWorker.status)
+        .input('stage', sql.Int, persistedWorker.stage)
+        .input('status', sql.VarChar(50), persistedWorker.status)
         .input('updatedAt', sql.VarChar(50), now)
+        .input('completedAt', sql.VarChar(50), completedAt)
         .query(`
           IF NOT EXISTS (SELECT 1 FROM dbo.WorkerCampAllocation WHERE workerId = @workerId)
           BEGIN
@@ -1007,7 +1015,7 @@ export const dbUpdateCamp = async (workerId, campData, updatedWorker) => {
             WHERE workerId = @workerId;
           END;
 
-          UPDATE dbo.WorkersMaster SET stage = @stage, status = @status, updatedAt = @updatedAt WHERE id = @workerId;
+          UPDATE dbo.WorkersMaster SET stage = @stage, status = @status, updatedAt = @updatedAt, completedAt = @completedAt WHERE id = @workerId;
         `);
       console.log(`[Microsoft Fabric] Camp allocation saved for ${workerId}`);
     } catch (err) {
@@ -1015,10 +1023,10 @@ export const dbUpdateCamp = async (workerId, campData, updatedWorker) => {
     }
   }
 
-  fallbackWorkersCache = fallbackWorkersCache.map(w => w.id === workerId ? updatedWorker : w);
+  fallbackWorkersCache = fallbackWorkersCache.map(w => w.id === workerId ? persistedWorker : w);
   saveJsonStore(WORKERS_STORE_PATH, fallbackWorkersCache);
-  syncToPyBridge('update_camp', { workerId, camp: campData, worker: updatedWorker });
-  return updatedWorker;
+  syncToPyBridge('update_camp', { workerId, camp: campData, worker: persistedWorker });
+  return persistedWorker;
 };
 
 /**
@@ -1027,6 +1035,7 @@ export const dbUpdateCamp = async (workerId, campData, updatedWorker) => {
 export const dbOverrideWorkerStage = async (workerId, newStage, newStatus = null) => {
   const now = new Date().toISOString();
   const resolvedStatus = newStatus || (newStage === -1 ? 'FLAGGED' : (newStage === 6 ? 'COMPLETED' : 'IN_PROGRESS'));
+  const completedAt = newStage === 6 ? now : null;
 
   if (pool && pool.connected) {
     try {
@@ -1036,9 +1045,10 @@ export const dbOverrideWorkerStage = async (workerId, newStage, newStatus = null
         .input('stage', sql.Int, newStage)
         .input('status', sql.VarChar(50), resolvedStatus)
         .input('updatedAt', sql.VarChar(50), now)
+        .input('completedAt', sql.VarChar(50), completedAt)
         .query(`
           UPDATE dbo.WorkersMaster
-          SET stage = @stage, status = @status, updatedAt = @updatedAt
+          SET stage = @stage, status = @status, updatedAt = @updatedAt, completedAt = @completedAt
           WHERE id = @workerId;
         `);
       console.log(`[Microsoft Fabric] Admin stage override saved for ${workerId} -> Stage ${newStage}`);
@@ -1050,14 +1060,14 @@ export const dbOverrideWorkerStage = async (workerId, newStage, newStatus = null
   let updatedRecord = null;
   fallbackWorkersCache = fallbackWorkersCache.map(w => {
     if (w.id === workerId) {
-      updatedRecord = { ...w, stage: newStage, status: resolvedStatus, updatedAt: now };
+      updatedRecord = { ...w, stage: newStage, status: resolvedStatus, updatedAt: now, completedAt };
       return updatedRecord;
     }
     return w;
   });
   saveJsonStore(WORKERS_STORE_PATH, fallbackWorkersCache);
 
-  return updatedRecord || { id: workerId, stage: newStage, status: resolvedStatus, updatedAt: now };
+  return updatedRecord || { id: workerId, stage: newStage, status: resolvedStatus, updatedAt: now, completedAt };
 };
 
 /**

@@ -19,7 +19,8 @@ BEGIN
         trade VARCHAR(100) NULL,
         mobileNumber VARCHAR(20) NULL,
         createdAt VARCHAR(50) NULL,
-        updatedAt VARCHAR(50) NULL
+        updatedAt VARCHAR(50) NULL,
+        completedAt VARCHAR(50) NULL
     );
     ALTER TABLE dbo.WorkersMaster ADD CONSTRAINT PK_WorkersMaster PRIMARY KEY NONCLUSTERED (id) NOT ENFORCED;
 END;

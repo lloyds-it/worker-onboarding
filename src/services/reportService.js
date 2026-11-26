@@ -1,5 +1,6 @@
 // Reporting and Analytics Service for Administrator and Department Leads
 import { STAGES, CAMPS, PPE_ITEMS } from '../types/constants';
+import { formatTimestamp, formatDuration } from './validationService';
 
 export const getDepartmentStats = (workers) => {
   const total = workers.length;
@@ -119,6 +120,9 @@ export const exportWorkersToCSV = (workers) => {
     'Room',
     'Bed',
     'Gate Pass Active',
+    'Process Started At',
+    'Process Ended At',
+    'Onboarding Duration',
     'Created At'
   ];
 
@@ -148,6 +152,9 @@ export const exportWorkersToCSV = (workers) => {
     w.camp?.roomNumber || 'N/A',
     w.camp?.bedNumber || 'N/A',
     w.camp?.gatePassActive ? 'ACTIVE' : 'INACTIVE',
+    `"${formatTimestamp(w.createdAt)}"`,
+    `"${w.completedAt ? formatTimestamp(w.completedAt) : 'In Progress'}"`,
+    `"${w.completedAt ? (formatDuration(w.createdAt, w.completedAt) || '—') : 'In Progress'}"`,
     w.createdAt
   ]);
 
