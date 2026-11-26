@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  ShieldCheck, 
-  Lock, 
-  ArrowRight, 
-  Shield, 
-  Sun, 
-  Moon, 
-  User, 
-  Eye, 
+import {
+  ShieldCheck,
+  Lock,
+  ArrowRight,
+  Shield,
+  Sun,
+  Moon,
+  User,
+  Eye,
   EyeOff,
   AlertCircle,
   KeyRound,
@@ -75,9 +75,9 @@ export const DEPARTMENT_PRESETS = [
     stageName: 'Step 3',
     badge: 'Safety',
     icon: HardHat,
-    name: 'Jithendra Parida',
+    name: 'EHS Safety Officer',
     designation: 'Lead EHS Safety Engineer',
-    email: 'jdp@lloyds.in',
+    email: 'ehs@lloyds.in',
     alias: 'safety',
     department: 'Environment, Health & Safety',
     color: '#D97706'
@@ -162,7 +162,7 @@ export const LoginPage = () => {
           }
         }
       }
-    } catch (e) {}
+    } catch (e) { }
   }, []);
 
   const clearResetTokenFromUrl = () => {
@@ -174,7 +174,7 @@ export const LoginPage = () => {
       const url = new URL(window.location.href);
       url.searchParams.delete('resetToken');
       window.history.replaceState(null, '', url.pathname + url.search);
-    } catch (e) {}
+    } catch (e) { }
   };
 
   const handleRequestResetLink = async (e) => {
@@ -219,8 +219,8 @@ export const LoginPage = () => {
   // Corporate Domain Auto-Detection (active only when SSO is enabled)
   const isCorporateDomain = isSSOEnabled && Boolean(
     username && (
-      username.toLowerCase().includes('@lloydsprojects.in') || 
-      username.toLowerCase().includes('@lloyds.in') || 
+      username.toLowerCase().includes('@lloydsprojects.in') ||
+      username.toLowerCase().includes('@lloyds.in') ||
       username.toLowerCase().includes('@lloydsmetals.com')
     )
   );
@@ -296,15 +296,15 @@ export const LoginPage = () => {
             border: '1px solid rgba(255, 255, 255, 0.16)',
             boxShadow: '0 4px 20px rgba(0, 0, 0, 0.25)'
           }}>
-            <img 
-              src={logoInfra} 
-              alt="Lloyds Infra" 
+            <img
+              src={logoInfra}
+              alt="Lloyds Infra"
               style={{ height: '34px', width: 'auto', objectFit: 'contain' }}
             />
             <div style={{ width: '1px', height: '26px', backgroundColor: 'rgba(255, 255, 255, 0.25)' }} />
-            <img 
-              src={logoMetals} 
-              alt="Lloyds Metals" 
+            <img
+              src={logoMetals}
+              alt="Lloyds Metals"
               style={{ height: '28px', width: 'auto', objectFit: 'contain' }}
             />
           </div>
@@ -623,7 +623,7 @@ export const LoginPage = () => {
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
             {/* Username / Email Field */}
             <div>
-              <label 
+              <label
                 htmlFor="login-username"
                 style={{
                   display: 'block',
@@ -636,10 +636,10 @@ export const LoginPage = () => {
                 Email ID
               </label>
               <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                <User 
-                  size={15} 
-                  color="var(--text-muted)" 
-                  style={{ position: 'absolute', left: '0.85rem', pointerEvents: 'none' }} 
+                <User
+                  size={15}
+                  color="var(--text-muted)"
+                  style={{ position: 'absolute', left: '0.85rem', pointerEvents: 'none' }}
                 />
                 <input
                   id="login-username"
@@ -665,7 +665,7 @@ export const LoginPage = () => {
 
               {/* Corporate Domain Auto-Detect Prompt (Disabled while SSO is inactive) */}
               {isSSOEnabled && isCorporateDomain && (
-                <div 
+                <div
                   onClick={() => {
                     setSsoProvider('GOOGLE');
                     setShowSSOModal(true);
@@ -700,7 +700,7 @@ export const LoginPage = () => {
             {/* Password Field */}
             <div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
-                <label 
+                <label
                   htmlFor="login-password"
                   style={{
                     fontSize: '0.775rem',
@@ -757,10 +757,10 @@ export const LoginPage = () => {
               </div>
 
               <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                <Lock 
-                  size={15} 
-                  color="var(--text-muted)" 
-                  style={{ position: 'absolute', left: '0.85rem', pointerEvents: 'none' }} 
+                <Lock
+                  size={15}
+                  color="var(--text-muted)"
+                  style={{ position: 'absolute', left: '0.85rem', pointerEvents: 'none' }}
                 />
                 <input
                   id="login-password"

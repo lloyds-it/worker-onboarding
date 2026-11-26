@@ -324,7 +324,7 @@ export const PrintableInductionDoc = ({ worker, onBack, onGenerateIdCard }) => {
             </tr>
             <tr>
               <td colSpan="2" style={{ padding: '0.5rem', border: '1px solid #CBD5E0', backgroundColor: '#F8FAFC' }}>
-                <strong>Safety Officer Name:</strong> {safety.safetyOfficerName || 'Jithendra Parida (EHS Lead)'} &nbsp;&nbsp;&nbsp;&nbsp;
+                <strong>Safety Officer Name:</strong> {safety.safetyOfficerName || '—'} &nbsp;&nbsp;&nbsp;&nbsp;
                 <strong>Signature:</strong> {safetySignature ? (
                   <img src={safetySignature} alt="Safety Sig" style={{ maxHeight: '24px', maxWidth: '85px', verticalAlign: 'middle', objectFit: 'contain' }} />
                 ) : '________________________'} &nbsp;&nbsp;&nbsp;&nbsp;

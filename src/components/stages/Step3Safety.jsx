@@ -1,8 +1,14 @@
 import React, { useState } from 'react';
 import { HardHat, ShieldCheck, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { SAFETY_TOPICS, PPE_ITEMS } from '../../types/constants';
+import { useAuth } from '../../context/AuthContext';
 
 export const Step3Safety = ({ initialData, onSave, isReadOnly }) => {
+  const { currentUser } = useAuth();
+  const defaultOfficerName = currentUser?.name
+    ? `${currentUser.name} (${currentUser.designation || 'EHS Safety'})`
+    : '';
+
   const [topicsCovered, setTopicsCovered] = useState(
     initialData?.topicsCovered || SAFETY_TOPICS
   );
@@ -10,7 +16,7 @@ export const Step3Safety = ({ initialData, onSave, isReadOnly }) => {
     initialData?.ppeIssued || ['helmet', 'jacket', 'shoes', 'gloves', 'earplugs']
   );
   const [safetyOfficerName, setSafetyOfficerName] = useState(
-    initialData?.safetyOfficerName || 'Jithendra Parida (EHS Safety Lead)'
+    initialData?.safetyOfficerName || defaultOfficerName
   );
   const [safetyDate, setSafetyDate] = useState(
     initialData?.safetyDate || new Date().toISOString().slice(0, 10)
@@ -21,11 +27,11 @@ export const Step3Safety = ({ initialData, onSave, isReadOnly }) => {
     if (initialData) {
       setTopicsCovered(initialData.topicsCovered || SAFETY_TOPICS);
       setPpeIssued(initialData.ppeIssued || ['helmet', 'jacket', 'shoes', 'gloves', 'earplugs']);
-      setSafetyOfficerName(initialData.safetyOfficerName || 'Jithendra Parida (EHS Safety Lead)');
+      setSafetyOfficerName(initialData.safetyOfficerName || defaultOfficerName);
       setSafetyDate(initialData.safetyDate || new Date().toISOString().slice(0, 10));
       setError(null);
     }
-  }, [initialData]);
+  }, [initialData, defaultOfficerName]);
 
   const toggleTopic = (topic) => {
     if (isReadOnly) return;

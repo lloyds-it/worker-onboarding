@@ -27,7 +27,7 @@ const ROLE_TAB_MAP = {
 };
 
 export const DepartmentDashboards = ({ initialTab = 'hr' }) => {
-  const { currentRole } = useAuth();
+  const { currentRole, users = [], currentUser } = useAuth();
   const isAdmin = currentRole === ROLES.ADMIN;
   const lockedTab = ROLE_TAB_MAP[currentRole] || initialTab;
 
@@ -35,6 +35,7 @@ export const DepartmentDashboards = ({ initialTab = 'hr' }) => {
   const { workers } = useWorkers();
   const stats = getDepartmentStats(workers);
   const effectiveTab = isAdmin ? activeTab : lockedTab;
+  const activeSafetyUsers = (users || []).filter(u => u.role === ROLES.SAFETY && u.status !== 'INACTIVE');
 
   return (
     <div>
@@ -309,8 +310,14 @@ export const DepartmentDashboards = ({ initialTab = 'hr' }) => {
             <div className="stat-card">
               <div className="stat-info">
                 <h3>Safety Officers</h3>
-                <div className="stat-value">1 Active</div>
-                <div className="stat-sub">Jithendra Parida (EHS Lead)</div>
+                <div className="stat-value">
+                  {activeSafetyUsers.length || (currentRole === ROLES.SAFETY ? 1 : 0)} Active
+                </div>
+                <div className="stat-sub">
+                  {activeSafetyUsers.length > 0
+                    ? activeSafetyUsers.map(u => u.name).join(', ')
+                    : (currentRole === ROLES.SAFETY && currentUser?.name ? currentUser.name : 'EHS Safety Team')}
+                </div>
               </div>
               <div className="stat-icon" style={{ backgroundColor: 'var(--info-bg)', color: 'var(--info-solid)' }}>
                 <Users size={22} />
