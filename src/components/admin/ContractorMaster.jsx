@@ -47,9 +47,8 @@ const ContractorModal = ({ contractor, onSave, onClose }) => {
     if (!String(form.locationCode || '').trim()) e.locationCode = 'Location code is required (e.g. 15).';
     if (!String(form.companyName || '').trim()) e.companyName = 'Company name is required.';
     if (!String(form.licenseNo || '').trim()) e.licenseNo = 'License number is required.';
-    if (!String(form.contactPerson || '').trim()) e.contactPerson = 'Contact person is required.';
-    if (!String(form.contactMobile || '').trim() || !/^\d{10}$/.test(String(form.contactMobile).trim()))
-      e.contactMobile = 'Valid 10-digit mobile number is required.';
+    if (String(form.contactMobile || '').trim() && !/^\d{10}$/.test(String(form.contactMobile).trim()))
+      e.contactMobile = 'Enter a valid 10-digit mobile number.';
     if (form.email && !/\S+@\S+\.\S+/.test(form.email)) e.email = 'Enter a valid email address.';
     return e;
   };
@@ -198,8 +197,8 @@ const ContractorModal = ({ contractor, onSave, onClose }) => {
               </span>
             </div>
             <div className="form-grid">
-              {field('Contact Person Name', 'contactPerson', 'text', 'e.g. Ramesh Kulkarni', true)}
-              {field('Mobile Number (10 digits)', 'contactMobile', 'tel', 'e.g. 9823001001', true)}
+              {field('Contact Person Name', 'contactPerson', 'text', 'e.g. Ramesh Kulkarni')}
+              {field('Mobile Number (10 digits)', 'contactMobile', 'tel', 'e.g. 9823001001')}
               {field('Email Address', 'email', 'email', 'e.g. contact@contractor.com')}
               {field('Registered Address', 'address', 'text', 'Full company registered address', false, { gridColumn: '1 / -1' })}
             </div>
