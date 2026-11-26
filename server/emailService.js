@@ -115,7 +115,7 @@ const buildEmailContent = ({ transitionKey, worker, nextRoles, actor, extraDetai
   const fullName = worker?.hr?.fullName || 'Worker';
   const contractor = worker?.hr?.contractorName || 'N/A';
   const trade = worker?.hr?.trade || 'N/A';
-  const portalUrl = process.env.APP_URL || 'https://taskai.lloyds.in/workeronboarding/';
+  const portalUrl = process.env.APP_URL || 'https://taskai.lloyds.in/onboarding/';
 
   const isAlert = transitionKey === 'STEP_2_UNFIT_ALERT';
   const isCompleted = transitionKey === 'STEP_5_COMPLETED';
@@ -272,7 +272,7 @@ export const notifyNextStageUsers = async ({
  * Send welcome credentials + portal URL + password reset link when a new user account is created.
  */
 export const sendAccountCreatedEmail = async ({ user, rawPassword, portalUrl, resetUrl, createdBy }) => {
-  const cleanPortal = portalUrl || process.env.APP_URL || 'https://taskai.lloyds.in/workeronboarding/';
+  const cleanPortal = portalUrl || process.env.APP_URL || 'https://taskai.lloyds.in/onboarding/';
   const usernameAlias = user?.aliases?.[1] || user?.email?.split('@')[0] || user?.email;
   const subject = `[Lloyds Worker Onboarding] Your Account Credentials & Portal Access (${user?.role || 'STAFF'})`;
 
@@ -343,7 +343,7 @@ export const sendAccountCreatedEmail = async ({ user, rawPassword, portalUrl, re
  * Send a one-time password reset link to an existing user's email.
  */
 export const sendPasswordResetEmail = async ({ user, portalUrl, resetUrl, requestedBy = null }) => {
-  const cleanPortal = portalUrl || process.env.APP_URL || 'https://taskai.lloyds.in/workeronboarding/';
+  const cleanPortal = portalUrl || process.env.APP_URL || 'https://taskai.lloyds.in/onboarding/';
   const subject = `[Lloyds Worker Onboarding] Password Reset Link`;
 
   const text = [

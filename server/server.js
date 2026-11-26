@@ -174,7 +174,9 @@ const resolvePortalUrl = (req) => {
   }
   const proto = req?.headers['x-forwarded-proto'] || req?.protocol || 'http';
   const host = req?.get('host') || `localhost:${PORT}`;
-  const sub = req?.originalUrl?.startsWith('/workeronboarding') ? '/workeronboarding/' : '/';
+  const sub = req?.originalUrl?.startsWith('/onboarding')
+    ? '/onboarding/'
+    : (req?.originalUrl?.startsWith('/workeronboarding') ? '/workeronboarding/' : '/');
   return `${proto}://${host}${sub}`;
 };
 
