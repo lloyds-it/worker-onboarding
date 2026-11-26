@@ -38,7 +38,10 @@ import {
   dbUpdateCamp,
   dbOverrideWorkerStage,
   dbLogAudit,
-  dbGetAuditLogs
+  dbGetAuditLogs,
+  dbGetAllContractors,
+  dbSaveContractor,
+  dbDeleteContractor
 } from './fabricDb.js';
 import {
   notifyNextStageUsers,
@@ -1083,6 +1086,73 @@ app.post('/api/audit-logs', authenticateToken, async (req, res) => {
   } catch (err) {
     console.error('[API POST /api/audit-logs] Error:', err.message);
     res.status(500).json({ success: false, error: 'Failed to record audit event.' });
+  }
+});
+
+// ============================================================================
+// CONTRACTOR MASTER REGISTER ENDPOINTS
+// ============================================================================
+
+// GET All Contractors (Authenticated)
+app.get('/api/contractors', authenticateToken, async (req, res) => {
+  try {
+    const contractors = await dbGetAllContractors();
+    res.json({ success: true, count: contractors.length, data: contractors });
+  } catch (err) {
+    console.error('[API GET /api/contractors] Error:', err.message);
+    res.status(500).json({ success: false, error: 'Failed to retrieve contractors master list.' });
+  }
+});
+
+// POST Create Contractor (Restricted to ADMIN and HR)
+app.post('/api/contractors', authenticateToken, requireRole(['ADMIN', 'HR']), async (req, res) => {
+  try {
+    const payload = req.body || {};
+    if (!payload.companyName || !String(payload.companyName).trim()) {
+      return res.status(400).json({ success: false, error: 'Company / Agency name is required.' });
+    }
+    const saved = await dbSaveContractor({
+      ...payload,
+      companyName: String(payload.companyName).trim(),
+      id: payload.id || `CTR-${Date.now().toString().slice(-6)}`,
+      createdAt: payload.createdAt || new Date().toISOString()
+    });
+    res.status(201).json({ success: true, data: saved });
+  } catch (err) {
+    console.error('[API POST /api/contractors] Error:', err.message);
+    res.status(500).json({ success: false, error: 'Failed to create contractor record.' });
+  }
+});
+
+// PUT Update Contractor (Restricted to ADMIN and HR)
+app.put('/api/contractors/:id', authenticateToken, requireRole(['ADMIN', 'HR']), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const payload = req.body || {};
+    if (!payload.companyName || !String(payload.companyName).trim()) {
+      return res.status(400).json({ success: false, error: 'Company / Agency name is required.' });
+    }
+    const saved = await dbSaveContractor({
+      ...payload,
+      id,
+      companyName: String(payload.companyName).trim()
+    });
+    res.json({ success: true, data: saved });
+  } catch (err) {
+    console.error('[API PUT /api/contractors/:id] Error:', err.message);
+    res.status(500).json({ success: false, error: 'Failed to update contractor record.' });
+  }
+});
+
+// DELETE Contractor (Restricted to ADMIN)
+app.delete('/api/contractors/:id', authenticateToken, requireRole(['ADMIN']), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await dbDeleteContractor(id);
+    res.json({ success: true, data: result });
+  } catch (err) {
+    console.error('[API DELETE /api/contractors/:id] Error:', err.message);
+    res.status(500).json({ success: false, error: 'Failed to delete contractor record.' });
   }
 });
 

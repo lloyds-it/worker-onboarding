@@ -1,134 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   Building2, Plus, Pencil, Trash2, Search, X, CheckCircle2,
   AlertCircle, Phone, Mail, MapPin, FileText, Hash, Briefcase,
   ChevronDown, ChevronUp, Users, Save, XCircle
 } from 'lucide-react';
-
-// ─── Local Storage Key ──────────────────────────────────────────────────────
-const STORAGE_KEY = 'lloyds_contractors_master_v1';
+import { useWorkers } from '../../context/WorkerContext';
 
 // ─── Department options ──────────────────────────────────────────────────────
 const DEPARTMENTS = ['Civil', 'Mechanical', 'Electrical', 'Other'];
-
-// ─── Default seed contractors (matching constants.js) ───────────────────────
-const DEFAULT_CONTRACTORS = [
-  {
-    id: 'CTR-001',
-    companyName: 'L&T Construction Heavy Civil',
-    licenseNo: 'LIC-MH-2024-8841',
-    department: 'Civil',
-    contactPerson: 'Ramesh Kulkarni',
-    contactMobile: '9823001001',
-    email: 'rkulkarni@lntcc.com',
-    address: 'L&T House, Ballard Estate, Mumbai, MH - 400001',
-    registrationNo: 'REG-MH-LTC-2024',
-    labourLicenseNo: 'LL-MH-2024-8841',
-    pfCode: 'MH/MUM/0012481',
-    esicCode: 'ESIC-MH-24-8841',
-    gstNo: '27AAACL0036G1Z0',
-    panNo: 'AAACL0036G',
-    validFrom: '2024-01-01',
-    validUpto: '2026-12-31',
-    status: 'ACTIVE',
-    createdAt: '2024-01-01T00:00:00Z'
-  },
-  {
-    id: 'CTR-002',
-    companyName: 'Shapoorji Pallonji Infra Ltd',
-    licenseNo: 'LIC-MH-2023-4102',
-    department: 'Civil',
-    contactPerson: 'Vikram Mehta',
-    contactMobile: '9821002002',
-    email: 'vmehta@shapoorji.co.in',
-    address: 'Shapoorji Pallonji House, 41 Dr. VB Gandhi Marg, Mumbai - 400023',
-    registrationNo: 'REG-MH-SPL-2023',
-    labourLicenseNo: 'LL-MH-2023-4102',
-    pfCode: 'MH/MUM/0019872',
-    esicCode: 'ESIC-MH-23-4102',
-    gstNo: '27AACCS2124P1ZT',
-    panNo: 'AACCS2124P',
-    validFrom: '2023-04-01',
-    validUpto: '2025-03-31',
-    status: 'ACTIVE',
-    createdAt: '2023-04-01T00:00:00Z'
-  },
-  {
-    id: 'CTR-003',
-    companyName: 'Tata Projects Engineering',
-    licenseNo: 'LIC-MH-2025-1940',
-    department: 'Mechanical',
-    contactPerson: 'Sunil Nair',
-    contactMobile: '9811003003',
-    email: 'snair@tataprojects.com',
-    address: 'Tata Centre, 43 Chowringhee Road, Kolkata - 700071',
-    registrationNo: 'REG-WB-TPE-2025',
-    labourLicenseNo: 'LL-MH-2025-1940',
-    pfCode: 'WB/KOL/0043219',
-    esicCode: 'ESIC-WB-25-1940',
-    gstNo: '19AACCT4078C1ZP',
-    panNo: 'AACCT4078C',
-    validFrom: '2025-01-01',
-    validUpto: '2027-12-31',
-    status: 'ACTIVE',
-    createdAt: '2025-01-01T00:00:00Z'
-  },
-  {
-    id: 'CTR-004',
-    companyName: 'Afcons Infrastructure Projects',
-    licenseNo: 'LIC-MH-2024-5519',
-    department: 'Civil',
-    contactPerson: 'Anil Joshi',
-    contactMobile: '9812004004',
-    email: 'ajoshi@afcons.com',
-    address: 'Afcons House, 16 Shah Industrial Estate, Veera Desai Marg, Mumbai - 400053',
-    registrationNo: 'REG-MH-AIP-2024',
-    labourLicenseNo: 'LL-MH-2024-5519',
-    pfCode: 'MH/MUM/0028741',
-    esicCode: 'ESIC-MH-24-5519',
-    gstNo: '27AAACA3268B1ZB',
-    panNo: 'AAACA3268B',
-    validFrom: '2024-06-01',
-    validUpto: '2026-05-31',
-    status: 'ACTIVE',
-    createdAt: '2024-06-01T00:00:00Z'
-  },
-  {
-    id: 'CTR-005',
-    companyName: 'Gondwana Allied Engineering',
-    licenseNo: 'LIC-MH-2026-0044',
-    department: 'Electrical',
-    contactPerson: 'Prakash Rao',
-    contactMobile: '9800005005',
-    email: 'prao@gondwanaeng.com',
-    address: 'Plot No. 12, MIDC Phase II, Gadchiroli, MH - 442605',
-    registrationNo: 'REG-MH-GAE-2026',
-    labourLicenseNo: 'LL-MH-2026-0044',
-    pfCode: 'MH/GAD/0001104',
-    esicCode: 'ESIC-MH-26-0044',
-    gstNo: '27AAHCG4421B1ZK',
-    panNo: 'AAHCG4421B',
-    validFrom: '2026-01-01',
-    validUpto: '2028-12-31',
-    status: 'ACTIVE',
-    createdAt: '2026-01-01T00:00:00Z'
-  }
-];
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-const loadContractors = () => {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return JSON.parse(raw);
-  } catch {}
-  return DEFAULT_CONTRACTORS;
-};
-
-const saveContractors = (list) => {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(list)); } catch {}
-};
-
-const genId = () => `CTR-${Date.now().toString().slice(-6)}`;
 
 const EMPTY_FORM = {
   companyName: '',
@@ -430,7 +309,7 @@ const DetailRow = ({ label, value }) => (
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 export const ContractorMaster = () => {
-  const [contractors, setContractors] = useState(loadContractors);
+  const { contractors = [], saveContractor, deleteContractor } = useWorkers();
   const [search, setSearch] = useState('');
   const [deptFilter, setDeptFilter] = useState('ALL');
   const [statusFilter, setStatusFilter] = useState('ALL');
@@ -445,38 +324,42 @@ export const ContractorMaster = () => {
     setTimeout(() => setToast(null), 3500);
   };
 
-  // Persist on change
-  useEffect(() => { saveContractors(contractors); }, [contractors]);
-
   const filtered = contractors.filter(c => {
     const q = search.toLowerCase();
     const matchSearch = !q ||
-      c.companyName.toLowerCase().includes(q) ||
-      c.licenseNo.toLowerCase().includes(q) ||
-      c.contactPerson.toLowerCase().includes(q) ||
+      (c.companyName || '').toLowerCase().includes(q) ||
+      (c.licenseNo || '').toLowerCase().includes(q) ||
+      (c.contactPerson || '').toLowerCase().includes(q) ||
       (c.gstNo || '').toLowerCase().includes(q);
     const matchDept = deptFilter === 'ALL' || c.department === deptFilter;
     const matchStatus = statusFilter === 'ALL' || c.status === statusFilter;
     return matchSearch && matchDept && matchStatus;
   });
 
-  const handleSave = (formData) => {
-    if (editTarget) {
-      setContractors(prev => prev.map(c => c.id === editTarget.id ? { ...c, ...formData } : c));
-      showToast(`${formData.companyName} updated successfully.`);
-    } else {
-      const newEntry = { ...formData, id: genId(), createdAt: new Date().toISOString() };
-      setContractors(prev => [newEntry, ...prev]);
-      showToast(`${formData.companyName} added to master list.`);
+  const handleSave = async (formData) => {
+    try {
+      await saveContractor(formData, editTarget?.id || null);
+      if (editTarget) {
+        showToast(`${formData.companyName} updated successfully.`);
+      } else {
+        showToast(`${formData.companyName} added to master list.`);
+      }
+      setModalOpen(false);
+      setEditTarget(null);
+    } catch (err) {
+      showToast(err.message || 'Failed to save contractor.', 'danger');
     }
-    setModalOpen(false);
-    setEditTarget(null);
   };
 
-  const handleDelete = () => {
-    setContractors(prev => prev.filter(c => c.id !== deleteTarget.id));
-    showToast(`${deleteTarget.companyName} removed.`, 'danger');
-    setDeleteTarget(null);
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    try {
+      await deleteContractor(deleteTarget.id);
+      showToast(`${deleteTarget.companyName} removed.`, 'danger');
+      setDeleteTarget(null);
+    } catch (err) {
+      showToast(err.message || 'Failed to remove contractor.', 'danger');
+    }
   };
 
   const openAdd = () => { setEditTarget(null); setModalOpen(true); };

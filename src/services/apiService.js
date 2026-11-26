@@ -518,3 +518,58 @@ export const apiGetAuditLogs = async () => {
   }
   return getLocalAuditLogs();
 };
+
+// ============================================================================
+// CONTRACTOR MASTER API GATEWAY
+// ============================================================================
+
+/**
+ * Fetch all registered contractors from backend / Microsoft Fabric
+ */
+export const apiGetContractors = async () => {
+  const res = await fetch(`${API_BASE}/contractors`, {
+    headers: getAuthHeaders(),
+    signal: AbortSignal.timeout(5000)
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok || !json.success) {
+    throw new Error(json.error || `Failed to fetch contractors (HTTP ${res.status})`);
+  }
+  return Array.isArray(json.data) ? json.data : [];
+};
+
+/**
+ * Create or update a contractor record in backend / Microsoft Fabric
+ */
+export const apiSaveContractor = async (contractor, isEdit = false) => {
+  const url = isEdit && contractor.id
+    ? `${API_BASE}/contractors/${encodeURIComponent(contractor.id)}`
+    : `${API_BASE}/contractors`;
+  const res = await fetch(url, {
+    method: isEdit ? 'PUT' : 'POST',
+    headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify(contractor),
+    signal: AbortSignal.timeout(5000)
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok || !json.success) {
+    throw new Error(json.error || `Failed to ${isEdit ? 'update' : 'create'} contractor (HTTP ${res.status})`);
+  }
+  return json.data;
+};
+
+/**
+ * Delete a contractor record permanently from backend / Microsoft Fabric
+ */
+export const apiDeleteContractor = async (contractorId) => {
+  const res = await fetch(`${API_BASE}/contractors/${encodeURIComponent(contractorId)}`, {
+    method: 'DELETE',
+    headers: getAuthHeaders(),
+    signal: AbortSignal.timeout(5000)
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok || !json.success) {
+    throw new Error(json.error || `Failed to delete contractor (HTTP ${res.status})`);
+  }
+  return json.data;
+};

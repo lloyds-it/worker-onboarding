@@ -163,4 +163,29 @@ BEGIN
     INSERT INTO dbo.SystemUsers (id, name, email, role, designation, department, status) VALUES
     ('USR-ADMIN-01', 'Kolli Hemanth', 'hmk@lloyds.in', 'ADMIN', 'Site Administrator & Chief Director', 'Site Administration & Master Control', 'ACTIVE');
 END;
-`
+
+-- 9. Create Contractors Master Table
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'ContractorsMaster' AND schema_id = SCHEMA_ID('dbo'))
+BEGIN
+    CREATE TABLE dbo.ContractorsMaster (
+        id VARCHAR(50) NOT NULL,
+        companyName VARCHAR(200) NOT NULL,
+        licenseNo VARCHAR(100) NULL,
+        department VARCHAR(100) NULL,
+        contactPerson VARCHAR(200) NULL,
+        contactMobile VARCHAR(30) NULL,
+        email VARCHAR(200) NULL,
+        address VARCHAR(500) NULL,
+        registrationNo VARCHAR(100) NULL,
+        labourLicenseNo VARCHAR(100) NULL,
+        pfCode VARCHAR(100) NULL,
+        esicCode VARCHAR(100) NULL,
+        gstNo VARCHAR(50) NULL,
+        panNo VARCHAR(50) NULL,
+        validFrom VARCHAR(50) NULL,
+        validUpto VARCHAR(50) NULL,
+        status VARCHAR(30) NOT NULL,
+        createdAt VARCHAR(50) NULL
+    );
+    ALTER TABLE dbo.ContractorsMaster ADD CONSTRAINT PK_ContractorsMaster PRIMARY KEY NONCLUSTERED (id) NOT ENFORCED;
+END;

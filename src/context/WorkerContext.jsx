@@ -14,17 +14,43 @@ import {
   apiUpdateCamp,
   apiOverrideWorker,
   apiLogAudit,
+  apiGetContractors,
+  apiSaveContractor,
+  apiDeleteContractor,
   checkFabricHealth,
   testFabricDiagnostics,
   startFabricAuth,
   checkAuthStatus
 } from '../services/apiService';
 
+const CONTRACTORS_STORAGE_KEY = 'lloyds_contractors_master_v2';
+const LEGACY_CONTRACTORS_STORAGE_KEY = 'lloyds_contractors_master_v1';
+
+const getStoredContractors = () => {
+  try {
+    localStorage.removeItem(LEGACY_CONTRACTORS_STORAGE_KEY);
+    const raw = localStorage.getItem(CONTRACTORS_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    }
+  } catch (e) { }
+  return [];
+};
+
+const saveStoredContractors = (list) => {
+  try {
+    localStorage.removeItem(LEGACY_CONTRACTORS_STORAGE_KEY);
+    localStorage.setItem(CONTRACTORS_STORAGE_KEY, JSON.stringify(list));
+  } catch (e) { }
+};
+
 const WorkerContext = createContext();
 
 export const WorkerProvider = ({ children }) => {
   const { currentRole, currentUser, isAuthenticated } = useAuth();
   const [workers, setWorkers] = useState([]);
+  const [contractors, setContractors] = useState([]);
   const [activeWorker, setActiveWorker] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStageFilter, setSelectedStageFilter] = useState('ALL');
@@ -45,6 +71,7 @@ export const WorkerProvider = ({ children }) => {
   const syncFabricData = useCallback(async (silent = false) => {
     if (!isAuthenticated) {
       setWorkers([]);
+      setContractors([]);
       setActiveWorker(null);
       return;
     }
@@ -64,6 +91,16 @@ export const WorkerProvider = ({ children }) => {
           return match || remoteWorkers[0] || null;
         });
       }
+
+      try {
+        const remoteContractors = await apiGetContractors();
+        if (Array.isArray(remoteContractors)) {
+          setContractors(remoteContractors);
+          saveStoredContractors(remoteContractors);
+        }
+      } catch (cErr) {
+        console.warn('[WorkerContext] Contractors sync notice:', cErr.message);
+      }
     } catch (err) {
       console.warn('[WorkerContext] Fabric sync notice:', err);
     } finally {
@@ -81,11 +118,17 @@ export const WorkerProvider = ({ children }) => {
         setActiveWorker(loaded[0]);
       }
 
+      const loadedContractors = getStoredContractors();
+      if (loadedContractors.length > 0) {
+        setContractors(loadedContractors);
+      }
+
       // 2. Fetch fresh live data from database/Fabric
       syncFabricData();
     } else {
-      // Clear in-memory worker roster when logged out
+      // Clear in-memory worker & contractor rosters when logged out
       setWorkers([]);
+      setContractors([]);
       setActiveWorker(null);
     }
   }, [isAuthenticated, syncFabricData]);
@@ -558,9 +601,42 @@ export const WorkerProvider = ({ children }) => {
     showToast('Worker photograph saved to Microsoft Fabric SQL database.', 'success');
   }, []);
 
+  // Save or update a contractor in Master Register (Fabric SQL + Local Store)
+  const saveContractor = useCallback(async (formData, editId = null) => {
+    const isEdit = Boolean(editId);
+    const payload = {
+      ...formData,
+      id: editId || formData.id || `CTR-${Date.now().toString().slice(-6)}`,
+      createdAt: formData.createdAt || new Date().toISOString()
+    };
+    const saved = await apiSaveContractor(payload, isEdit);
+    setContractors(prev => {
+      const next = isEdit
+        ? prev.map(c => (c.id === editId ? saved : c))
+        : [saved, ...prev.filter(c => c.id !== saved.id)];
+      saveStoredContractors(next);
+      return next;
+    });
+    return saved;
+  }, []);
+
+  // Delete a contractor from Master Register
+  const deleteContractor = useCallback(async (contractorId) => {
+    await apiDeleteContractor(contractorId);
+    setContractors(prev => {
+      const next = prev.filter(c => c.id !== contractorId);
+      saveStoredContractors(next);
+      return next;
+    });
+  }, []);
+
   // Clear local browser cache and force live resync from database
   const clearLocalCache = useCallback(async () => {
     clearStoredWorkers();
+    try {
+      localStorage.removeItem(CONTRACTORS_STORAGE_KEY);
+      localStorage.removeItem(LEGACY_CONTRACTORS_STORAGE_KEY);
+    } catch (e) { }
     showToast('Clearing local browser cache and refreshing from database...', 'info');
     await syncFabricData();
     showToast('Browser cache cleared & live database synced.', 'success');
@@ -568,6 +644,7 @@ export const WorkerProvider = ({ children }) => {
 
   const value = useMemo(() => ({
     workers,
+    contractors,
     activeWorker,
     setActiveWorker,
     searchQuery,
@@ -583,6 +660,9 @@ export const WorkerProvider = ({ children }) => {
     checkAuthStatus,
     isSyncing,
     refreshWorkers: syncFabricData,
+    refreshContractors: syncFabricData,
+    saveContractor,
+    deleteContractor,
     clearLocalCache,
     registerWorkerHR,
     updateWorkerHR,
@@ -595,6 +675,7 @@ export const WorkerProvider = ({ children }) => {
     resetAllData
   }), [
     workers,
+    contractors,
     activeWorker,
     searchQuery,
     selectedStageFilter,
@@ -604,6 +685,8 @@ export const WorkerProvider = ({ children }) => {
     runFabricDiagnostics,
     isSyncing,
     syncFabricData,
+    saveContractor,
+    deleteContractor,
     clearLocalCache,
     updateWorkerPhoto,
     currentRole

@@ -11,13 +11,24 @@ import {
 } from 'lucide-react';
 import { useWorkers } from '../../context/WorkerContext';
 import { exportWorkersToCSV } from '../../services/reportService';
-import { STAGES, STAGE_META, CONTRACTORS, TRADES } from '../../types/constants';
+import { STAGES, STAGE_META, TRADES } from '../../types/constants';
 
 export const ReportsCenter = () => {
-  const { workers } = useWorkers();
+  const { workers, contractors = [] } = useWorkers();
   const [selectedContractor, setSelectedContractor] = useState('ALL');
   const [selectedTrade, setSelectedTrade] = useState('ALL');
   const [selectedFitness, setSelectedFitness] = useState('ALL');
+
+  const contractorOptions = React.useMemo(() => {
+    const names = new Set();
+    contractors.forEach(c => {
+      if (c?.companyName) names.add(c.companyName);
+    });
+    workers.forEach(w => {
+      if (w.hr?.contractorName) names.add(w.hr.contractorName);
+    });
+    return Array.from(names).sort((a, b) => a.localeCompare(b));
+  }, [contractors, workers]);
 
   const filtered = workers.filter(w => {
     if (selectedContractor !== 'ALL' && w.hr?.contractorName !== selectedContractor) return false;
@@ -94,9 +105,9 @@ export const ReportsCenter = () => {
             value={selectedContractor}
             onChange={(e) => setSelectedContractor(e.target.value)}
           >
-            <option value="ALL">All Contractors ({CONTRACTORS.length})</option>
-            {CONTRACTORS.map(c => (
-              <option key={c.name} value={c.name}>{c.name}</option>
+            <option value="ALL">All Contractors ({contractorOptions.length})</option>
+            {contractorOptions.map(name => (
+              <option key={name} value={name}>{name}</option>
             ))}
           </select>
         </div>

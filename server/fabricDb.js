@@ -85,6 +85,7 @@ const FABRIC_RETRY_COOLDOWN_MS = 60000;
 
 const WORKERS_STORE_PATH = path.join(process.cwd(), 'server', 'data', 'workers_store.json');
 const AUDIT_STORE_PATH = path.join(process.cwd(), 'server', 'data', 'audit_store.json');
+const CONTRACTORS_STORE_PATH = path.join(process.cwd(), 'server', 'data', 'contractors_store.json');
 
 const loadJsonStore = (filePath, fallbackValue) => {
   try {
@@ -129,8 +130,9 @@ let fallbackWorkersCache = [];
 
 let fallbackAuditLogs = loadJsonStore(AUDIT_STORE_PATH, []);
 
-// Hydrate local worker store from disk if available
+// Hydrate local worker and contractor stores from disk if available
 fallbackWorkersCache = loadJsonStore(WORKERS_STORE_PATH, fallbackWorkersCache);
+let fallbackContractorsCache = loadJsonStore(CONTRACTORS_STORE_PATH, []);
 
 /**
  * Configure SQL connection options for Microsoft Fabric
@@ -261,13 +263,37 @@ export const connectWithToken = async (token) => {
     });
     await pool.connect();
 
-    // Auto-verify photo column in dbo.WorkerHRData
+    // Auto-verify photo column in dbo.WorkerHRData & ContractorsMaster table
     try {
       await pool.request().query(`
         IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'WorkerHRData' AND COLUMN_NAME = 'photo')
         BEGIN
           ALTER TABLE dbo.WorkerHRData ADD photo VARCHAR(MAX) NULL;
-        END
+        END;
+        IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'ContractorsMaster' AND schema_id = SCHEMA_ID('dbo'))
+        BEGIN
+          CREATE TABLE dbo.ContractorsMaster (
+            id VARCHAR(50) NOT NULL,
+            companyName VARCHAR(200) NOT NULL,
+            licenseNo VARCHAR(100) NULL,
+            department VARCHAR(100) NULL,
+            contactPerson VARCHAR(200) NULL,
+            contactMobile VARCHAR(30) NULL,
+            email VARCHAR(200) NULL,
+            address VARCHAR(500) NULL,
+            registrationNo VARCHAR(100) NULL,
+            labourLicenseNo VARCHAR(100) NULL,
+            pfCode VARCHAR(100) NULL,
+            esicCode VARCHAR(100) NULL,
+            gstNo VARCHAR(50) NULL,
+            panNo VARCHAR(50) NULL,
+            validFrom VARCHAR(50) NULL,
+            validUpto VARCHAR(50) NULL,
+            status VARCHAR(30) NOT NULL,
+            createdAt VARCHAR(50) NULL
+          );
+          ALTER TABLE dbo.ContractorsMaster ADD CONSTRAINT PK_ContractorsMaster PRIMARY KEY NONCLUSTERED (id) NOT ENFORCED;
+        END;
       `);
     } catch (scErr) { }
 
@@ -657,10 +683,9 @@ export const dbGetAllWorkers = async () => {
         } : null
       }));
 
-      if (records.length > 0) {
-        fallbackWorkersCache = records;
-        return records;
-      }
+      fallbackWorkersCache = records;
+      saveJsonStore(WORKERS_STORE_PATH, records);
+      return records;
     } catch (err) {
       console.error('[Microsoft Fabric] Query error in dbGetAllWorkers, using fallback:', err.message);
     }
@@ -1052,4 +1077,151 @@ export const dbGetAuditLogs = async () => {
     }
   }
   return fallbackAuditLogs;
+};
+
+// ============================================================================
+// CONTRACTOR MASTER REGISTER PERSISTENCE
+// ============================================================================
+
+/**
+ * Fetch all contractors from dbo.ContractorsMaster (or local JSON store)
+ */
+export const dbGetAllContractors = async () => {
+  await connectToFabric();
+  if (pool && pool.connected) {
+    try {
+      const result = await pool.request().query('SELECT * FROM dbo.ContractorsMaster ORDER BY createdAt DESC');
+      const rows = Array.isArray(result.recordset) ? result.recordset : [];
+      fallbackContractorsCache = rows;
+      saveJsonStore(CONTRACTORS_STORE_PATH, rows);
+      return rows;
+    } catch (err) {
+      console.error('[Microsoft Fabric] Query error in dbGetAllContractors, using local store:', err.message);
+    }
+  }
+  return fallbackContractorsCache;
+};
+
+/**
+ * Create or update a contractor in dbo.ContractorsMaster (and local JSON store)
+ */
+export const dbSaveContractor = async (contractor) => {
+  const now = new Date().toISOString();
+  const normalized = {
+    id: contractor.id || `CTR-${Date.now().toString().slice(-6)}`,
+    companyName: String(contractor.companyName || '').trim(),
+    licenseNo: contractor.licenseNo || '',
+    department: contractor.department || 'Civil',
+    contactPerson: contractor.contactPerson || '',
+    contactMobile: contractor.contactMobile || '',
+    email: contractor.email || '',
+    address: contractor.address || '',
+    registrationNo: contractor.registrationNo || '',
+    labourLicenseNo: contractor.labourLicenseNo || '',
+    pfCode: contractor.pfCode || '',
+    esicCode: contractor.esicCode || '',
+    gstNo: contractor.gstNo || '',
+    panNo: contractor.panNo || '',
+    validFrom: contractor.validFrom || '',
+    validUpto: contractor.validUpto || '',
+    status: contractor.status || 'ACTIVE',
+    createdAt: contractor.createdAt || now
+  };
+
+  await connectToFabric();
+  if (pool && pool.connected) {
+    try {
+      const request = new sql.Request(pool);
+      await request
+        .input('id', sql.VarChar(50), normalized.id)
+        .input('companyName', sql.VarChar(200), normalized.companyName)
+        .input('licenseNo', sql.VarChar(100), normalized.licenseNo)
+        .input('department', sql.VarChar(100), normalized.department)
+        .input('contactPerson', sql.VarChar(200), normalized.contactPerson)
+        .input('contactMobile', sql.VarChar(30), normalized.contactMobile)
+        .input('email', sql.VarChar(200), normalized.email)
+        .input('address', sql.VarChar(500), normalized.address)
+        .input('registrationNo', sql.VarChar(100), normalized.registrationNo)
+        .input('labourLicenseNo', sql.VarChar(100), normalized.labourLicenseNo)
+        .input('pfCode', sql.VarChar(100), normalized.pfCode)
+        .input('esicCode', sql.VarChar(100), normalized.esicCode)
+        .input('gstNo', sql.VarChar(50), normalized.gstNo)
+        .input('panNo', sql.VarChar(50), normalized.panNo)
+        .input('validFrom', sql.VarChar(50), normalized.validFrom)
+        .input('validUpto', sql.VarChar(50), normalized.validUpto)
+        .input('status', sql.VarChar(30), normalized.status)
+        .input('createdAt', sql.VarChar(50), normalized.createdAt)
+        .query(`
+          IF EXISTS (SELECT 1 FROM dbo.ContractorsMaster WHERE id = @id)
+          BEGIN
+            UPDATE dbo.ContractorsMaster SET
+              companyName = @companyName,
+              licenseNo = @licenseNo,
+              department = @department,
+              contactPerson = @contactPerson,
+              contactMobile = @contactMobile,
+              email = @email,
+              address = @address,
+              registrationNo = @registrationNo,
+              labourLicenseNo = @labourLicenseNo,
+              pfCode = @pfCode,
+              esicCode = @esicCode,
+              gstNo = @gstNo,
+              panNo = @panNo,
+              validFrom = @validFrom,
+              validUpto = @validUpto,
+              status = @status
+            WHERE id = @id;
+          END
+          ELSE
+          BEGIN
+            INSERT INTO dbo.ContractorsMaster (
+              id, companyName, licenseNo, department, contactPerson, contactMobile,
+              email, address, registrationNo, labourLicenseNo, pfCode, esicCode,
+              gstNo, panNo, validFrom, validUpto, status, createdAt
+            ) VALUES (
+              @id, @companyName, @licenseNo, @department, @contactPerson, @contactMobile,
+              @email, @address, @registrationNo, @labourLicenseNo, @pfCode, @esicCode,
+              @gstNo, @panNo, @validFrom, @validUpto, @status, @createdAt
+            );
+          END
+        `);
+      console.log(`[Microsoft Fabric] Saved contractor ${normalized.companyName} (${normalized.id})`);
+    } catch (err) {
+      console.error('[Microsoft Fabric] Contractor save error:', err.message);
+    }
+  }
+
+  const existingIndex = fallbackContractorsCache.findIndex(c => c.id === normalized.id);
+  if (existingIndex >= 0) {
+    fallbackContractorsCache = fallbackContractorsCache.map(c =>
+      c.id === normalized.id ? { ...c, ...normalized, createdAt: c.createdAt || normalized.createdAt } : c
+    );
+  } else {
+    fallbackContractorsCache = [normalized, ...fallbackContractorsCache];
+  }
+  saveJsonStore(CONTRACTORS_STORE_PATH, fallbackContractorsCache);
+  return fallbackContractorsCache.find(c => c.id === normalized.id) || normalized;
+};
+
+/**
+ * Permanently remove a contractor from dbo.ContractorsMaster (and local JSON store)
+ */
+export const dbDeleteContractor = async (id) => {
+  await connectToFabric();
+  if (pool && pool.connected) {
+    try {
+      const request = new sql.Request(pool);
+      await request
+        .input('id', sql.VarChar(50), id)
+        .query('DELETE FROM dbo.ContractorsMaster WHERE id = @id;');
+      console.log(`[Microsoft Fabric] Deleted contractor ${id}`);
+    } catch (err) {
+      console.error('[Microsoft Fabric] Contractor delete error:', err.message);
+    }
+  }
+
+  fallbackContractorsCache = fallbackContractorsCache.filter(c => c.id !== id);
+  saveJsonStore(CONTRACTORS_STORE_PATH, fallbackContractorsCache);
+  return { deleted: true, id };
 };

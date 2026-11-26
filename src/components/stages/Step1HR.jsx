@@ -1,12 +1,30 @@
 import React, { useState } from 'react';
 import { User, Briefcase, Phone, AlertCircle, CheckCircle2, MapPin, Building2, Wrench, RefreshCw, BadgeCheck } from 'lucide-react';
-import { TRADES, ID_TYPES, CONTRACTORS } from '../../types/constants';
+import { TRADES, ID_TYPES } from '../../types/constants';
 import { validateHRStep, calculateAge, generateEmployeeId } from '../../services/validationService';
 import { useWorkers } from '../../context/WorkerContext';
 import { WorkerPhotoUpload } from '../common/WorkerPhotoUpload';
 
 export const Step1HR = ({ initialData, onSave, isReadOnly }) => {
-  const { workers = [] } = useWorkers();
+  const { workers = [], contractors = [] } = useWorkers();
+
+  const availableContractors = React.useMemo(() => {
+    const active = contractors.filter(c => c && c.companyName && c.status === 'ACTIVE');
+    if (
+      initialData?.contractorName &&
+      !active.some(c => c.companyName === initialData.contractorName)
+    ) {
+      return [
+        ...active,
+        {
+          id: 'LEGACY',
+          companyName: initialData.contractorName,
+          licenseNo: initialData.contractorLicense || ''
+        }
+      ];
+    }
+    return active;
+  }, [contractors, initialData]);
 
   const [formData, setFormData] = useState({
     assignedWorkerId: initialData?.assignedWorkerId || generateEmployeeId(workers),
@@ -18,8 +36,8 @@ export const Step1HR = ({ initialData, onSave, isReadOnly }) => {
     mobileNumber: initialData?.mobileNumber || '',
     idProofType: initialData?.idProofType || ID_TYPES[0],
     idProofRef: initialData?.idProofRef || '',
-    contractorName: initialData?.contractorName || CONTRACTORS[0].name,
-    contractorLicense: initialData?.contractorLicense || CONTRACTORS[0].license,
+    contractorName: initialData?.contractorName || availableContractors[0]?.companyName || '',
+    contractorLicense: initialData?.contractorLicense || availableContractors[0]?.licenseNo || '',
     trade: initialData?.trade || TRADES[0],
     photo: initialData?.photo || '',
     address: initialData?.address || '',
@@ -45,8 +63,8 @@ export const Step1HR = ({ initialData, onSave, isReadOnly }) => {
         mobileNumber: initialData?.mobileNumber || '',
         idProofType: initialData?.idProofType || ID_TYPES[0],
         idProofRef: initialData?.idProofRef || '',
-        contractorName: initialData?.contractorName || CONTRACTORS[0].name,
-        contractorLicense: initialData?.contractorLicense || CONTRACTORS[0].license,
+        contractorName: initialData?.contractorName || availableContractors[0]?.companyName || '',
+        contractorLicense: initialData?.contractorLicense || availableContractors[0]?.licenseNo || '',
         trade: initialData?.trade || TRADES[0],
         photo: initialData?.photo || '',
         address: initialData?.address || '',
@@ -60,6 +78,20 @@ export const Step1HR = ({ initialData, onSave, isReadOnly }) => {
     }
   }, [initialData]);
 
+  // Keep selected contractor synced with live Contractor Master when adding new workers
+  React.useEffect(() => {
+    if (initialData) return;
+    setFormData(prev => {
+      const stillValid = prev.contractorName && availableContractors.some(c => c.companyName === prev.contractorName);
+      if (stillValid) return prev;
+      const first = availableContractors[0];
+      const nextName = first?.companyName || '';
+      const nextLicense = first?.licenseNo || '';
+      if (prev.contractorName === nextName && prev.contractorLicense === nextLicense) return prev;
+      return { ...prev, contractorName: nextName, contractorLicense: nextLicense };
+    });
+  }, [availableContractors, initialData]);
+
   const handleChange = (field, value) => {
     if (isReadOnly) return;
     const next = { ...formData, [field]: value };
@@ -67,8 +99,8 @@ export const Step1HR = ({ initialData, onSave, isReadOnly }) => {
       next.age = calculateAge(value);
     }
     if (field === 'contractorName') {
-      const match = CONTRACTORS.find(c => c.name === value);
-      if (match) next.contractorLicense = match.license;
+      const match = availableContractors.find(c => c.companyName === value);
+      next.contractorLicense = match ? (match.licenseNo || '') : '';
     }
     if (field === 'trade' && !formData.activity) {
       next.activity = `${value} & Plant Operations`;
@@ -328,15 +360,20 @@ export const Step1HR = ({ initialData, onSave, isReadOnly }) => {
           </label>
           <select
             id="contractor-name"
-            className="form-select"
+            className={`form-select ${errors.contractorName ? 'error' : ''}`}
             value={formData.contractorName}
             onChange={(e) => handleChange('contractorName', e.target.value)}
             disabled={isReadOnly}
           >
-            {CONTRACTORS.map(c => (
-              <option key={c.name} value={c.name}>{c.name}</option>
-            ))}
+            {availableContractors.length === 0 ? (
+              <option value="">-- No Active Contractors (Add in Contractor Master) --</option>
+            ) : (
+              availableContractors.map(c => (
+                <option key={c.id || c.companyName} value={c.companyName}>{c.companyName}</option>
+              ))
+            )}
           </select>
+          {errors.contractorName && <span className="error-text">{errors.contractorName}</span>}
         </div>
 
         {/* Contractor License */}
