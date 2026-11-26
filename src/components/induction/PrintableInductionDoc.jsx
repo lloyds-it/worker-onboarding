@@ -170,7 +170,7 @@ export const PrintableInductionDoc = ({ worker, onBack, onGenerateIdCard }) => {
           <tbody>
             <tr>
               <td style={{ padding: '0.45rem', border: '1px solid #CBD5E0', width: '22%', backgroundColor: '#F8FAFC' }}><strong>Contractor / Agency:</strong></td>
-              <td style={{ padding: '0.45rem', border: '1px solid #CBD5E0', width: '30%' }}>{hr.contractorName || '—'}</td>
+              <td style={{ padding: '0.45rem', border: '1px solid #CBD5E0', width: '30%' }}>{hr.contractorCode ? `${hr.contractorCode} — ` : ''}{hr.contractorName || '—'}</td>
               <td style={{ padding: '0.45rem', border: '1px solid #CBD5E0', width: '18%', backgroundColor: '#F8FAFC' }}><strong>Contractor License No:</strong></td>
               <td style={{ padding: '0.45rem', border: '1px solid #CBD5E0', width: '18%' }}>{hr.contractorLicense || '—'}</td>
               <td rowSpan="4" style={{ width: '95px', textAlign: 'center', verticalAlign: 'middle', border: '1px solid #CBD5E0', padding: '4px', backgroundColor: '#FAFAFA' }}>

@@ -10,6 +10,7 @@ import { useWorkers } from '../../context/WorkerContext';
 const DEPARTMENTS = ['Civil', 'Mechanical', 'Electrical', 'Other'];
 
 const EMPTY_FORM = {
+  contractorCode: '',
   companyName: '',
   licenseNo: '',
   department: 'Civil',
@@ -40,10 +41,11 @@ const ContractorModal = ({ contractor, onSave, onClose }) => {
 
   const validate = () => {
     const e = {};
-    if (!form.companyName.trim()) e.companyName = 'Company name is required.';
-    if (!form.licenseNo.trim()) e.licenseNo = 'License number is required.';
-    if (!form.contactPerson.trim()) e.contactPerson = 'Contact person is required.';
-    if (!form.contactMobile.trim() || !/^\d{10}$/.test(form.contactMobile.trim()))
+    if (!String(form.contractorCode || '').trim()) e.contractorCode = 'Contractor code is required.';
+    if (!String(form.companyName || '').trim()) e.companyName = 'Company name is required.';
+    if (!String(form.licenseNo || '').trim()) e.licenseNo = 'License number is required.';
+    if (!String(form.contactPerson || '').trim()) e.contactPerson = 'Contact person is required.';
+    if (!String(form.contactMobile || '').trim() || !/^\d{10}$/.test(String(form.contactMobile).trim()))
       e.contactMobile = 'Valid 10-digit mobile number is required.';
     if (form.email && !/\S+@\S+\.\S+/.test(form.email)) e.email = 'Enter a valid email address.';
     return e;
@@ -66,7 +68,7 @@ const ContractorModal = ({ contractor, onSave, onClose }) => {
         type={type}
         className={`form-input ${errors[key] ? 'error' : ''}`}
         placeholder={placeholder}
-        value={form[key]}
+        value={form[key] ?? ''}
         onChange={e => set(key, e.target.value)}
       />
       {errors[key] && <span className="error-text">{errors[key]}</span>}
@@ -142,6 +144,7 @@ const ContractorModal = ({ contractor, onSave, onClose }) => {
             </div>
             <div className="form-grid">
               {field('Company / Agency Name', 'companyName', 'text', 'e.g. L&T Construction Heavy Civil', true, { gridColumn: '1 / -1' })}
+              {field('Contractor Code', 'contractorCode', 'text', 'e.g. CTR-LNT-01', true)}
               {field('Contractor License No.', 'licenseNo', 'text', 'e.g. LIC-MH-2024-8841', true)}
               <div className="form-group">
                 <label htmlFor="ctr-dept">
@@ -327,6 +330,7 @@ export const ContractorMaster = () => {
   const filtered = contractors.filter(c => {
     const q = search.toLowerCase();
     const matchSearch = !q ||
+      (c.contractorCode || '').toLowerCase().includes(q) ||
       (c.companyName || '').toLowerCase().includes(q) ||
       (c.licenseNo || '').toLowerCase().includes(q) ||
       (c.contactPerson || '').toLowerCase().includes(q) ||
@@ -465,7 +469,7 @@ export const ContractorMaster = () => {
             id="contractor-search"
             type="text"
             className="form-input"
-            placeholder="Search by name, license, GST, contact..."
+            placeholder="Search by code, name, license, GST, contact..."
             value={search}
             onChange={e => setSearch(e.target.value)}
             style={{ paddingLeft: '2.2rem' }}
@@ -530,6 +534,7 @@ export const ContractorMaster = () => {
             <thead>
               <tr>
                 <th style={{ width: '32px' }}></th>
+                <th>Code</th>
                 <th>Company / Agency Name</th>
                 <th>License No.</th>
                 <th>Dept</th>
@@ -543,7 +548,7 @@ export const ContractorMaster = () => {
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={9} style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
+                  <td colSpan={10} style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
                     <Building2 size={32} style={{ opacity: 0.3, marginBottom: '0.5rem', display: 'block', margin: '0 auto 0.5rem' }} />
                     No contractors found. {search && 'Try a different search term.'}
                   </td>
@@ -565,6 +570,12 @@ export const ContractorMaster = () => {
                         >
                           {expandedRow === c.id ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
                         </button>
+                      </td>
+
+                      <td onClick={() => toggleRow(c.id)}>
+                        <span className="badge badge-info" style={{ fontFamily: 'var(--font-family-mono)', fontSize: '0.75rem' }}>
+                          {c.contractorCode || '—'}
+                        </span>
                       </td>
 
                       <td onClick={() => toggleRow(c.id)}>
@@ -653,7 +664,7 @@ export const ContractorMaster = () => {
                     {/* Expanded detail row */}
                     {expandedRow === c.id && (
                       <tr>
-                        <td colSpan={9} style={{ padding: 0, backgroundColor: 'var(--bg-surface-subtle)' }}>
+                        <td colSpan={10} style={{ padding: 0, backgroundColor: 'var(--bg-surface-subtle)' }}>
                           <div style={{
                             padding: '1.25rem 1.5rem',
                             borderTop: '1px solid var(--border-light)',
@@ -689,6 +700,7 @@ export const ContractorMaster = () => {
                               <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.5rem' }}>
                                 📅 Validity & Record
                               </div>
+                              <DetailRow label="Contractor Code" value={c.contractorCode} />
                               <DetailRow label="Contractor ID" value={c.id} />
                               <DetailRow label="Valid From" value={c.validFrom} />
                               <DetailRow label="Valid Upto" value={c.validUpto} />

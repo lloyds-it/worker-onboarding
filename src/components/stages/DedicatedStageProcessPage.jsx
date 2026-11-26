@@ -281,7 +281,9 @@ export const DedicatedStageProcessPage = ({ worker: propWorker, onSelectWorker, 
             </div>
             <div>
               <span style={{ color: 'var(--text-muted)' }}>Contractor / Agency:</span>
-              <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{worker.hr?.contractorName}</div>
+              <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                {worker.hr?.contractorCode ? `${worker.hr.contractorCode} — ` : ''}{worker.hr?.contractorName}
+              </div>
             </div>
             <div>
               <span style={{ color: 'var(--text-muted)' }}>Contact Mobile:</span>

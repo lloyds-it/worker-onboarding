@@ -239,7 +239,7 @@ export const WorkerTable = ({ onOpenProcessModal, onViewInductionDoc, onGenerate
                         {worker.hr?.trade || 'Unassigned'}
                       </span>
                       <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 500 }}>
-                        {worker.hr?.contractorName || 'N/A'}
+                        {worker.hr?.contractorCode ? `${worker.hr.contractorCode} — ` : ''}{worker.hr?.contractorName || 'N/A'}
                       </div>
                     </td>
 

@@ -38,6 +38,7 @@ BEGIN
         idProofType VARCHAR(100) NULL,
         idProofRef VARCHAR(100) NULL,
         contractorName VARCHAR(200) NULL,
+        contractorCode VARCHAR(50) NULL,
         contractorLicense VARCHAR(100) NULL,
         trade VARCHAR(100) NULL,
         emergencyPerson VARCHAR(200) NULL,
@@ -169,6 +170,7 @@ IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'ContractorsMaster' AND sch
 BEGIN
     CREATE TABLE dbo.ContractorsMaster (
         id VARCHAR(50) NOT NULL,
+        contractorCode VARCHAR(50) NULL,
         companyName VARCHAR(200) NOT NULL,
         licenseNo VARCHAR(100) NULL,
         department VARCHAR(100) NULL,

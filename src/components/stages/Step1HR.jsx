@@ -19,6 +19,7 @@ export const Step1HR = ({ initialData, onSave, isReadOnly }) => {
         {
           id: 'LEGACY',
           companyName: initialData.contractorName,
+          contractorCode: initialData.contractorCode || '',
           licenseNo: initialData.contractorLicense || ''
         }
       ];
@@ -37,6 +38,7 @@ export const Step1HR = ({ initialData, onSave, isReadOnly }) => {
     idProofType: initialData?.idProofType || ID_TYPES[0],
     idProofRef: initialData?.idProofRef || '',
     contractorName: initialData?.contractorName || availableContractors[0]?.companyName || '',
+    contractorCode: initialData?.contractorCode || availableContractors[0]?.contractorCode || '',
     contractorLicense: initialData?.contractorLicense || availableContractors[0]?.licenseNo || '',
     trade: initialData?.trade || TRADES[0],
     photo: initialData?.photo || '',
@@ -64,6 +66,7 @@ export const Step1HR = ({ initialData, onSave, isReadOnly }) => {
         idProofType: initialData?.idProofType || ID_TYPES[0],
         idProofRef: initialData?.idProofRef || '',
         contractorName: initialData?.contractorName || availableContractors[0]?.companyName || '',
+        contractorCode: initialData?.contractorCode || availableContractors[0]?.contractorCode || '',
         contractorLicense: initialData?.contractorLicense || availableContractors[0]?.licenseNo || '',
         trade: initialData?.trade || TRADES[0],
         photo: initialData?.photo || '',
@@ -82,13 +85,19 @@ export const Step1HR = ({ initialData, onSave, isReadOnly }) => {
   React.useEffect(() => {
     if (initialData) return;
     setFormData(prev => {
-      const stillValid = prev.contractorName && availableContractors.some(c => c.companyName === prev.contractorName);
-      if (stillValid) return prev;
+      const matchedExisting = prev.contractorName && availableContractors.find(c => c.companyName === prev.contractorName);
+      if (matchedExisting) {
+        const syncedCode = matchedExisting.contractorCode || '';
+        const syncedLicense = matchedExisting.licenseNo || '';
+        if (prev.contractorCode === syncedCode && prev.contractorLicense === syncedLicense) return prev;
+        return { ...prev, contractorCode: syncedCode, contractorLicense: syncedLicense };
+      }
       const first = availableContractors[0];
       const nextName = first?.companyName || '';
+      const nextCode = first?.contractorCode || '';
       const nextLicense = first?.licenseNo || '';
-      if (prev.contractorName === nextName && prev.contractorLicense === nextLicense) return prev;
-      return { ...prev, contractorName: nextName, contractorLicense: nextLicense };
+      if (prev.contractorName === nextName && prev.contractorCode === nextCode && prev.contractorLicense === nextLicense) return prev;
+      return { ...prev, contractorName: nextName, contractorCode: nextCode, contractorLicense: nextLicense };
     });
   }, [availableContractors, initialData]);
 
@@ -100,6 +109,7 @@ export const Step1HR = ({ initialData, onSave, isReadOnly }) => {
     }
     if (field === 'contractorName') {
       const match = availableContractors.find(c => c.companyName === value);
+      next.contractorCode = match ? (match.contractorCode || '') : '';
       next.contractorLicense = match ? (match.licenseNo || '') : '';
     }
     if (field === 'trade' && !formData.activity) {
@@ -369,11 +379,27 @@ export const Step1HR = ({ initialData, onSave, isReadOnly }) => {
               <option value="">-- No Active Contractors (Add in Contractor Master) --</option>
             ) : (
               availableContractors.map(c => (
-                <option key={c.id || c.companyName} value={c.companyName}>{c.companyName}</option>
+                <option key={c.id || c.companyName} value={c.companyName}>
+                  {c.contractorCode ? `${c.contractorCode} — ${c.companyName}` : c.companyName}
+                </option>
               ))
             )}
           </select>
           {errors.contractorName && <span className="error-text">{errors.contractorName}</span>}
+        </div>
+
+        {/* Contractor Code */}
+        <div className="form-group">
+          <label htmlFor="contractor-code">Contractor Code</label>
+          <input
+            id="contractor-code"
+            type="text"
+            className="form-input"
+            value={formData.contractorCode || ''}
+            readOnly
+            placeholder="Auto-filled from Contractor Master"
+            style={{ backgroundColor: 'var(--bg-surface-subtle)' }}
+          />
         </div>
 
         {/* Contractor License */}
