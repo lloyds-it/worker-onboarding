@@ -274,11 +274,16 @@ export const connectWithToken = async (token) => {
         BEGIN
           ALTER TABLE dbo.WorkerHRData ADD contractorCode VARCHAR(50) NULL;
         END;
+        IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'WorkerHRData' AND COLUMN_NAME = 'locationCode')
+        BEGIN
+          ALTER TABLE dbo.WorkerHRData ADD locationCode VARCHAR(20) NULL;
+        END;
         IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'ContractorsMaster' AND schema_id = SCHEMA_ID('dbo'))
         BEGIN
           CREATE TABLE dbo.ContractorsMaster (
             id VARCHAR(50) NOT NULL,
             contractorCode VARCHAR(50) NULL,
+            locationCode VARCHAR(20) NULL,
             companyName VARCHAR(200) NOT NULL,
             licenseNo VARCHAR(100) NULL,
             department VARCHAR(100) NULL,
@@ -299,9 +304,16 @@ export const connectWithToken = async (token) => {
           );
           ALTER TABLE dbo.ContractorsMaster ADD CONSTRAINT PK_ContractorsMaster PRIMARY KEY NONCLUSTERED (id) NOT ENFORCED;
         END
-        ELSE IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'ContractorsMaster' AND COLUMN_NAME = 'contractorCode')
+        ELSE
         BEGIN
-          ALTER TABLE dbo.ContractorsMaster ADD contractorCode VARCHAR(50) NULL;
+          IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'ContractorsMaster' AND COLUMN_NAME = 'contractorCode')
+          BEGIN
+            ALTER TABLE dbo.ContractorsMaster ADD contractorCode VARCHAR(50) NULL;
+          END;
+          IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'ContractorsMaster' AND COLUMN_NAME = 'locationCode')
+          BEGIN
+            ALTER TABLE dbo.ContractorsMaster ADD locationCode VARCHAR(20) NULL;
+          END;
         END;
       `);
     } catch (scErr) { }
@@ -605,7 +617,7 @@ export const dbGetAllWorkers = async () => {
       const query = `
         SELECT 
           w.id, w.assignedWorkerId, w.stage, w.status, w.fullName, w.contractorName, w.trade, w.mobileNumber, w.createdAt, w.updatedAt,
-          hr.fatherHusbandName, hr.dob, hr.age, hr.gender, hr.idProofType, hr.idProofRef, hr.contractorCode, hr.contractorLicense, hr.emergencyPerson, hr.emergencyRelationship, hr.emergencyMobile, hr.photo,
+          hr.fatherHusbandName, hr.dob, hr.age, hr.gender, hr.idProofType, hr.idProofRef, hr.contractorCode, hr.locationCode, hr.contractorLicense, hr.emergencyPerson, hr.emergencyRelationship, hr.emergencyMobile, hr.photo,
           m.bloodGroup, m.heightCm, m.weightKg, m.bmi, m.bmiCategory, m.bpSystolic, m.bpDiastolic, m.spo2, m.pulseRate, m.respirationRate, m.rbs, m.alcoholTest, m.visionTest, m.hearingTest, m.vertigoTest, m.existingIllness, m.fitnessStatus, m.examinerName, m.remarks AS medicalRemarks,
           s.briefingDone, s.topicsCovered, s.ppeIssued, s.safetyOfficerName, s.safetyDate,
           it.faceBiometricRegistered, it.cwmsRegistered, it.campusMasterUploaded, it.undertakingAccepted, it.itAdminSignature, it.itDate,
@@ -638,6 +650,7 @@ export const dbGetAllWorkers = async () => {
           idProofRef: row.idProofRef || '',
           contractorName: row.contractorName || '',
           contractorCode: row.contractorCode || '',
+          locationCode: row.locationCode || '15',
           contractorLicense: row.contractorLicense || '',
           trade: row.trade || '',
           emergencyPerson: row.emergencyPerson || '',
@@ -730,6 +743,7 @@ export const dbRegisterWorkerHR = async (newWorker) => {
         .input('idProofType', sql.VarChar(100), newWorker.hr.idProofType || '')
         .input('idProofRef', sql.VarChar(100), newWorker.hr.idProofRef || '')
         .input('contractorCode', sql.VarChar(50), newWorker.hr.contractorCode || '')
+        .input('locationCode', sql.VarChar(20), newWorker.hr.locationCode || '15')
         .input('contractorLicense', sql.VarChar(100), newWorker.hr.contractorLicense || '')
         .input('emergencyPerson', sql.VarChar(200), newWorker.hr.emergencyPerson || '')
         .input('emergencyRelationship', sql.VarChar(100), newWorker.hr.emergencyRelationship || '')
@@ -750,13 +764,13 @@ export const dbRegisterWorkerHR = async (newWorker) => {
 
           IF NOT EXISTS (SELECT 1 FROM dbo.WorkerHRData WHERE workerId = @id)
           BEGIN
-            INSERT INTO dbo.WorkerHRData (workerId, fullName, fatherHusbandName, dob, age, gender, mobileNumber, idProofType, idProofRef, contractorName, contractorCode, contractorLicense, trade, emergencyPerson, emergencyRelationship, emergencyMobile, photo, registeredAt)
-            VALUES (@id, @fullName, @fatherHusbandName, @dob, @age, @gender, @mobileNumber, @idProofType, @idProofRef, @contractorName, @contractorCode, @contractorLicense, @trade, @emergencyPerson, @emergencyRelationship, @emergencyMobile, @photo, @createdAt);
+            INSERT INTO dbo.WorkerHRData (workerId, fullName, fatherHusbandName, dob, age, gender, mobileNumber, idProofType, idProofRef, contractorName, contractorCode, locationCode, contractorLicense, trade, emergencyPerson, emergencyRelationship, emergencyMobile, photo, registeredAt)
+            VALUES (@id, @fullName, @fatherHusbandName, @dob, @age, @gender, @mobileNumber, @idProofType, @idProofRef, @contractorName, @contractorCode, @locationCode, @contractorLicense, @trade, @emergencyPerson, @emergencyRelationship, @emergencyMobile, @photo, @createdAt);
           END
           ELSE
           BEGIN
             UPDATE dbo.WorkerHRData
-            SET fullName = @fullName, fatherHusbandName = @fatherHusbandName, dob = @dob, age = @age, gender = @gender, mobileNumber = @mobileNumber, idProofType = @idProofType, idProofRef = @idProofRef, contractorName = @contractorName, contractorCode = @contractorCode, contractorLicense = @contractorLicense, trade = @trade, emergencyPerson = @emergencyPerson, emergencyRelationship = @emergencyRelationship, emergencyMobile = @emergencyMobile, photo = COALESCE(NULLIF(@photo, ''), photo)
+            SET fullName = @fullName, fatherHusbandName = @fatherHusbandName, dob = @dob, age = @age, gender = @gender, mobileNumber = @mobileNumber, idProofType = @idProofType, idProofRef = @idProofRef, contractorName = @contractorName, contractorCode = @contractorCode, locationCode = @locationCode, contractorLicense = @contractorLicense, trade = @trade, emergencyPerson = @emergencyPerson, emergencyRelationship = @emergencyRelationship, emergencyMobile = @emergencyMobile, photo = COALESCE(NULLIF(@photo, ''), photo)
             WHERE workerId = @id;
           END;
         `);
@@ -1120,7 +1134,8 @@ export const dbSaveContractor = async (contractor) => {
   const now = new Date().toISOString();
   const normalized = {
     id: contractor.id || `CTR-${Date.now().toString().slice(-6)}`,
-    contractorCode: String(contractor.contractorCode || '').trim(),
+    contractorCode: String(contractor.contractorCode || '').trim().toUpperCase(),
+    locationCode: String(contractor.locationCode || '15').trim().toUpperCase() || '15',
     companyName: String(contractor.companyName || '').trim(),
     licenseNo: contractor.licenseNo || '',
     department: contractor.department || 'Civil',
@@ -1147,6 +1162,7 @@ export const dbSaveContractor = async (contractor) => {
       await request
         .input('id', sql.VarChar(50), normalized.id)
         .input('contractorCode', sql.VarChar(50), normalized.contractorCode)
+        .input('locationCode', sql.VarChar(20), normalized.locationCode)
         .input('companyName', sql.VarChar(200), normalized.companyName)
         .input('licenseNo', sql.VarChar(100), normalized.licenseNo)
         .input('department', sql.VarChar(100), normalized.department)
@@ -1169,6 +1185,7 @@ export const dbSaveContractor = async (contractor) => {
           BEGIN
             UPDATE dbo.ContractorsMaster SET
               contractorCode = @contractorCode,
+              locationCode = @locationCode,
               companyName = @companyName,
               licenseNo = @licenseNo,
               department = @department,
@@ -1190,11 +1207,11 @@ export const dbSaveContractor = async (contractor) => {
           ELSE
           BEGIN
             INSERT INTO dbo.ContractorsMaster (
-              id, contractorCode, companyName, licenseNo, department, contactPerson, contactMobile,
+              id, contractorCode, locationCode, companyName, licenseNo, department, contactPerson, contactMobile,
               email, address, registrationNo, labourLicenseNo, pfCode, esicCode,
               gstNo, panNo, validFrom, validUpto, status, createdAt
             ) VALUES (
-              @id, @contractorCode, @companyName, @licenseNo, @department, @contactPerson, @contactMobile,
+              @id, @contractorCode, @locationCode, @companyName, @licenseNo, @department, @contactPerson, @contactMobile,
               @email, @address, @registrationNo, @labourLicenseNo, @pfCode, @esicCode,
               @gstNo, @panNo, @validFrom, @validUpto, @status, @createdAt
             );

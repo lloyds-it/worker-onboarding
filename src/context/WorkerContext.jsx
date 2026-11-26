@@ -182,7 +182,7 @@ export const WorkerProvider = ({ children }) => {
     }
 
     const { assignedWorkerId: inputEmployeeId, ...cleanHrData } = hrData || {};
-    const employeeId = (inputEmployeeId || '').trim() || generateEmployeeId(workers);
+    const employeeId = (inputEmployeeId || '').trim().toUpperCase() || generateEmployeeId(workers, cleanHrData.contractorCode, cleanHrData.locationCode);
     const year = new Date().getFullYear();
     let maxRef = 0;
     workers.forEach(w => {
@@ -264,7 +264,7 @@ export const WorkerProvider = ({ children }) => {
       const nextStage = w.stage === STAGES.HR ? STAGES.MEDICAL : w.stage;
       return {
         ...w,
-        assignedWorkerId: (inputEmployeeId || '').trim() || w.assignedWorkerId,
+        assignedWorkerId: (inputEmployeeId || '').trim().toUpperCase() || w.assignedWorkerId,
         stage: nextStage,
         updatedAt: new Date().toISOString(),
         hr: {

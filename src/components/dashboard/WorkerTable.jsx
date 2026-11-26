@@ -1,11 +1,11 @@
 import React from 'react';
-import { 
-  FileText, 
-  ExternalLink, 
-  CheckCircle2, 
-  AlertTriangle, 
-  Clock, 
-  Home, 
+import {
+  FileText,
+  ExternalLink,
+  CheckCircle2,
+  AlertTriangle,
+  Clock,
+  Home,
   ShieldAlert,
   ArrowRight,
   Printer,
@@ -121,7 +121,7 @@ export const WorkerTable = ({ onOpenProcessModal, onViewInductionDoc, onGenerate
               <th>Worker ID / Ref</th>
               <th>Candidate Identity</th>
               <th>Trade & Contractor</th>
-              
+
               {/* Conditional columns per department */}
               {currentRole === ROLES.ADMIN && (
                 <>
@@ -415,8 +415,8 @@ export const WorkerTable = ({ onOpenProcessModal, onViewInductionDoc, onGenerate
 
                         {/* If other department and worker is FLAGGED UNFIT, display clear status badge */}
                         {isFlagged && currentRole !== ROLES.ADMIN && currentRole !== ROLES.MEDICAL && (
-                          <span 
-                            className="badge badge-danger" 
+                          <span
+                            className="badge badge-danger"
                             style={{ fontSize: '0.72rem', padding: '0.3rem 0.6rem', cursor: 'help' }}
                             title="Candidate flagged medically UNFIT by Doctor. Workflow blocked pending Chief Medical Officer clearance or Executive Admin override."
                           >

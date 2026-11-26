@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { User, Briefcase, Phone, AlertCircle, CheckCircle2, MapPin, Building2, Wrench, RefreshCw, BadgeCheck } from 'lucide-react';
 import { TRADES, ID_TYPES } from '../../types/constants';
-import { validateHRStep, calculateAge, generateEmployeeId } from '../../services/validationService';
+import { validateHRStep, calculateAge, generateEmployeeId, DEFAULT_LOCATION_CODE } from '../../services/validationService';
 import { useWorkers } from '../../context/WorkerContext';
 import { WorkerPhotoUpload } from '../common/WorkerPhotoUpload';
 
@@ -20,6 +20,7 @@ export const Step1HR = ({ initialData, onSave, isReadOnly }) => {
           id: 'LEGACY',
           companyName: initialData.contractorName,
           contractorCode: initialData.contractorCode || '',
+          locationCode: initialData.locationCode || DEFAULT_LOCATION_CODE,
           licenseNo: initialData.contractorLicense || ''
         }
       ];
@@ -27,8 +28,14 @@ export const Step1HR = ({ initialData, onSave, isReadOnly }) => {
     return active;
   }, [contractors, initialData]);
 
+  const initialContractor = availableContractors[0];
+  const initialContractorCode = initialData?.contractorCode || initialContractor?.contractorCode || '';
+  const initialLocationCode = initialData?.locationCode || initialContractor?.locationCode || DEFAULT_LOCATION_CODE;
+
+  const [isIdManuallyEdited, setIsIdManuallyEdited] = useState(false);
+
   const [formData, setFormData] = useState({
-    assignedWorkerId: initialData?.assignedWorkerId || generateEmployeeId(workers),
+    assignedWorkerId: initialData?.assignedWorkerId || generateEmployeeId(workers, initialContractorCode, initialLocationCode),
     fullName: initialData?.fullName || '',
     fatherHusbandName: initialData?.fatherHusbandName || '',
     dob: initialData?.dob || '',
@@ -37,9 +44,10 @@ export const Step1HR = ({ initialData, onSave, isReadOnly }) => {
     mobileNumber: initialData?.mobileNumber || '',
     idProofType: initialData?.idProofType || ID_TYPES[0],
     idProofRef: initialData?.idProofRef || '',
-    contractorName: initialData?.contractorName || availableContractors[0]?.companyName || '',
-    contractorCode: initialData?.contractorCode || availableContractors[0]?.contractorCode || '',
-    contractorLicense: initialData?.contractorLicense || availableContractors[0]?.licenseNo || '',
+    contractorName: initialData?.contractorName || initialContractor?.companyName || '',
+    contractorCode: initialContractorCode,
+    locationCode: initialLocationCode,
+    contractorLicense: initialData?.contractorLicense || initialContractor?.licenseNo || '',
     trade: initialData?.trade || TRADES[0],
     photo: initialData?.photo || '',
     address: initialData?.address || '',
@@ -55,8 +63,11 @@ export const Step1HR = ({ initialData, onSave, isReadOnly }) => {
 
   React.useEffect(() => {
     if (initialData) {
+      const code = initialData?.contractorCode || initialContractor?.contractorCode || '';
+      const loc = initialData?.locationCode || initialContractor?.locationCode || DEFAULT_LOCATION_CODE;
+      setIsIdManuallyEdited(Boolean(initialData?.assignedWorkerId));
       setFormData({
-        assignedWorkerId: initialData?.assignedWorkerId || generateEmployeeId(workers),
+        assignedWorkerId: initialData?.assignedWorkerId || generateEmployeeId(workers, code, loc),
         fullName: initialData?.fullName || '',
         fatherHusbandName: initialData?.fatherHusbandName || '',
         dob: initialData?.dob || '',
@@ -65,9 +76,10 @@ export const Step1HR = ({ initialData, onSave, isReadOnly }) => {
         mobileNumber: initialData?.mobileNumber || '',
         idProofType: initialData?.idProofType || ID_TYPES[0],
         idProofRef: initialData?.idProofRef || '',
-        contractorName: initialData?.contractorName || availableContractors[0]?.companyName || '',
-        contractorCode: initialData?.contractorCode || availableContractors[0]?.contractorCode || '',
-        contractorLicense: initialData?.contractorLicense || availableContractors[0]?.licenseNo || '',
+        contractorName: initialData?.contractorName || initialContractor?.companyName || '',
+        contractorCode: code,
+        locationCode: loc,
+        contractorLicense: initialData?.contractorLicense || initialContractor?.licenseNo || '',
         trade: initialData?.trade || TRADES[0],
         photo: initialData?.photo || '',
         address: initialData?.address || '',
@@ -81,36 +93,67 @@ export const Step1HR = ({ initialData, onSave, isReadOnly }) => {
     }
   }, [initialData]);
 
-  // Keep selected contractor synced with live Contractor Master when adding new workers
+  // Keep selected contractor & auto-generated Employee Code synced with live Contractor Master
   React.useEffect(() => {
     if (initialData) return;
     setFormData(prev => {
-      const matchedExisting = prev.contractorName && availableContractors.find(c => c.companyName === prev.contractorName);
-      if (matchedExisting) {
-        const syncedCode = matchedExisting.contractorCode || '';
-        const syncedLicense = matchedExisting.licenseNo || '';
-        if (prev.contractorCode === syncedCode && prev.contractorLicense === syncedLicense) return prev;
-        return { ...prev, contractorCode: syncedCode, contractorLicense: syncedLicense };
+      const matched = (prev.contractorName && availableContractors.find(c => c.companyName === prev.contractorName)) || availableContractors[0];
+      if (!matched) return prev;
+
+      const nextName = matched.companyName || '';
+      const nextCode = matched.contractorCode || '';
+      const nextLicense = matched.licenseNo || '';
+      const nextLocation = prev.contractorName === nextName && prev.locationCode
+        ? prev.locationCode
+        : (matched.locationCode || DEFAULT_LOCATION_CODE);
+      const nextEmployeeId = !isIdManuallyEdited
+        ? generateEmployeeId(workers, nextCode, nextLocation)
+        : prev.assignedWorkerId;
+
+      if (
+        prev.contractorName === nextName &&
+        prev.contractorCode === nextCode &&
+        prev.contractorLicense === nextLicense &&
+        prev.locationCode === nextLocation &&
+        prev.assignedWorkerId === nextEmployeeId
+      ) {
+        return prev;
       }
-      const first = availableContractors[0];
-      const nextName = first?.companyName || '';
-      const nextCode = first?.contractorCode || '';
-      const nextLicense = first?.licenseNo || '';
-      if (prev.contractorName === nextName && prev.contractorCode === nextCode && prev.contractorLicense === nextLicense) return prev;
-      return { ...prev, contractorName: nextName, contractorCode: nextCode, contractorLicense: nextLicense };
+
+      return {
+        ...prev,
+        contractorName: nextName,
+        contractorCode: nextCode,
+        contractorLicense: nextLicense,
+        locationCode: nextLocation,
+        assignedWorkerId: nextEmployeeId
+      };
     });
-  }, [availableContractors, initialData]);
+  }, [availableContractors, initialData, isIdManuallyEdited, workers]);
 
   const handleChange = (field, value) => {
     if (isReadOnly) return;
-    const next = { ...formData, [field]: value };
+    const normalizedValue = (field === 'assignedWorkerId' || field === 'locationCode')
+      ? value.toUpperCase()
+      : value;
+    const next = { ...formData, [field]: normalizedValue };
     if (field === 'dob') {
       next.age = calculateAge(value);
+    }
+    if (field === 'assignedWorkerId') {
+      setIsIdManuallyEdited(true);
     }
     if (field === 'contractorName') {
       const match = availableContractors.find(c => c.companyName === value);
       next.contractorCode = match ? (match.contractorCode || '') : '';
       next.contractorLicense = match ? (match.licenseNo || '') : '';
+      next.locationCode = match ? (match.locationCode || DEFAULT_LOCATION_CODE) : DEFAULT_LOCATION_CODE;
+      if (!initialData && !isIdManuallyEdited) {
+        next.assignedWorkerId = generateEmployeeId(workers, next.contractorCode, next.locationCode);
+      }
+    }
+    if (field === 'locationCode' && !initialData && !isIdManuallyEdited) {
+      next.assignedWorkerId = generateEmployeeId(workers, next.contractorCode, normalizedValue);
     }
     if (field === 'trade' && !formData.activity) {
       next.activity = `${value} & Plant Operations`;
@@ -198,9 +241,9 @@ export const Step1HR = ({ initialData, onSave, isReadOnly }) => {
               id="worker-employee-id"
               type="text"
               className={`form-input ${errors.assignedWorkerId ? 'error' : ''}`}
-              placeholder="e.g. LME-2026-1001"
+              placeholder="e.g. GRY1001150001"
               value={formData.assignedWorkerId}
-              onChange={(e) => handleChange('assignedWorkerId', e.target.value.toUpperCase())}
+              onChange={(e) => handleChange('assignedWorkerId', e.target.value)}
               disabled={isReadOnly}
               style={{
                 fontFamily: 'var(--font-family-mono)',
@@ -213,7 +256,11 @@ export const Step1HR = ({ initialData, onSave, isReadOnly }) => {
               <button
                 type="button"
                 className="btn btn-secondary"
-                onClick={() => handleChange('assignedWorkerId', generateEmployeeId(workers))}
+                onClick={() => {
+                  setIsIdManuallyEdited(false);
+                  const nextId = generateEmployeeId(workers, formData.contractorCode, formData.locationCode);
+                  setFormData(prev => ({ ...prev, assignedWorkerId: nextId }));
+                }}
                 title="Generate next sequential Employee ID"
                 style={{ whiteSpace: 'nowrap', padding: '0.55rem 0.85rem' }}
               >
@@ -399,6 +446,21 @@ export const Step1HR = ({ initialData, onSave, isReadOnly }) => {
             readOnly
             placeholder="Auto-filled from Contractor Master"
             style={{ backgroundColor: 'var(--bg-surface-subtle)' }}
+          />
+        </div>
+
+        {/* Location Code */}
+        <div className="form-group">
+          <label htmlFor="worker-location-code">Location Code</label>
+          <input
+            id="worker-location-code"
+            type="text"
+            className="form-input"
+            value={formData.locationCode || '15'}
+            onChange={(e) => handleChange('locationCode', e.target.value)}
+            disabled={isReadOnly}
+            placeholder="e.g. 15"
+            style={{ fontFamily: 'var(--font-family-mono)', fontWeight: 700 }}
           />
         </div>
 

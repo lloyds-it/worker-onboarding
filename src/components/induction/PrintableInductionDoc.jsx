@@ -1,9 +1,9 @@
 import React from 'react';
-import { 
-  Printer, 
-  ArrowLeft, 
-  CheckSquare, 
-  Square, 
+import {
+  Printer,
+  ArrowLeft,
+  CheckSquare,
+  Square,
   CreditCard,
   AlertTriangle,
   XCircle,
@@ -112,9 +112,9 @@ export const PrintableInductionDoc = ({ worker, onBack, onGenerateIdCard }) => {
           paddingBottom: '1rem',
           marginBottom: '1rem'
         }}>
-          <img 
-            src={logoInfra} 
-            alt="Lloyds Infra" 
+          <img
+            src={logoInfra}
+            alt="Lloyds Infra"
             style={{ height: '50px', objectFit: 'contain' }}
             onError={(e) => { e.target.style.display = 'none'; }}
           />
@@ -126,9 +126,9 @@ export const PrintableInductionDoc = ({ worker, onBack, onGenerateIdCard }) => {
               STANDARDIZED WORKER INDUCTION & CAMP HOUSING ALLOCATION FORM
             </div>
           </div>
-          <img 
-            src={logoMetals} 
-            alt="Lloyds Metals" 
+          <img
+            src={logoMetals}
+            alt="Lloyds Metals"
             style={{ height: '38px', objectFit: 'contain' }}
             onError={(e) => { e.target.style.display = 'none'; }}
           />

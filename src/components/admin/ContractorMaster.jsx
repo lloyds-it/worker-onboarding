@@ -11,6 +11,7 @@ const DEPARTMENTS = ['Civil', 'Mechanical', 'Electrical', 'Other'];
 
 const EMPTY_FORM = {
   contractorCode: '',
+  locationCode: '15',
   companyName: '',
   licenseNo: '',
   department: 'Civil',
@@ -31,17 +32,19 @@ const EMPTY_FORM = {
 
 // ─── Add / Edit Modal ────────────────────────────────────────────────────────
 const ContractorModal = ({ contractor, onSave, onClose }) => {
-  const [form, setForm] = useState(contractor ? { ...contractor } : { ...EMPTY_FORM });
+  const [form, setForm] = useState(contractor ? { locationCode: '15', ...contractor } : { ...EMPTY_FORM });
   const [errors, setErrors] = useState({});
 
   const set = (field, val) => {
-    setForm(prev => ({ ...prev, [field]: val }));
+    const normalizedVal = (field === 'contractorCode' || field === 'locationCode') ? val.toUpperCase() : val;
+    setForm(prev => ({ ...prev, [field]: normalizedVal }));
     if (errors[field]) setErrors(prev => ({ ...prev, [field]: null }));
   };
 
   const validate = () => {
     const e = {};
     if (!String(form.contractorCode || '').trim()) e.contractorCode = 'Contractor code is required.';
+    if (!String(form.locationCode || '').trim()) e.locationCode = 'Location code is required (e.g. 15).';
     if (!String(form.companyName || '').trim()) e.companyName = 'Company name is required.';
     if (!String(form.licenseNo || '').trim()) e.licenseNo = 'License number is required.';
     if (!String(form.contactPerson || '').trim()) e.contactPerson = 'Contact person is required.';
@@ -55,7 +58,11 @@ const ContractorModal = ({ contractor, onSave, onClose }) => {
     e.preventDefault();
     const errs = validate();
     if (Object.keys(errs).length > 0) { setErrors(errs); return; }
-    onSave(form);
+    onSave({
+      ...form,
+      contractorCode: String(form.contractorCode || '').trim().toUpperCase(),
+      locationCode: String(form.locationCode || '15').trim().toUpperCase() || '15'
+    });
   };
 
   const field = (label, key, type = 'text', placeholder = '', required = false, extraStyle = {}) => (
@@ -144,7 +151,8 @@ const ContractorModal = ({ contractor, onSave, onClose }) => {
             </div>
             <div className="form-grid">
               {field('Company / Agency Name', 'companyName', 'text', 'e.g. L&T Construction Heavy Civil', true, { gridColumn: '1 / -1' })}
-              {field('Contractor Code', 'contractorCode', 'text', 'e.g. CTR-LNT-01', true)}
+              {field('Contractor Code', 'contractorCode', 'text', 'e.g. GRY1001', true)}
+              {field('Location Code', 'locationCode', 'text', 'e.g. 15', true)}
               {field('Contractor License No.', 'licenseNo', 'text', 'e.g. LIC-MH-2024-8841', true)}
               <div className="form-group">
                 <label htmlFor="ctr-dept">
@@ -701,6 +709,7 @@ export const ContractorMaster = () => {
                                 📅 Validity & Record
                               </div>
                               <DetailRow label="Contractor Code" value={c.contractorCode} />
+                              <DetailRow label="Location Code" value={c.locationCode || '15'} />
                               <DetailRow label="Contractor ID" value={c.id} />
                               <DetailRow label="Valid From" value={c.validFrom} />
                               <DetailRow label="Valid Upto" value={c.validUpto} />

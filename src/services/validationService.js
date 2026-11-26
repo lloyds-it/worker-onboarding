@@ -1,6 +1,33 @@
 // Validation Service conforming to OWASP ASVS 5.0 Input Validation
 
-export const generateEmployeeId = (existingWorkers = []) => {
+export const DEFAULT_LOCATION_CODE = '15';
+
+export const generateEmployeeId = (
+  existingWorkers = [],
+  contractorCode = '',
+  locationCode = DEFAULT_LOCATION_CODE
+) => {
+  const cleanContractor = String(contractorCode || '').trim().toUpperCase().replace(/\s+/g, '');
+  const cleanLocation = String(locationCode || DEFAULT_LOCATION_CODE).trim().toUpperCase().replace(/\s+/g, '') || DEFAULT_LOCATION_CODE;
+
+  if (cleanContractor) {
+    const prefix = `${cleanContractor}${cleanLocation}`;
+    let maxSeq = 0;
+    if (Array.isArray(existingWorkers)) {
+      existingWorkers.forEach(w => {
+        const candidate = String(w?.assignedWorkerId || '').trim().toUpperCase();
+        if (candidate.startsWith(prefix)) {
+          const tail = candidate.slice(prefix.length);
+          if (/^\d+$/.test(tail)) {
+            const num = parseInt(tail, 10);
+            if (!Number.isNaN(num) && num > maxSeq) maxSeq = num;
+          }
+        }
+      });
+    }
+    return `${prefix}${String(maxSeq + 1).padStart(4, '0')}`;
+  }
+
   const year = new Date().getFullYear();
   let maxSeq = 1000;
   if (Array.isArray(existingWorkers)) {
