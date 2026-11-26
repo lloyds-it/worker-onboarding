@@ -1224,7 +1224,7 @@ a {
 /* Mobile Responsive Navigation & Cross-Device Layout */
 .header-mobile-menu-btn,
 .sidebar-mobile-close-btn {
-  display: none;
+  display: none !important;
 }
 
 .sidebar-mobile-backdrop {

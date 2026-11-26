@@ -160,7 +160,7 @@ const AppContent = () => {
       const next = !prev;
       try {
         localStorage.setItem('lloyd_sidebar_collapsed_v1', String(next));
-      } catch (err) {}
+      } catch (err) { }
       return next;
     });
   };
@@ -168,7 +168,7 @@ const AppContent = () => {
   // Primary active views
   const [activeView, setActiveView] = useState('admin_dashboard');
   const [selectedDeptTab, setSelectedDeptTab] = useState('hr');
-  
+
   // Workflows state
   const [processingWorker, setProcessingWorker] = useState(null);
   const [overrideWorker, setOverrideWorker] = useState(null);
@@ -210,21 +210,21 @@ const AppContent = () => {
       if (targetView) {
         setActiveView(targetView);
         if (route === 'process' && workers && workers.length > 0) {
-          const match = param 
-            ? workers.find(w => w.id === param || w.assignedWorkerId === param) 
+          const match = param
+            ? workers.find(w => w.id === param || w.assignedWorkerId === param)
             : (processingWorker || activeWorker || workers[0]);
           if (match) setProcessingWorker(match);
         } else if (route === 'induction' && workers && workers.length > 0) {
-          const match = param 
-            ? workers.find(w => w.id === param || w.assignedWorkerId === param) 
+          const match = param
+            ? workers.find(w => w.id === param || w.assignedWorkerId === param)
             : (documentWorker || activeWorker || workers[0]);
           if (match) setDocumentWorker(match);
         } else if (route === 'idcard' && workers && workers.length > 0) {
-          const match = param 
-            ? workers.find(w => w.id === param || w.assignedWorkerId === param) 
+          const match = param
+            ? workers.find(w => w.id === param || w.assignedWorkerId === param)
             : (idCardWorker || activeWorker || workers[0]);
           if (match) setIdCardWorker(match);
-        } else if (route === 'departments' && param) {
+        } else if (route === 'departments' && param && currentRole === ROLES.ADMIN) {
           setSelectedDeptTab(param);
         }
       }
@@ -238,7 +238,7 @@ const AppContent = () => {
   // Department-specific default view setting on login
   useEffect(() => {
     if (!isAuthenticated) return;
-    
+
     if (currentRole === ROLES.ADMIN) {
       if (!window.location.hash) setActiveView('admin_dashboard');
       setSelectedStageFilter('ALL');
@@ -275,7 +275,7 @@ const AppContent = () => {
         } else {
           window.location.hash = '';
         }
-      } catch (e) {}
+      } catch (e) { }
     }
     return <LoginPage />;
   }
@@ -348,7 +348,7 @@ const AppContent = () => {
       />
 
       <div className="main-content">
-        <Header 
+        <Header
           isSidebarCollapsed={isSidebarCollapsed}
           onToggleSidebarCollapse={handleToggleSidebarCollapse}
           onToggleMobileSidebar={() => setIsMobileSidebarOpen(prev => !prev)}
@@ -361,10 +361,10 @@ const AppContent = () => {
               {activeView === 'process_worker' && (
                 <DedicatedStageProcessPage
                   worker={
-                    processingWorker || 
+                    processingWorker ||
                     (workers && workers.length > 0 ? (
                       workers.find(w => w.id === (window.location.hash.split('/')[1] || '') || w.assignedWorkerId === (window.location.hash.split('/')[1] || '')) ||
-                      activeWorker || 
+                      activeWorker ||
                       workers[0]
                     ) : null)
                   }
@@ -445,20 +445,22 @@ const AppContent = () => {
                       {currentRole === ROLES.ADMIN ? 'Department Operational Dashboards' : `${ROLE_LABELS[currentRole]} Dashboard`}
                     </h1>
                     <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                      Granular drilldown metrics across HR, Medical, Safety, IT, and Camp Living Quarters.
+                      {currentRole === ROLES.ADMIN
+                        ? 'Granular drilldown metrics across HR, Medical, Safety, IT, and Camp Living Quarters.'
+                        : 'Operational metrics and logs scoped strictly to your department.'}
                     </p>
                   </div>
-                  <DepartmentDashboards initialTab={selectedDeptTab} />
+                  <DepartmentDashboards key={currentRole} initialTab={selectedDeptTab} />
                 </div>
               )}
 
-              {/* VIEW 6: REPORTS & CSV EXPORT */}
-              {activeView === 'reports' && (
+              {/* VIEW 6: REPORTS & CSV EXPORT (Admin Only) */}
+              {activeView === 'reports' && currentRole === ROLES.ADMIN && (
                 <ReportsCenter />
               )}
 
-              {/* VIEW 7: AUDIT LOG VIEWER */}
-              {activeView === 'audit_log' && (
+              {/* VIEW 7: AUDIT LOG VIEWER (Admin Only) */}
+              {activeView === 'audit_log' && currentRole === ROLES.ADMIN && (
                 <AuditLogViewer />
               )}
 

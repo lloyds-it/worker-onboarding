@@ -14,71 +14,87 @@ import {
   FileSpreadsheet
 } from 'lucide-react';
 import { useWorkers } from '../../context/WorkerContext';
+import { useAuth } from '../../context/AuthContext';
 import { getDepartmentStats } from '../../services/reportService';
-import { TRADES, PPE_ITEMS, CAMPS, BLOCKS } from '../../types/constants';
+import { TRADES, PPE_ITEMS, CAMPS, BLOCKS, ROLES } from '../../types/constants';
+
+const ROLE_TAB_MAP = {
+  [ROLES.HR]: 'hr',
+  [ROLES.MEDICAL]: 'medical',
+  [ROLES.SAFETY]: 'safety',
+  [ROLES.IT]: 'it',
+  [ROLES.CAMP]: 'camp'
+};
 
 export const DepartmentDashboards = ({ initialTab = 'hr' }) => {
-  const [activeTab, setActiveTab] = useState(initialTab);
+  const { currentRole } = useAuth();
+  const isAdmin = currentRole === ROLES.ADMIN;
+  const lockedTab = ROLE_TAB_MAP[currentRole] || initialTab;
+
+  const [activeTab, setActiveTab] = useState(isAdmin ? initialTab : lockedTab);
   const { workers } = useWorkers();
   const stats = getDepartmentStats(workers);
+  const effectiveTab = isAdmin ? activeTab : lockedTab;
 
   return (
     <div>
-      {/* Department Tabs */}
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '0.5rem',
-        backgroundColor: 'var(--bg-surface)',
-        padding: '0.5rem',
-        borderRadius: 'var(--radius-lg)',
-        border: '1px solid var(--border-light)',
-        marginBottom: '1.75rem',
-        overflowX: 'auto'
-      }}>
-        <button
-          className={`btn ${activeTab === 'hr' ? 'btn-primary' : 'btn-secondary'}`}
-          onClick={() => setActiveTab('hr')}
-        >
-          <Users size={16} />
-          <span>HR Operations</span>
-        </button>
+      {/* Department Tabs (Multi-department switcher restricted strictly to Admin) */}
+      {isAdmin && (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.5rem',
+          backgroundColor: 'var(--bg-surface)',
+          padding: '0.5rem',
+          borderRadius: 'var(--radius-lg)',
+          border: '1px solid var(--border-light)',
+          marginBottom: '1.75rem',
+          overflowX: 'auto'
+        }}>
+          <button
+            className={`btn ${effectiveTab === 'hr' ? 'btn-primary' : 'btn-secondary'}`}
+            onClick={() => setActiveTab('hr')}
+          >
+            <Users size={16} />
+            <span>HR Operations</span>
+          </button>
 
-        <button
-          className={`btn ${activeTab === 'medical' ? 'btn-primary' : 'btn-secondary'}`}
-          onClick={() => setActiveTab('medical')}
-        >
-          <Stethoscope size={16} />
-          <span>Medical Screening</span>
-        </button>
+          <button
+            className={`btn ${effectiveTab === 'medical' ? 'btn-primary' : 'btn-secondary'}`}
+            onClick={() => setActiveTab('medical')}
+          >
+            <Stethoscope size={16} />
+            <span>Medical Screening</span>
+          </button>
 
-        <button
-          className={`btn ${activeTab === 'safety' ? 'btn-primary' : 'btn-secondary'}`}
-          onClick={() => setActiveTab('safety')}
-        >
-          <HardHat size={16} />
-          <span>EHS Safety Induction</span>
-        </button>
+          <button
+            className={`btn ${effectiveTab === 'safety' ? 'btn-primary' : 'btn-secondary'}`}
+            onClick={() => setActiveTab('safety')}
+          >
+            <HardHat size={16} />
+            <span>EHS Safety Induction</span>
+          </button>
 
-        <button
-          className={`btn ${activeTab === 'it' ? 'btn-primary' : 'btn-secondary'}`}
-          onClick={() => setActiveTab('it')}
-        >
-          <Fingerprint size={16} />
-          <span>IT Biometrics</span>
-        </button>
+          <button
+            className={`btn ${effectiveTab === 'it' ? 'btn-primary' : 'btn-secondary'}`}
+            onClick={() => setActiveTab('it')}
+          >
+            <Fingerprint size={16} />
+            <span>IT Biometrics</span>
+          </button>
 
-        <button
-          className={`btn ${activeTab === 'camp' ? 'btn-primary' : 'btn-secondary'}`}
-          onClick={() => setActiveTab('camp')}
-        >
-          <Home size={16} />
-          <span>Camp Accommodation</span>
-        </button>
-      </div>
+          <button
+            className={`btn ${effectiveTab === 'camp' ? 'btn-primary' : 'btn-secondary'}`}
+            onClick={() => setActiveTab('camp')}
+          >
+            <Home size={16} />
+            <span>Camp Accommodation</span>
+          </button>
+        </div>
+      )}
 
       {/* TAB 1: HR DASHBOARD */}
-      {activeTab === 'hr' && (
+      {effectiveTab === 'hr' && (
         <div>
           <div className="dashboard-grid">
             <div className="stat-card">
@@ -172,7 +188,7 @@ export const DepartmentDashboards = ({ initialTab = 'hr' }) => {
       )}
 
       {/* TAB 2: MEDICAL DASHBOARD */}
-      {activeTab === 'medical' && (
+      {effectiveTab === 'medical' && (
         <div>
           <div className="dashboard-grid">
             <div className="stat-card">
@@ -276,7 +292,7 @@ export const DepartmentDashboards = ({ initialTab = 'hr' }) => {
       )}
 
       {/* TAB 3: SAFETY DASHBOARD */}
-      {activeTab === 'safety' && (
+      {effectiveTab === 'safety' && (
         <div>
           <div className="dashboard-grid">
             <div className="stat-card">
@@ -365,7 +381,7 @@ export const DepartmentDashboards = ({ initialTab = 'hr' }) => {
       )}
 
       {/* TAB 4: IT DASHBOARD */}
-      {activeTab === 'it' && (
+      {effectiveTab === 'it' && (
         <div>
           <div className="dashboard-grid">
             <div className="stat-card">
@@ -455,7 +471,7 @@ export const DepartmentDashboards = ({ initialTab = 'hr' }) => {
       )}
 
       {/* TAB 5: CAMP DASHBOARD */}
-      {activeTab === 'camp' && (
+      {effectiveTab === 'camp' && (
         <div>
           <div className="dashboard-grid">
             {CAMPS.map(campName => {
