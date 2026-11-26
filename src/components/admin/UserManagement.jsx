@@ -25,12 +25,13 @@ import { ChangePasswordModal } from '../common/ChangePasswordModal';
 import { DigitalSignatureModal } from '../common/DigitalSignatureModal';
 
 export const UserManagement = () => {
-  const { users, createUser, toggleUserStatus, deleteUser, currentUser } = useAuth();
+  const { users, createUser, toggleUserStatus, deleteUser, sendResetPasswordLink, currentUser } = useAuth();
 
   const [adminSubTab, setAdminSubTab] = useState('ACCOUNTS'); // 'ACCOUNTS' | 'SSO'
   const [isCreating, setIsCreating] = useState(false);
   const [passwordModalUser, setPasswordModalUser] = useState(null);
   const [signatureModalUser, setSignatureModalUser] = useState(null);
+  const [sendingResetId, setSendingResetId] = useState(null);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -82,7 +83,13 @@ export const UserManagement = () => {
     });
 
     if (created) {
-      setSuccess(`Account successfully created for ${formData.name} in ${ROLE_LABELS[formData.role]}. (Default password: ${formData.password || 'Lloyds@2026#'})`);
+      const mailStatus = created.emailNotification?.status;
+      const mailNote = mailStatus === 'SENT'
+        ? ` Credentials, portal link & reset password link emailed to ${formData.email}.`
+        : mailStatus
+          ? ` (Email status: ${mailStatus}${created.emailNotification?.error ? ` — ${created.emailNotification.error}` : ''})`
+          : '';
+      setSuccess(`Account created for ${formData.name} in ${ROLE_LABELS[formData.role]}.${mailNote}`);
       setFormData({
         name: '',
         email: '',
@@ -91,6 +98,22 @@ export const UserManagement = () => {
         password: ''
       });
       setIsCreating(false);
+    }
+  };
+
+  const handleSendResetLink = async (user) => {
+    setError('');
+    setSuccess('');
+    setSendingResetId(user.id);
+    try {
+      const res = await sendResetPasswordLink(user.id);
+      if (res && res.success) {
+        setSuccess(res.message || `Password reset link emailed to ${user.email}.`);
+      } else {
+        setError(res?.error || `Failed to send reset link to ${user.email}.`);
+      }
+    } finally {
+      setSendingResetId(null);
     }
   };
 
@@ -227,6 +250,20 @@ export const UserManagement = () => {
           fontWeight: 600
         }}>
           {success}
+        </div>
+      )}
+      {error && !isCreating && (
+        <div style={{
+          backgroundColor: 'var(--danger-bg)',
+          color: 'var(--danger-text)',
+          border: '1px solid var(--danger-border)',
+          borderRadius: 'var(--radius-sm)',
+          padding: '0.75rem 1rem',
+          marginBottom: '1.25rem',
+          fontSize: '0.85rem',
+          fontWeight: 600
+        }}>
+          {error}
         </div>
       )}
 
@@ -488,12 +525,23 @@ export const UserManagement = () => {
                     </td>
 
                     <td style={{ textAlign: 'right' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.4rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.4rem', flexWrap: 'wrap' }}>
+                        <button
+                          className="btn btn-secondary"
+                          style={{ padding: '0.35rem 0.6rem', fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                          onClick={() => handleSendResetLink(u)}
+                          disabled={sendingResetId === u.id || !isActive}
+                          title={`Email password reset link to ${u.email}`}
+                        >
+                          <Mail size={13} color="#2563EB" />
+                          <span>{sendingResetId === u.id ? 'Sending...' : 'Reset Link'}</span>
+                        </button>
+
                         <button
                           className="btn btn-secondary"
                           style={{ padding: '0.35rem 0.6rem', fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
                           onClick={() => setPasswordModalUser(u)}
-                          title={`Reset password for ${u.name}`}
+                          title={`Set password directly for ${u.name}`}
                         >
                           <Key size={13} color="var(--brand-primary)" />
                           <span>Password</span>

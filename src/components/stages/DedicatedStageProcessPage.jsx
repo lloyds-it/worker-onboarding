@@ -222,14 +222,14 @@ export const DedicatedStageProcessPage = ({ worker: propWorker, onSelectWorker, 
       </div>
 
       {/* Main Process Grid */}
-      <div style={{
+      <div className="responsive-split-grid" style={{
         display: 'grid',
         gridTemplateColumns: 'minmax(280px, 320px) 1fr',
         gap: '1.5rem',
         alignItems: 'start'
       }}>
         {/* Left Column: Candidate Summary Card */}
-        <div style={{
+        <div className="responsive-sticky-card" style={{
           backgroundColor: 'var(--bg-surface)',
           border: '1px solid var(--border-light)',
           borderRadius: 'var(--radius-lg)',

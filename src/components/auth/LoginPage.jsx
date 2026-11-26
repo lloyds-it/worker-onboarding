@@ -16,11 +16,19 @@ import {
   HardHat,
   Fingerprint,
   Home,
-  Users
+  Users,
+  Mail,
+  CheckCircle2,
+  X
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import { ChangePasswordModal } from '../common/ChangePasswordModal';
+import {
+  apiRequestPasswordReset,
+  apiVerifyResetToken,
+  apiCompletePasswordReset
+} from '../../services/apiService';
 import logoMetals from '../../assets/logo_metals.png';
 import logoInfra from '../../assets/logo_infra.png';
 import SSOModal, { GoogleLogo } from './SSOModal';
@@ -114,22 +122,99 @@ export const LoginPage = () => {
   const [showSSOModal, setShowSSOModal] = useState(false);
   const [ssoProvider, setSsoProvider] = useState('GOOGLE');
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
+  const [showForgotModal, setShowForgotModal] = useState(false);
+  const [forgotIdentifier, setForgotIdentifier] = useState('');
+  const [forgotStatus, setForgotStatus] = useState({ type: '', message: '' });
+  const [isSendingReset, setIsSendingReset] = useState(false);
+
+  const [resetToken, setResetToken] = useState('');
+  const [tokenInfo, setTokenInfo] = useState({ checking: false, valid: false, email: '', name: '', error: '' });
+  const [resetNewPass, setResetNewPass] = useState('');
+  const [resetConfirmPass, setResetConfirmPass] = useState('');
+  const [resetSubmitMsg, setResetSubmitMsg] = useState({ type: '', message: '' });
+  const [isCompletingReset, setIsCompletingReset] = useState(false);
 
   // Single Sign-On (SSO) is disabled for now
   const isSSOEnabled = false;
 
-  // Ensure stale hash (e.g. #departments, #users, #pipeline) is stripped from the URL on login page
+  // Check for ?resetToken=... from email link & strip stale URL hash
   useEffect(() => {
     try {
-      if (typeof window !== 'undefined' && window.location.hash) {
-        if (window.history && window.history.replaceState) {
-          window.history.replaceState(null, '', window.location.pathname + window.location.search);
-        } else {
-          window.location.hash = '';
+      if (typeof window !== 'undefined') {
+        const params = new URLSearchParams(window.location.search);
+        const tok = params.get('resetToken');
+        if (tok) {
+          setResetToken(tok);
+          setTokenInfo({ checking: true, valid: false, email: '', name: '', error: '' });
+          apiVerifyResetToken(tok).then(res => {
+            if (res && res.success) {
+              setTokenInfo({ checking: false, valid: true, email: res.email, name: res.name, error: '' });
+            } else {
+              setTokenInfo({ checking: false, valid: false, email: '', name: '', error: res?.error || 'Reset link is invalid or expired.' });
+            }
+          });
+        }
+        if (window.location.hash) {
+          if (window.history && window.history.replaceState) {
+            window.history.replaceState(null, '', window.location.pathname + window.location.search);
+          } else {
+            window.location.hash = '';
+          }
         }
       }
     } catch (e) {}
   }, []);
+
+  const clearResetTokenFromUrl = () => {
+    setResetToken('');
+    setResetNewPass('');
+    setResetConfirmPass('');
+    setResetSubmitMsg({ type: '', message: '' });
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('resetToken');
+      window.history.replaceState(null, '', url.pathname + url.search);
+    } catch (e) {}
+  };
+
+  const handleRequestResetLink = async (e) => {
+    e.preventDefault();
+    if (!forgotIdentifier.trim()) {
+      setForgotStatus({ type: 'error', message: 'Please enter your work email or username.' });
+      return;
+    }
+    setIsSendingReset(true);
+    setForgotStatus({ type: '', message: '' });
+    const res = await apiRequestPasswordReset(forgotIdentifier.trim());
+    setIsSendingReset(false);
+    if (res && res.success) {
+      setForgotStatus({ type: 'success', message: res.message });
+    } else {
+      setForgotStatus({ type: 'error', message: res?.error || 'Could not send reset link.' });
+    }
+  };
+
+  const handleCompleteTokenReset = async (e) => {
+    e.preventDefault();
+    if (!resetNewPass || resetNewPass.trim().length < 6) {
+      setResetSubmitMsg({ type: 'error', message: 'Password must be at least 6 characters long.' });
+      return;
+    }
+    if (resetNewPass !== resetConfirmPass) {
+      setResetSubmitMsg({ type: 'error', message: 'Passwords do not match.' });
+      return;
+    }
+    setIsCompletingReset(true);
+    setResetSubmitMsg({ type: '', message: '' });
+    const res = await apiCompletePasswordReset(resetToken, resetNewPass.trim());
+    setIsCompletingReset(false);
+    if (res && res.success) {
+      if (tokenInfo.email) setUsername(tokenInfo.email);
+      setResetSubmitMsg({ type: 'success', message: res.message });
+    } else {
+      setResetSubmitMsg({ type: 'error', message: res?.error || 'Reset link is invalid or expired.' });
+    }
+  };
 
   // Corporate Domain Auto-Detection (active only when SSO is enabled)
   const isCorporateDomain = isSSOEnabled && Boolean(
@@ -476,7 +561,7 @@ export const LoginPage = () => {
               Department Profiles
             </div>
 
-            <div style={{
+            <div className="login-role-grid" style={{
               display: 'grid',
               gridTemplateColumns: 'repeat(3, 1fr)',
               gap: '0.45rem'
@@ -625,25 +710,50 @@ export const LoginPage = () => {
                 >
                   Password
                 </label>
-                <button
-                  type="button"
-                  onClick={() => setShowChangePasswordModal(true)}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: 'var(--brand-primary)',
-                    fontSize: '0.75rem',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '0.25rem',
-                    padding: 0
-                  }}
-                >
-                  <Key size={12} />
-                  <span>Change Password</span>
-                </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setForgotIdentifier(username || '');
+                      setForgotStatus({ type: '', message: '' });
+                      setShowForgotModal(true);
+                    }}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#2563EB',
+                      fontSize: '0.75rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.25rem',
+                      padding: 0
+                    }}
+                  >
+                    <Mail size={12} />
+                    <span>Email Reset Link</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowChangePasswordModal(true)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: 'var(--brand-primary)',
+                      fontSize: '0.75rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.25rem',
+                      padding: 0
+                    }}
+                  >
+                    <Key size={12} />
+                    <span>Change Password</span>
+                  </button>
+                </div>
               </div>
 
               <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
@@ -809,6 +919,174 @@ export const LoginPage = () => {
           }
           isAdminReset={false}
         />
+      )}
+
+      {/* Request Password Reset Link Modal */}
+      {showForgotModal && (
+        <div className="modal-overlay" onClick={() => setShowForgotModal(false)}>
+          <div className="modal-content" style={{ maxWidth: '440px' }} onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Mail size={18} color="#2563EB" />
+                <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 800 }}>Send Password Reset Link</h3>
+              </div>
+              <button onClick={() => setShowForgotModal(false)} style={{ color: 'var(--text-muted)' }}>
+                <X size={18} />
+              </button>
+            </div>
+            <form onSubmit={handleRequestResetLink}>
+              <div className="modal-body">
+                <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: '1rem' }}>
+                  Enter your work email or username. We will email you a secure password reset link valid for 1 hour.
+                </p>
+                {forgotStatus.message && (
+                  <div style={{
+                    padding: '0.65rem 0.85rem',
+                    borderRadius: '8px',
+                    marginBottom: '1rem',
+                    fontSize: '0.8rem',
+                    fontWeight: 600,
+                    backgroundColor: forgotStatus.type === 'success' ? 'var(--success-bg)' : 'var(--danger-bg)',
+                    color: forgotStatus.type === 'success' ? 'var(--success-text)' : 'var(--danger-text)',
+                    border: `1px solid ${forgotStatus.type === 'success' ? 'var(--success-border)' : 'var(--danger-border)'}`
+                  }}>
+                    {forgotStatus.message}
+                  </div>
+                )}
+                <div className="form-group">
+                  <label htmlFor="forgot-identifier">Work Email / Username <span className="required">*</span></label>
+                  <input
+                    id="forgot-identifier"
+                    type="text"
+                    className="form-input"
+                    placeholder="e.g. name@lloyds.in"
+                    value={forgotIdentifier}
+                    onChange={(e) => setForgotIdentifier(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setShowForgotModal(false)}>
+                  Close
+                </button>
+                <button type="submit" className="btn btn-primary" disabled={isSendingReset}>
+                  <Mail size={15} />
+                  <span>{isSendingReset ? 'Sending...' : 'Send Reset Link'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Email Link Token Password Reset Modal */}
+      {resetToken && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: '460px' }}>
+            <div className="modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Key size={18} color="var(--brand-primary)" />
+                <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 800 }}>Set New Portal Password</h3>
+              </div>
+              <button onClick={clearResetTokenFromUrl} style={{ color: 'var(--text-muted)' }}>
+                <X size={18} />
+              </button>
+            </div>
+            <form onSubmit={handleCompleteTokenReset}>
+              <div className="modal-body">
+                {tokenInfo.checking ? (
+                  <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Verifying password reset link...</p>
+                ) : !tokenInfo.valid ? (
+                  <div style={{
+                    padding: '0.75rem 0.9rem',
+                    borderRadius: '8px',
+                    backgroundColor: 'var(--danger-bg)',
+                    color: 'var(--danger-text)',
+                    border: '1px solid var(--danger-border)',
+                    fontSize: '0.82rem',
+                    fontWeight: 600
+                  }}>
+                    {tokenInfo.error}
+                  </div>
+                ) : (
+                  <>
+                    <div style={{
+                      padding: '0.65rem 0.85rem',
+                      borderRadius: '8px',
+                      backgroundColor: 'var(--info-bg)',
+                      color: 'var(--info-text)',
+                      border: '1px solid var(--info-border)',
+                      fontSize: '0.8rem',
+                      fontWeight: 600,
+                      marginBottom: '1rem'
+                    }}>
+                      Account: <strong>{tokenInfo.name}</strong> ({tokenInfo.email})
+                    </div>
+                    {resetSubmitMsg.message && (
+                      <div style={{
+                        padding: '0.65rem 0.85rem',
+                        borderRadius: '8px',
+                        marginBottom: '1rem',
+                        fontSize: '0.8rem',
+                        fontWeight: 600,
+                        backgroundColor: resetSubmitMsg.type === 'success' ? 'var(--success-bg)' : 'var(--danger-bg)',
+                        color: resetSubmitMsg.type === 'success' ? 'var(--success-text)' : 'var(--danger-text)',
+                        border: `1px solid ${resetSubmitMsg.type === 'success' ? 'var(--success-border)' : 'var(--danger-border)'}`
+                      }}>
+                        {resetSubmitMsg.message}
+                      </div>
+                    )}
+                    {resetSubmitMsg.type !== 'success' && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                        <div className="form-group">
+                          <label htmlFor="token-new-pass">New Password (min 6 chars) <span className="required">*</span></label>
+                          <input
+                            id="token-new-pass"
+                            type="password"
+                            className="form-input"
+                            value={resetNewPass}
+                            onChange={(e) => setResetNewPass(e.target.value)}
+                            placeholder="Enter new password"
+                            required
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label htmlFor="token-confirm-pass">Confirm New Password <span className="required">*</span></label>
+                          <input
+                            id="token-confirm-pass"
+                            type="password"
+                            className="form-input"
+                            value={resetConfirmPass}
+                            onChange={(e) => setResetConfirmPass(e.target.value)}
+                            placeholder="Re-enter new password"
+                            required
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+              <div className="modal-footer">
+                {resetSubmitMsg.type === 'success' || !tokenInfo.valid ? (
+                  <button type="button" className="btn btn-primary" onClick={clearResetTokenFromUrl}>
+                    <CheckCircle2 size={15} />
+                    <span>Proceed to Sign In</span>
+                  </button>
+                ) : (
+                  <>
+                    <button type="button" className="btn btn-secondary" onClick={clearResetTokenFromUrl}>Cancel</button>
+                    <button type="submit" className="btn btn-primary" disabled={isCompletingReset || tokenInfo.checking}>
+                      <Key size={15} />
+                      <span>{isCompletingReset ? 'Saving...' : 'Update Password'}</span>
+                    </button>
+                  </>
+                )}
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </div>
   );

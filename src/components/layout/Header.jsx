@@ -17,7 +17,8 @@ import {
   Fingerprint,
   Home,
   RefreshCw,
-  Trash2
+  Trash2,
+  Menu
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
@@ -28,7 +29,7 @@ import { DigitalSignatureModal } from '../common/DigitalSignatureModal';
 import logoMetals from '../../assets/logo_metals.png';
 import logoInfra from '../../assets/logo_infra.png';
 
-export const Header = ({ isSidebarCollapsed = false, onToggleSidebarCollapse }) => {
+export const Header = ({ isSidebarCollapsed = false, onToggleSidebarCollapse, onToggleMobileSidebar }) => {
   const { currentRole, currentUser, logout } = useAuth();
   const { theme, toggleTheme, isDark } = useTheme();
   const { searchQuery, setSearchQuery, refreshWorkers, clearLocalCache, isSyncing } = useWorkers();
@@ -76,11 +77,24 @@ export const Header = ({ isSidebarCollapsed = false, onToggleSidebarCollapse }) 
     <>
       <header className="top-header">
         <div className="header-left">
-          {/* Sidebar Collapse / Expand Toggle Button */}
+          {/* Mobile Drawer Menu Button (<= 1024px) */}
+          {onToggleMobileSidebar && (
+            <button
+              id="btn-header-mobile-menu"
+              className="header-collapse-btn header-mobile-menu-btn"
+              onClick={onToggleMobileSidebar}
+              title="Open Navigation Menu"
+              aria-label="Open Navigation Menu"
+            >
+              <Menu size={18} />
+            </button>
+          )}
+
+          {/* Desktop Sidebar Collapse / Expand Toggle Button (> 1024px) */}
           {onToggleSidebarCollapse && (
             <button
               id="btn-header-collapse"
-              className="header-collapse-btn"
+              className="header-collapse-btn header-desktop-collapse-btn"
               onClick={onToggleSidebarCollapse}
               title={isSidebarCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
               aria-label={isSidebarCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}

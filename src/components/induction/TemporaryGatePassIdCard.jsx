@@ -529,7 +529,7 @@ export const TemporaryGatePassIdCard = ({ initialWorker, onBack }) => {
       </div>
 
       {/* Content Layout: Options Drawer + Displayed Cards */}
-      <div style={{
+      <div className="responsive-split-grid" style={{
         display: 'grid',
         gridTemplateColumns: 'minmax(280px, 320px) 1fr',
         gap: '2rem',

@@ -143,6 +143,17 @@ const AppContent = () => {
       return false;
     }
   });
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth > 1024) {
+        setIsMobileSidebarOpen(false);
+      }
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const handleToggleSidebarCollapse = () => {
     setIsSidebarCollapsed(prev => {
@@ -254,7 +265,9 @@ const AppContent = () => {
     }
   }, [currentRole, isAuthenticated, setSelectedStageFilter]);
 
-  if (!isAuthenticated) {
+  const hasResetToken = typeof window !== 'undefined' && Boolean(new URLSearchParams(window.location.search).get('resetToken'));
+
+  if (!isAuthenticated || hasResetToken) {
     if (typeof window !== 'undefined' && window.location.hash) {
       try {
         if (window.history && window.history.replaceState) {
@@ -269,6 +282,7 @@ const AppContent = () => {
 
   // Navigation router helper
   const navigate = (viewName, param = null) => {
+    setIsMobileSidebarOpen(false);
     setActiveView(viewName);
     const hash = VIEW_TO_HASH[viewName] || 'pipeline';
     const finalHash = param ? `#${hash}/${param}` : `#${hash}`;
@@ -316,18 +330,28 @@ const AppContent = () => {
 
   return (
     <div className="app-container">
+      {isMobileSidebarOpen && (
+        <div
+          className="sidebar-mobile-backdrop"
+          onClick={() => setIsMobileSidebarOpen(false)}
+          aria-hidden="true"
+        />
+      )}
       <Sidebar
         activeView={activeView}
         setActiveView={(view) => navigate(view)}
         onOpenNewWorkerModal={handleStartRegisterWorker}
         isCollapsed={isSidebarCollapsed}
         onToggleCollapse={handleToggleSidebarCollapse}
+        isMobileOpen={isMobileSidebarOpen}
+        onCloseMobile={() => setIsMobileSidebarOpen(false)}
       />
 
       <div className="main-content">
         <Header 
           isSidebarCollapsed={isSidebarCollapsed}
           onToggleSidebarCollapse={handleToggleSidebarCollapse}
+          onToggleMobileSidebar={() => setIsMobileSidebarOpen(prev => !prev)}
         />
 
         <main className="page-body">

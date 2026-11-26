@@ -210,6 +210,65 @@ export const apiToggleUserStatus = async (userId, status) => {
 };
 
 /**
+ * Admin: Send password reset link to a staff user's email
+ */
+export const apiSendAdminResetLink = async (userId) => {
+  try {
+    const res = await fetch(`${API_BASE}/auth/users/${encodeURIComponent(userId)}/send-reset-link`, {
+      method: 'POST',
+      headers: getAuthHeaders({ 'Content-Type': 'application/json' })
+    });
+    return await res.json();
+  } catch (err) {
+    return { success: false, error: 'Unable to connect to server to send password reset email.' };
+  }
+};
+
+/**
+ * Public: Request a password reset link by email or username
+ */
+export const apiRequestPasswordReset = async (identifier) => {
+  try {
+    const res = await fetch(`${API_BASE}/auth/request-password-reset`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ identifier })
+    });
+    return await res.json();
+  } catch (err) {
+    return { success: false, error: 'Unable to connect to authentication server.' };
+  }
+};
+
+/**
+ * Public: Verify a password reset token from email link
+ */
+export const apiVerifyResetToken = async (token) => {
+  try {
+    const res = await fetch(`${API_BASE}/auth/reset-token/${encodeURIComponent(token)}`);
+    return await res.json();
+  } catch (err) {
+    return { success: false, error: 'Unable to verify password reset link.' };
+  }
+};
+
+/**
+ * Public: Set a new password using a valid reset token
+ */
+export const apiCompletePasswordReset = async (token, newPassword) => {
+  try {
+    const res = await fetch(`${API_BASE}/auth/reset-password-with-token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, newPassword })
+    });
+    return await res.json();
+  } catch (err) {
+    return { success: false, error: 'Unable to reset password right now.' };
+  }
+};
+
+/**
  * Check backend and Fabric connectivity
  */
 export const checkFabricHealth = async () => {

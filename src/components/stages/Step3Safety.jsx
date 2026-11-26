@@ -108,7 +108,7 @@ export const Step3Safety = ({ initialData, onSave, isReadOnly }) => {
           </span>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '0.5rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 260px), 1fr))', gap: '0.5rem' }}>
           {SAFETY_TOPICS.map((topic, idx) => {
             const isChecked = topicsCovered.includes(topic);
             return (

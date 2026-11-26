@@ -21,7 +21,8 @@ import {
   Sun,
   Moon,
   CreditCard,
-  Briefcase
+  Briefcase,
+  X
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
@@ -33,7 +34,9 @@ export const Sidebar = ({
   setActiveView, 
   onOpenNewWorkerModal, 
   isCollapsed = false, 
-  onToggleCollapse 
+  onToggleCollapse,
+  isMobileOpen = false,
+  onCloseMobile
 }) => {
   const { currentRole, logout } = useAuth();
   const { theme, toggleTheme, isDark } = useTheme();
@@ -52,7 +55,7 @@ export const Sidebar = ({
   const isCamp = currentRole === ROLES.CAMP;
 
   return (
-    <aside className={`sidebar ${isCollapsed ? 'collapsed' : ''}`}>
+    <aside className={`sidebar ${isCollapsed ? 'collapsed' : ''} ${isMobileOpen ? 'mobile-open open' : ''}`}>
       {/* Clean Executive Brand Header (No squished logos - logos kept exclusively on page header) */}
       <div className="sidebar-brand">
         {isCollapsed ? (
@@ -88,6 +91,18 @@ export const Sidebar = ({
                 aria-label="Collapse Sidebar"
               >
                 <ChevronLeft size={16} />
+              </button>
+            )}
+
+            {onCloseMobile && (
+              <button
+                id="btn-sidebar-mobile-close"
+                className="sidebar-collapse-btn sidebar-mobile-close-btn"
+                onClick={onCloseMobile}
+                title="Close Navigation Menu"
+                aria-label="Close Navigation Menu"
+              >
+                <X size={16} />
               </button>
             )}
           </div>

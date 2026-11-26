@@ -11,7 +11,8 @@ import {
   apiVerifySession,
   apiCreateUser,
   apiDeleteUser,
-  apiToggleUserStatus
+  apiToggleUserStatus,
+  apiSendAdminResetLink
 } from '../services/apiService';
 
 const AuthContext = createContext();
@@ -468,8 +469,9 @@ export const AuthProvider = ({ children }) => {
     const aliasList = [cleanEmail, cleanEmail.split('@')[0], cleanName.toLowerCase().replace(/\s+/g, '.')];
 
     let createdId = `USR-${role}-${Date.now().toString().slice(-4)}`;
+    let emailNotification = null;
 
-    // Call backend API
+    // Call backend API (also sends welcome email with username, password, portal URL & reset link)
     try {
       const res = await apiCreateUser({
         name: cleanName,
@@ -479,8 +481,15 @@ export const AuthProvider = ({ children }) => {
         department: dept,
         password: rawPassword
       });
+      if (res && res.success === false && res.error) {
+        alert(res.error);
+        return false;
+      }
       if (res && res.success && res.user && res.user.id) {
         createdId = res.user.id;
+      }
+      if (res && res.emailNotification) {
+        emailNotification = res.emailNotification;
       }
     } catch (e) {
       console.warn('[Auth] Remote user creation fallback:', e);
@@ -511,7 +520,26 @@ export const AuthProvider = ({ children }) => {
       details: `Created new user account for ${newUser.name} assigned to ${ROLE_LABELS[role]} (${newUser.email}).`
     });
 
-    return newUser;
+    return { ...newUser, emailNotification };
+  };
+
+  // Admin sends password reset link email to user
+  const sendResetPasswordLink = async (userId) => {
+    if (currentRole !== ROLES.ADMIN) {
+      return { success: false, error: 'Unauthorized: Only Administrators can send reset links.' };
+    }
+    const res = await apiSendAdminResetLink(userId);
+    const target = users.find(u => u.id === userId);
+    if (res && res.success && target) {
+      logAuditEvent({
+        role: ROLES.ADMIN,
+        action: 'ADMIN_RESET_LINK_SENT',
+        workerId: 'N/A',
+        workerName: target.name,
+        details: `Dispatched password reset link email to ${target.email} (${res.emailNotification?.status || 'SENT'}).`
+      });
+    }
+    return res;
   };
 
   // Admin toggles user status (Active / Inactive)
@@ -776,6 +804,7 @@ export const AuthProvider = ({ children }) => {
       toggleUserStatus,
       deleteUser,
       changePassword,
+      sendResetPasswordLink,
       uploadUserSignature,
       removeUserSignature,
       canEditStage

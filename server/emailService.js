@@ -174,6 +174,60 @@ const buildEmailContent = ({ transitionKey, worker, nextRoles, actor, extraDetai
   return { subject, text, html };
 };
 
+const sendTrackedMail = async ({ recipients = [], subject, text, html, meta = {} }) => {
+  const cleanRecipients = [...new Set(recipients.filter(Boolean).map(e => String(e).trim().toLowerCase()))];
+  const logEntry = {
+    id: `MAIL-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`,
+    timestamp: new Date().toISOString(),
+    ...meta,
+    recipients: cleanRecipients,
+    subject,
+    status: 'PENDING',
+    messageId: null,
+    error: null
+  };
+
+  if (cleanRecipients.length === 0) {
+    logEntry.status = 'NO_ACTIVE_RECIPIENTS';
+    logEntry.error = meta.emptyRecipientsError || 'No active recipient email addresses found.';
+    emailLogs.unshift(logEntry);
+    saveEmailLogs(emailLogs);
+    return logEntry;
+  }
+
+  const smtp = getSmtpStatus();
+  if (!smtp.configured) {
+    logEntry.status = 'QUEUED_NO_SMTP';
+    logEntry.error = 'SMTP not configured in .env (SMTP_HOST, SMTP_USER, SMTP_PASS).';
+    console.log(`[Email] Queued (${meta.transitionKey || 'MAIL'}) -> ${cleanRecipients.join(', ')} | Subject: "${subject}" [SMTP not configured]`);
+    emailLogs.unshift(logEntry);
+    saveEmailLogs(emailLogs);
+    return logEntry;
+  }
+
+  try {
+    const transporter = createTransporter();
+    const info = await transporter.sendMail({
+      from: smtp.from,
+      to: cleanRecipients.join(', '),
+      subject,
+      text,
+      html
+    });
+    logEntry.status = 'SENT';
+    logEntry.messageId = info.messageId || null;
+    console.log(`[Email] Sent (${meta.transitionKey || 'MAIL'}) -> ${cleanRecipients.join(', ')} | MessageId: ${info.messageId}`);
+  } catch (err) {
+    logEntry.status = 'FAILED';
+    logEntry.error = err.message;
+    console.error(`[Email] Failed (${meta.transitionKey || 'MAIL'}) -> ${cleanRecipients.join(', ')}:`, err.message);
+  }
+
+  emailLogs.unshift(logEntry);
+  saveEmailLogs(emailLogs);
+  return logEntry;
+};
+
 /**
  * Resolve active recipient email addresses for the next step's role(s) and send/log email.
  */
@@ -186,11 +240,9 @@ export const notifyNextStageUsers = async ({
   extraDetails = ''
 }) => {
   const roles = Array.isArray(nextRoles) ? nextRoles : [nextRoles];
-  const recipients = [...new Set(
-    accounts
-      .filter(acc => acc && acc.status !== 'INACTIVE' && roles.includes(acc.role) && acc.email)
-      .map(acc => acc.email.toLowerCase())
-  )];
+  const recipients = accounts
+    .filter(acc => acc && acc.status !== 'INACTIVE' && roles.includes(acc.role) && acc.email)
+    .map(acc => acc.email.toLowerCase());
 
   const { subject, text, html } = buildEmailContent({
     transitionKey,
@@ -200,61 +252,151 @@ export const notifyNextStageUsers = async ({
     extraDetails
   });
 
-  const logEntry = {
-    id: `MAIL-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`,
-    timestamp: new Date().toISOString(),
-    transitionKey,
-    workerId: worker?.id || '',
-    assignedWorkerId: worker?.assignedWorkerId || '',
-    workerName: worker?.hr?.fullName || '',
-    nextRoles: roles,
+  return sendTrackedMail({
     recipients,
     subject,
-    status: 'PENDING',
-    messageId: null,
-    error: null
-  };
+    text,
+    html,
+    meta: {
+      transitionKey,
+      workerId: worker?.id || '',
+      assignedWorkerId: worker?.assignedWorkerId || '',
+      workerName: worker?.hr?.fullName || '',
+      nextRoles: roles,
+      emptyRecipientsError: `No active user accounts found for role(s): ${roles.join(', ')}`
+    }
+  });
+};
 
-  if (recipients.length === 0) {
-    logEntry.status = 'NO_ACTIVE_RECIPIENTS';
-    logEntry.error = `No active user accounts found for role(s): ${roles.join(', ')}`;
-    console.warn(`[Email] ${transitionKey}: ${logEntry.error}`);
-    emailLogs.unshift(logEntry);
-    saveEmailLogs(emailLogs);
-    return logEntry;
-  }
+/**
+ * Send welcome credentials + portal URL + password reset link when a new user account is created.
+ */
+export const sendAccountCreatedEmail = async ({ user, rawPassword, portalUrl, resetUrl, createdBy }) => {
+  const cleanPortal = portalUrl || process.env.APP_URL || 'https://taskai.lloyds.in/workeronboarding/';
+  const usernameAlias = user?.aliases?.[1] || user?.email?.split('@')[0] || user?.email;
+  const subject = `[Lloyds Worker Onboarding] Your Account Credentials & Portal Access (${user?.role || 'STAFF'})`;
 
-  const smtp = getSmtpStatus();
-  if (!smtp.configured) {
-    logEntry.status = 'QUEUED_NO_SMTP';
-    logEntry.error = 'SMTP not configured in .env (SMTP_HOST, SMTP_USER, SMTP_PASS).';
-    console.log(`[Email] Triggered (${transitionKey}) -> ${recipients.join(', ')} | Subject: "${subject}" [SMTP not configured]`);
-    emailLogs.unshift(logEntry);
-    saveEmailLogs(emailLogs);
-    return logEntry;
-  }
+  const text = [
+    `Hello ${user?.name || 'Team Member'},`,
+    ``,
+    `Your account has been created in the Lloyds Worker Onboarding & Camp Management Portal by ${createdBy || 'Site Administrator'}.`,
+    ``,
+    `Portal Link:         ${cleanPortal}`,
+    `Username / Email:    ${user?.email}`,
+    `Short Username:      ${usernameAlias}`,
+    `Temporary Password:  ${rawPassword}`,
+    `Assigned Department: ${user?.department || user?.role || 'Operations'} (${user?.role || 'STAFF'})`,
+    ``,
+    `Set / Reset Password Link (valid 24 hours):`,
+    `${resetUrl}`,
+    ``,
+    `For security, please sign in and update your password using the reset link above.`
+  ].join('\n');
 
-  try {
-    const transporter = createTransporter();
-    const info = await transporter.sendMail({
-      from: smtp.from,
-      to: recipients.join(', '),
-      subject,
-      text,
-      html
-    });
-    logEntry.status = 'SENT';
-    logEntry.messageId = info.messageId || null;
-    console.log(`[Email] Sent (${transitionKey}) -> ${recipients.join(', ')} | MessageId: ${info.messageId}`);
-  } catch (err) {
-    logEntry.status = 'FAILED';
-    logEntry.error = err.message;
-    console.error(`[Email] Failed (${transitionKey}) -> ${recipients.join(', ')}:`, err.message);
-  }
+  const html = `
+    <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 620px; margin: 0 auto; border: 1px solid #E2E8F0; border-radius: 10px; overflow: hidden; background: #FFFFFF;">
+      <div style="background: #0F172A; color: #FFFFFF; padding: 18px 24px; border-bottom: 4px solid #E82329;">
+        <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: #94A3B8; font-weight: 700;">
+          Lloyds Worker Onboarding Portal
+        </div>
+        <h2 style="margin: 6px 0 0 0; font-size: 18px; color: #FFFFFF;">Welcome! Your Staff Account Is Ready</h2>
+      </div>
+      <div style="padding: 22px 24px; color: #1E293B; font-size: 14px; line-height: 1.55;">
+        <p style="margin-top: 0;">Hello <strong>${user?.name || 'Team Member'}</strong>,</p>
+        <p>Your portal account has been authorized by <strong>${createdBy || 'Administrator'}</strong>. Below are your login credentials and password reset link:</p>
+        <table style="width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 13px;">
+          <tr><td style="padding: 8px 10px; border: 1px solid #E2E8F0; background: #F8FAFC; font-weight: 700; width: 38%;">Portal URL</td><td style="padding: 8px 10px; border: 1px solid #E2E8F0;"><a href="${cleanPortal}" style="color: #2563EB; font-weight: 600;">${cleanPortal}</a></td></tr>
+          <tr><td style="padding: 8px 10px; border: 1px solid #E2E8F0; background: #F8FAFC; font-weight: 700;">Username (Work Email)</td><td style="padding: 8px 10px; border: 1px solid #E2E8F0; font-weight: 700;">${user?.email}</td></tr>
+          <tr><td style="padding: 8px 10px; border: 1px solid #E2E8F0; background: #F8FAFC; font-weight: 700;">Short Username</td><td style="padding: 8px 10px; border: 1px solid #E2E8F0;">${usernameAlias}</td></tr>
+          <tr><td style="padding: 8px 10px; border: 1px solid #E2E8F0; background: #F8FAFC; font-weight: 700;">Password</td><td style="padding: 8px 10px; border: 1px solid #E2E8F0; font-family: monospace; font-weight: 700; color: #DC2626;">${rawPassword}</td></tr>
+          <tr><td style="padding: 8px 10px; border: 1px solid #E2E8F0; background: #F8FAFC; font-weight: 700;">Role / Department</td><td style="padding: 8px 10px; border: 1px solid #E2E8F0;">${user?.department || user?.role} (${user?.role})</td></tr>
+        </table>
+        <div style="margin-top: 20px; display: flex; gap: 10px; flex-wrap: wrap;">
+          <a href="${cleanPortal}" style="display: inline-block; padding: 10px 18px; background: #E82329; color: #FFFFFF; text-decoration: none; border-radius: 6px; font-weight: 700; font-size: 13px; margin-right: 8px;">
+            Open Onboarding Portal →
+          </a>
+          <a href="${resetUrl}" style="display: inline-block; padding: 10px 18px; background: #0F172A; color: #FFFFFF; text-decoration: none; border-radius: 6px; font-weight: 700; font-size: 13px;">
+            Reset / Change Password →
+          </a>
+        </div>
+        <p style="margin-top: 16px; font-size: 12px; color: #64748B;">
+          Password Reset Link (valid 24 hours): <a href="${resetUrl}" style="color: #2563EB; word-break: break-all;">${resetUrl}</a>
+        </p>
+      </div>
+    </div>
+  `;
 
-  emailLogs.unshift(logEntry);
-  saveEmailLogs(emailLogs);
-  return logEntry;
+  return sendTrackedMail({
+    recipients: [user?.email],
+    subject,
+    text,
+    html,
+    meta: {
+      transitionKey: 'USER_ACCOUNT_CREATED',
+      workerName: user?.name || '',
+      nextRoles: [user?.role || 'STAFF']
+    }
+  });
+};
+
+/**
+ * Send a one-time password reset link to an existing user's email.
+ */
+export const sendPasswordResetEmail = async ({ user, portalUrl, resetUrl, requestedBy = null }) => {
+  const cleanPortal = portalUrl || process.env.APP_URL || 'https://taskai.lloyds.in/workeronboarding/';
+  const subject = `[Lloyds Worker Onboarding] Password Reset Link`;
+
+  const text = [
+    `Hello ${user?.name || 'Team Member'},`,
+    ``,
+    requestedBy
+      ? `An administrator (${requestedBy}) sent you a password reset link for the Lloyds Worker Onboarding Portal.`
+      : `We received a request to reset your password for the Lloyds Worker Onboarding Portal.`,
+    ``,
+    `Username / Email: ${user?.email}`,
+    `Portal Link:      ${cleanPortal}`,
+    ``,
+    `Click the link below to set a new password (valid for 1 hour):`,
+    `${resetUrl}`,
+    ``,
+    `If you did not request this, you can safely ignore this email.`
+  ].join('\n');
+
+  const html = `
+    <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 620px; margin: 0 auto; border: 1px solid #E2E8F0; border-radius: 10px; overflow: hidden; background: #FFFFFF;">
+      <div style="background: #0F172A; color: #FFFFFF; padding: 18px 24px; border-bottom: 4px solid #2563EB;">
+        <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: #94A3B8; font-weight: 700;">
+          Lloyds Worker Onboarding Portal
+        </div>
+        <h2 style="margin: 6px 0 0 0; font-size: 18px; color: #FFFFFF;">Password Reset Request</h2>
+      </div>
+      <div style="padding: 22px 24px; color: #1E293B; font-size: 14px; line-height: 1.55;">
+        <p style="margin-top: 0;">Hello <strong>${user?.name || 'Team Member'}</strong>,</p>
+        <p>${requestedBy ? `An administrator (<strong>${requestedBy}</strong>) generated a password reset link for your account.` : 'Use the secure link below to reset your portal password.'}</p>
+        <p style="font-size: 13px; color: #475569;"><strong>Username:</strong> ${user?.email}<br/><strong>Portal URL:</strong> <a href="${cleanPortal}" style="color: #2563EB;">${cleanPortal}</a></p>
+        <div style="margin: 20px 0;">
+          <a href="${resetUrl}" style="display: inline-block; padding: 11px 20px; background: #E82329; color: #FFFFFF; text-decoration: none; border-radius: 6px; font-weight: 700; font-size: 13px;">
+            Reset Your Password →
+          </a>
+        </div>
+        <p style="font-size: 12px; color: #64748B;">
+          This link expires in <strong>1 hour</strong>. Direct URL: <a href="${resetUrl}" style="color: #2563EB; word-break: break-all;">${resetUrl}</a>
+        </p>
+      </div>
+    </div>
+  `;
+
+  return sendTrackedMail({
+    recipients: [user?.email],
+    subject,
+    text,
+    html,
+    meta: {
+      transitionKey: 'PASSWORD_RESET_LINK',
+      workerName: user?.name || '',
+      nextRoles: [user?.role || 'STAFF']
+    }
+  });
 };
 
 export const sendTestEmail = async (toEmail) => {

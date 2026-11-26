@@ -198,7 +198,7 @@ export const SSOConfigTab = () => {
           Configured Identity Provider (IdP)
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(320px, 600px)', gap: '1.25rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(min(100%, 280px), 600px)', gap: '1.25rem' }}>
           {/* Sole Active Provider: Google Workspace Identity */}
           <div style={{
             backgroundColor: 'var(--bg-surface)',

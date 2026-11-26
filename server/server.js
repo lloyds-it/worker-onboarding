@@ -14,6 +14,7 @@ import { fileURLToPath } from 'url';
 import fs from 'fs';
 import os from 'os';
 import dns from 'dns';
+import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import helmet from 'helmet';
@@ -45,6 +46,8 @@ import {
 } from './fabricDb.js';
 import {
   notifyNextStageUsers,
+  sendAccountCreatedEmail,
+  sendPasswordResetEmail,
   getEmailLogs,
   getSmtpStatus,
   sendTestEmail
@@ -162,6 +165,49 @@ const saveUserStore = (store) => {
   } catch (e) {
     console.error('[Store] Failed to write user store:', e.message);
   }
+};
+
+const resolvePortalUrl = (req) => {
+  const configured = (process.env.APP_URL || '').trim();
+  if (configured) {
+    return configured.endsWith('/') ? configured : `${configured}/`;
+  }
+  const proto = req?.headers['x-forwarded-proto'] || req?.protocol || 'http';
+  const host = req?.get('host') || `localhost:${PORT}`;
+  const sub = req?.originalUrl?.startsWith('/workeronboarding') ? '/workeronboarding/' : '/';
+  return `${proto}://${host}${sub}`;
+};
+
+const createPasswordResetToken = (user, ttlMs = 60 * 60 * 1000) => {
+  const rawToken = crypto.randomBytes(32).toString('hex');
+  const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+  const now = Date.now();
+  const expiresAt = new Date(now + ttlMs).toISOString();
+
+  const store = loadUserStore();
+  const existingTokens = Array.isArray(store.resetTokens) ? store.resetTokens : [];
+  store.resetTokens = existingTokens
+    .filter(t => !t.used && new Date(t.expiresAt).getTime() > now)
+    .concat([{
+      tokenHash,
+      userId: user.id,
+      email: user.email.toLowerCase(),
+      expiresAt,
+      used: false,
+      createdAt: new Date(now).toISOString()
+    }]);
+  saveUserStore(store);
+  return { rawToken, expiresAt };
+};
+
+const findValidResetToken = (rawToken) => {
+  if (!rawToken || typeof rawToken !== 'string') return null;
+  const tokenHash = crypto.createHash('sha256').update(rawToken.trim()).digest('hex');
+  const store = loadUserStore();
+  if (!Array.isArray(store.resetTokens)) return null;
+  const now = Date.now();
+  const entry = store.resetTokens.find(t => t.tokenHash === tokenHash && !t.used && new Date(t.expiresAt).getTime() > now);
+  return entry ? { entry, store, tokenHash } : null;
 };
 
 const isPasswordValid = (enteredPassword, storedHashOrPass) => {
@@ -562,7 +608,7 @@ app.get('/api/auth/users', authenticateToken, (req, res) => {
 });
 
 // Admin Create New Staff Account
-app.post('/api/auth/users', authenticateToken, (req, res) => {
+app.post('/api/auth/users', authenticateToken, async (req, res) => {
   syncAccountsWithStore();
   if (req.user.role !== 'ADMIN') {
     return res.status(403).json({ success: false, error: 'Unauthorized: Only Chief Administrators can create user accounts.' });
@@ -606,10 +652,22 @@ app.post('/api/auth/users', authenticateToken, (req, res) => {
   store.customUsers.push(newUser);
   saveUserStore(store);
 
+  const portalUrl = resolvePortalUrl(req);
+  const { rawToken } = createPasswordResetToken(newUser, 24 * 60 * 60 * 1000);
+  const resetUrl = `${portalUrl}?resetToken=${rawToken}`;
+  const emailNotification = await sendAccountCreatedEmail({
+    user: newUser,
+    rawPassword: rawPass,
+    portalUrl,
+    resetUrl,
+    createdBy: req.user.name
+  });
+
   console.log(`[Auth] New staff user ${cleanName} (${cleanEmail}) created by Admin ${req.user.name}`);
 
   return res.json({
     success: true,
+    emailNotification,
     user: {
       id: newUser.id,
       name: newUser.name,
@@ -620,6 +678,137 @@ app.post('/api/auth/users', authenticateToken, (req, res) => {
       status: newUser.status,
       signature: null
     }
+  });
+});
+
+// Admin Send Password Reset Link to a User's Email
+app.post('/api/auth/users/:id/send-reset-link', authenticateToken, async (req, res) => {
+  syncAccountsWithStore();
+  if (req.user.role !== 'ADMIN') {
+    return res.status(403).json({ success: false, error: 'Unauthorized: Only Chief Administrators can send password reset links.' });
+  }
+
+  const { id } = req.params;
+  const matched = SYSTEM_ACCOUNTS.find(acc => acc.id === id);
+  if (!matched) {
+    return res.status(404).json({ success: false, error: 'User account not found.' });
+  }
+  if (matched.status === 'INACTIVE') {
+    return res.status(400).json({ success: false, error: 'Cannot send reset link to a deactivated account.' });
+  }
+
+  const portalUrl = resolvePortalUrl(req);
+  const { rawToken } = createPasswordResetToken(matched, 60 * 60 * 1000);
+  const resetUrl = `${portalUrl}?resetToken=${rawToken}`;
+  const emailNotification = await sendPasswordResetEmail({
+    user: matched,
+    portalUrl,
+    resetUrl,
+    requestedBy: req.user.name
+  });
+
+  return res.json({
+    success: true,
+    emailNotification,
+    message: emailNotification.status === 'SENT'
+      ? `Password reset link sent to ${matched.email}.`
+      : `Reset link generated (${emailNotification.status}): ${emailNotification.error || matched.email}`
+  });
+});
+
+// Public Request Password Reset Link (Forgot Password on Login Page)
+app.post('/api/auth/request-password-reset', async (req, res) => {
+  syncAccountsWithStore();
+  const { identifier, email, username } = req.body || {};
+  const cleanInput = String(identifier || email || username || '').trim().toLowerCase();
+
+  if (!cleanInput) {
+    return res.status(400).json({ success: false, error: 'Please enter your work email or username.' });
+  }
+
+  const matched = SYSTEM_ACCOUNTS.find(acc =>
+    acc.status !== 'INACTIVE' && (
+      acc.email.toLowerCase() === cleanInput ||
+      (Array.isArray(acc.aliases) && acc.aliases.map(a => a.toLowerCase()).includes(cleanInput))
+    )
+  );
+
+  if (matched) {
+    const portalUrl = resolvePortalUrl(req);
+    const { rawToken } = createPasswordResetToken(matched, 60 * 60 * 1000);
+    const resetUrl = `${portalUrl}?resetToken=${rawToken}`;
+    await sendPasswordResetEmail({
+      user: matched,
+      portalUrl,
+      resetUrl
+    });
+  }
+
+  return res.json({
+    success: true,
+    message: 'If an active account matches that email or username, a password reset link has been sent.'
+  });
+});
+
+// Verify Password Reset Token Validity
+app.get('/api/auth/reset-token/:token', (req, res) => {
+  syncAccountsWithStore();
+  const found = findValidResetToken(req.params.token);
+  if (!found) {
+    return res.status(400).json({ success: false, error: 'This password reset link is invalid or has expired.' });
+  }
+  const user = SYSTEM_ACCOUNTS.find(acc => acc.id === found.entry.userId || acc.email.toLowerCase() === found.entry.email);
+  return res.json({
+    success: true,
+    email: found.entry.email,
+    name: user?.name || found.entry.email
+  });
+});
+
+// Complete Password Reset Using Email Token
+app.post('/api/auth/reset-password-with-token', (req, res) => {
+  syncAccountsWithStore();
+  const { token, newPassword } = req.body || {};
+  if (!newPassword || String(newPassword).trim().length < 6) {
+    return res.status(400).json({ success: false, error: 'New password must be at least 6 characters long.' });
+  }
+
+  const found = findValidResetToken(token);
+  if (!found) {
+    return res.status(400).json({ success: false, error: 'This password reset link is invalid or has expired.' });
+  }
+
+  const matched = SYSTEM_ACCOUNTS.find(acc => acc.id === found.entry.userId || acc.email.toLowerCase() === found.entry.email);
+  if (!matched) {
+    return res.status(404).json({ success: false, error: 'User account no longer exists.' });
+  }
+
+  const newHash = bcrypt.hashSync(String(newPassword).trim(), 10);
+  matched.passwordHash = newHash;
+
+  const { store, tokenHash } = found;
+  if (!store[matched.id]) store[matched.id] = {};
+  store[matched.id].password = newHash;
+  store[matched.id].passwordUpdatedAt = new Date().toISOString();
+
+  if (Array.isArray(store.customUsers)) {
+    const cUser = store.customUsers.find(u => u.id === matched.id || u.email.toLowerCase() === matched.email.toLowerCase());
+    if (cUser) {
+      cUser.passwordHash = newHash;
+      cUser.password = undefined;
+    }
+  }
+  if (Array.isArray(store.resetTokens)) {
+    store.resetTokens = store.resetTokens.map(t =>
+      t.tokenHash === tokenHash ? { ...t, used: true, usedAt: new Date().toISOString() } : t
+    );
+  }
+  saveUserStore(store);
+
+  console.log(`[Auth] Password reset completed via email token for ${matched.email}`);
+  return res.json({
+    success: true,
+    message: `Password successfully reset for ${matched.email}. You can now sign in.`
   });
 });
 

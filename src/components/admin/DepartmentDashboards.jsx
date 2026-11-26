@@ -115,7 +115,7 @@ export const DepartmentDashboards = ({ initialTab = 'hr' }) => {
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(380px, 1fr))', gap: '1.5rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 340px), 1fr))', gap: '1.5rem' }}>
             {/* Contractor Deployment Table */}
             <div className="table-card">
               <div style={{ padding: '1.25rem', borderBottom: '1px solid var(--border-light)' }}>

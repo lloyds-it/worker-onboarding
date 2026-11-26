@@ -1221,20 +1221,209 @@ a {
   }
 }
 
-/* Mobile Responsive */
+/* Mobile Responsive Navigation & Cross-Device Layout */
+.header-mobile-menu-btn,
+.sidebar-mobile-close-btn {
+  display: none;
+}
+
+.sidebar-mobile-backdrop {
+  display: none;
+}
+
 @media (max-width: 1024px) {
+  .header-desktop-collapse-btn {
+    display: none !important;
+  }
+  .header-mobile-menu-btn {
+    display: flex !important;
+  }
+  .sidebar-mobile-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.55);
+    backdrop-filter: blur(2px);
+    z-index: 55;
+  }
   .sidebar {
     position: fixed;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 280px !important;
+    z-index: 60;
     transform: translateX(-100%);
   }
+  .sidebar.mobile-open,
   .sidebar.open {
     transform: translateX(0);
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45);
+  }
+  .sidebar.collapsed.mobile-open .nav-item {
+    justify-content: flex-start;
+    padding: 0.65rem 0.85rem;
+    margin: 0;
+    width: 100%;
+  }
+  .sidebar.collapsed.mobile-open .nav-item span,
+  .sidebar.collapsed.mobile-open .nav-counter {
+    display: inline-flex !important;
+  }
+  .sidebar.collapsed.mobile-open .nav-section-title {
+    height: auto;
+    padding: 0.75rem 0.75rem 0.35rem 0.75rem;
+    margin: 0;
+    background-color: transparent;
+    font-size: 0.685rem;
+  }
+  #btn-sidebar-collapse {
+    display: none !important;
+  }
+  .sidebar-mobile-close-btn {
+    display: flex !important;
   }
   .top-header {
     padding: 0 1rem;
+    gap: 0.75rem;
   }
-  .search-box {
-    width: 200px;
+  .page-body {
+    padding: 1.25rem;
+  }
+}
+
+@media (max-width: 960px) {
+  .responsive-split-grid {
+    grid-template-columns: 1fr !important;
+    gap: 1.25rem !important;
+  }
+  .responsive-sticky-card {
+    position: static !important;
+    top: auto !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .top-header {
+    height: auto;
+    min-height: 60px;
+    padding: 0.65rem 0.9rem;
+    flex-wrap: wrap;
+    gap: 0.55rem;
+  }
+  .header-left {
+    flex: 1 1 auto;
+    gap: 0.55rem;
+    flex-wrap: wrap;
+  }
+  .header-search-box {
+    order: 3;
+    flex: 1 0 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+  .header-right {
+    gap: 0.45rem;
+  }
+  .header-user-meta {
+    display: none;
+  }
+  .header-user-profile {
+    padding: 0.15rem;
+  }
+  .header-logout-btn span {
+    display: none;
+  }
+  .header-logout-btn {
+    padding: 0.45rem 0.55rem;
+  }
+  .page-body {
+    padding: 0.9rem;
+  }
+  .form-card {
+    padding: 1.15rem;
+    margin-bottom: 1.25rem;
+  }
+  .form-section-header {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    padding-bottom: 0.75rem;
+    margin-bottom: 1rem;
+  }
+  .form-section-header h3 {
+    font-size: 1rem;
+  }
+  .form-grid,
+  .dashboard-grid,
+  .portal-selector-grid {
+    grid-template-columns: 1fr;
+    gap: 0.85rem;
+  }
+  .stat-card {
+    padding: 1rem 1.1rem;
+  }
+  .table-header-toolbar {
+    padding: 0.95rem 1rem;
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .table-controls {
+    flex-wrap: wrap;
+  }
+  .data-table-wrapper {
+    -webkit-overflow-scrolling: touch;
+  }
+  .data-table th,
+  .data-table td {
+    padding: 0.65rem 0.75rem;
+    font-size: 0.8rem;
+  }
+  .pipeline-bar {
+    padding: 0.75rem 0.9rem;
+    margin-bottom: 1.25rem;
+  }
+  .modal-overlay {
+    padding: 0.65rem;
+  }
+  .modal-content {
+    max-height: 94vh;
+    border-radius: var(--radius-lg);
+  }
+  .modal-header,
+  .modal-body,
+  .modal-footer {
+    padding: 1rem;
+  }
+  .modal-footer {
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 480px) {
+  .header-brand-container {
+    padding: 0.25rem 0.5rem;
+    gap: 0.45rem;
+  }
+  .header-brand-logo-infra {
+    height: 20px;
+    max-width: 64px;
+  }
+  .header-brand-logo-metals {
+    height: 17px;
+    max-width: 82px;
+  }
+  .header-role-pill {
+    display: none !important;
+  }
+  .login-role-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+  .id-flip-scene {
+    width: 270px;
+    height: 422px;
+  }
+  .id-single-card-container {
+    padding: 0.75rem;
   }
 }
 
