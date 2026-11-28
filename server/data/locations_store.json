@@ -1,0 +1,23 @@
+[
+  {
+    "id": "LOC-15",
+    "locationCode": "15",
+    "locationName": "Hedri Project Site (LMEL)",
+    "status": "ACTIVE",
+    "createdAt": "2026-11-28T05:00:00.000Z"
+  },
+  {
+    "id": "LOC-11",
+    "locationCode": "11",
+    "locationName": "Konsari Integrated Steel Plant",
+    "status": "ACTIVE",
+    "createdAt": "2026-11-28T05:00:00.000Z"
+  },
+  {
+    "id": "LOC-12",
+    "locationCode": "12",
+    "locationName": "Ghugus DRI & Power Plant",
+    "status": "ACTIVE",
+    "createdAt": "2026-11-28T05:00:00.000Z"
+  }
+]

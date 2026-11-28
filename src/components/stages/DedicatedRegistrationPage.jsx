@@ -7,8 +7,10 @@ export const DedicatedRegistrationPage = ({ onBack }) => {
   const { registerWorkerHR } = useWorkers();
 
   const handleSave = async (hrData) => {
-    await registerWorkerHR(hrData);
-    onBack();
+    const saved = await registerWorkerHR(hrData);
+    if (saved) {
+      onBack();
+    }
   };
 
   return (

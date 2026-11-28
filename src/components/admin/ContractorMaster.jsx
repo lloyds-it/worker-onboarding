@@ -12,6 +12,7 @@ const DEPARTMENTS = ['Civil', 'Mechanical', 'Electrical', 'Other'];
 const EMPTY_FORM = {
   contractorCode: '',
   locationCode: '15',
+  locationName: '',
   companyName: '',
   licenseNo: '',
   department: 'Civil',
@@ -31,13 +32,25 @@ const EMPTY_FORM = {
 };
 
 // ─── Add / Edit Modal ────────────────────────────────────────────────────────
-const ContractorModal = ({ contractor, onSave, onClose }) => {
-  const [form, setForm] = useState(contractor ? { locationCode: '15', ...contractor } : { ...EMPTY_FORM });
+const ContractorModal = ({ contractor, locations = [], onSave, onClose }) => {
+  const [form, setForm] = useState(contractor ? { locationCode: '15', locationName: '', ...contractor } : { ...EMPTY_FORM });
   const [errors, setErrors] = useState({});
+
+  const activeLocations = locations.filter(l => l && l.locationCode && l.status !== 'INACTIVE');
+  const locationOptions = form.locationCode && !activeLocations.some(l => l.locationCode === form.locationCode)
+    ? [...activeLocations, { id: `LOC-${form.locationCode}`, locationCode: form.locationCode, locationName: form.locationName || `Location ${form.locationCode}` }]
+    : activeLocations;
 
   const set = (field, val) => {
     const normalizedVal = (field === 'contractorCode' || field === 'locationCode') ? val.toUpperCase() : val;
-    setForm(prev => ({ ...prev, [field]: normalizedVal }));
+    setForm(prev => {
+      const next = { ...prev, [field]: normalizedVal };
+      if (field === 'locationCode') {
+        const matched = locationOptions.find(l => l.locationCode === normalizedVal);
+        next.locationName = matched?.locationName || '';
+      }
+      return next;
+    });
     if (errors[field]) setErrors(prev => ({ ...prev, [field]: null }));
   };
 
@@ -57,10 +70,13 @@ const ContractorModal = ({ contractor, onSave, onClose }) => {
     e.preventDefault();
     const errs = validate();
     if (Object.keys(errs).length > 0) { setErrors(errs); return; }
+    const locCode = String(form.locationCode || '15').trim().toUpperCase() || '15';
+    const matchedLoc = locationOptions.find(l => l.locationCode === locCode);
     onSave({
       ...form,
       contractorCode: String(form.contractorCode || '').trim().toUpperCase(),
-      locationCode: String(form.locationCode || '15').trim().toUpperCase() || '15'
+      locationCode: locCode,
+      locationName: matchedLoc?.locationName || form.locationName || ''
     });
   };
 
@@ -151,7 +167,24 @@ const ContractorModal = ({ contractor, onSave, onClose }) => {
             <div className="form-grid">
               {field('Company / Agency Name', 'companyName', 'text', 'e.g. L&T Construction Heavy Civil', true, { gridColumn: '1 / -1' })}
               {field('Contractor Code', 'contractorCode', 'text', 'e.g. GRY1001', true)}
-              {field('Location Code', 'locationCode', 'text', 'e.g. 15', true)}
+              <div className="form-group">
+                <label htmlFor="ctr-locationCode">
+                  Location Code &amp; Name <span className="required">*</span>
+                </label>
+                <select
+                  id="ctr-locationCode"
+                  className={`form-select ${errors.locationCode ? 'error' : ''}`}
+                  value={form.locationCode || '15'}
+                  onChange={e => set('locationCode', e.target.value)}
+                >
+                  {locationOptions.map(loc => (
+                    <option key={loc.id || loc.locationCode} value={loc.locationCode}>
+                      {loc.locationCode} — {loc.locationName}
+                    </option>
+                  ))}
+                </select>
+                {errors.locationCode && <span className="error-text">{errors.locationCode}</span>}
+              </div>
               {field('Contractor License No.', 'licenseNo', 'text', 'e.g. LIC-MH-2024-8841', true)}
               <div className="form-group">
                 <label htmlFor="ctr-dept">
@@ -319,7 +352,8 @@ const DetailRow = ({ label, value }) => (
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 export const ContractorMaster = () => {
-  const { contractors = [], saveContractor, deleteContractor } = useWorkers();
+  const { contractors = [], saveContractor, deleteContractor, locations = [], saveLocation, deleteLocation } = useWorkers();
+  const [masterTab, setMasterTab] = useState('CONTRACTORS'); // 'CONTRACTORS' | 'LOCATIONS'
   const [search, setSearch] = useState('');
   const [deptFilter, setDeptFilter] = useState('ALL');
   const [statusFilter, setStatusFilter] = useState('ALL');
@@ -328,6 +362,8 @@ export const ContractorMaster = () => {
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [expandedRow, setExpandedRow] = useState(null);
   const [toast, setToast] = useState(null);
+  const [locForm, setLocForm] = useState({ id: null, locationCode: '', locationName: '', status: 'ACTIVE' });
+  const [savingLocation, setSavingLocation] = useState(false);
 
   const showToast = (message, type = 'success') => {
     setToast({ message, type, id: Date.now() });
@@ -377,6 +413,47 @@ export const ContractorMaster = () => {
   const openEdit = (c) => { setEditTarget(c); setModalOpen(true); };
   const toggleRow = (id) => setExpandedRow(prev => prev === id ? null : id);
 
+  const handleSaveLocation = async (e) => {
+    e.preventDefault();
+    const code = String(locForm.locationCode || '').trim().toUpperCase();
+    const name = String(locForm.locationName || '').trim();
+    if (!code || !name) {
+      showToast('Both Location Code and Location Name are required.', 'danger');
+      return;
+    }
+    setSavingLocation(true);
+    try {
+      await saveLocation({
+        id: locForm.id || undefined,
+        locationCode: code,
+        locationName: name,
+        status: locForm.status || 'ACTIVE'
+      }, locForm.id);
+      showToast(locForm.id ? `Location ${code} — ${name} updated.` : `Location ${code} — ${name} added.`);
+      setLocForm({ id: null, locationCode: '', locationName: '', status: 'ACTIVE' });
+    } catch (err) {
+      showToast(err.message || 'Failed to save location.', 'danger');
+    } finally {
+      setSavingLocation(false);
+    }
+  };
+
+  const handleDeleteLocation = async (loc) => {
+    if (!window.confirm(`Delete location "${loc.locationCode} — ${loc.locationName}"?`)) return;
+    try {
+      await deleteLocation(loc.id);
+      showToast(`Location ${loc.locationCode} removed.`, 'danger');
+    } catch (err) {
+      showToast(err.message || 'Failed to delete location.', 'danger');
+    }
+  };
+
+  const resolveLocLabel = (code, fallbackName) => {
+    const match = locations.find(l => l.locationCode === code);
+    const name = match?.locationName || fallbackName || '';
+    return name ? `${code} — ${name}` : (code || '15');
+  };
+
   // ─── Summary Counts ──────────────────────────────────────────────────────
   const totalActive = contractors.filter(c => c.status === 'ACTIVE').length;
   const deptCounts = DEPARTMENTS.reduce((acc, d) => {
@@ -407,21 +484,174 @@ export const ContractorMaster = () => {
       {/* Page Header */}
       <div style={{
         display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
-        marginBottom: '1.75rem', flexWrap: 'wrap', gap: '1rem'
+        marginBottom: '1.25rem', flexWrap: 'wrap', gap: '1rem'
       }}>
         <div>
           <h1 style={{ fontSize: '1.6rem', fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>
-            Contractor Master Register
+            Contractor &amp; Location Master Register
           </h1>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: '0.2rem' }}>
-            Manage all contractor / agency company details, compliance codes, and validity.
+            Manage contractor company details, compliance validity, and configurable Location Code / Name dropdown options.
           </p>
         </div>
-        <button id="btn-add-contractor" className="btn btn-primary" onClick={openAdd}>
-          <Plus size={16} />
-          <span>Add New Contractor</span>
+        {masterTab === 'CONTRACTORS' && (
+          <button id="btn-add-contractor" className="btn btn-primary" onClick={openAdd}>
+            <Plus size={16} />
+            <span>Add New Contractor</span>
+          </button>
+        )}
+      </div>
+
+      {/* Master Sub-Tabs */}
+      <div style={{
+        display: 'flex', gap: '0.65rem', marginBottom: '1.5rem',
+        borderBottom: '2px solid var(--border-light)', paddingBottom: '0.65rem', flexWrap: 'wrap'
+      }}>
+        <button
+          type="button"
+          onClick={() => setMasterTab('CONTRACTORS')}
+          style={{
+            padding: '0.6rem 1.1rem', borderRadius: '8px', border: 'none', cursor: 'pointer',
+            backgroundColor: masterTab === 'CONTRACTORS' ? 'var(--brand-primary)' : 'var(--bg-surface)',
+            color: masterTab === 'CONTRACTORS' ? '#FFF' : 'var(--text-secondary)',
+            fontWeight: 700, fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.45rem'
+          }}
+        >
+          <Building2 size={16} />
+          <span>Contractors ({contractors.length})</span>
+        </button>
+        <button
+          id="btn-tab-locations-master"
+          type="button"
+          onClick={() => setMasterTab('LOCATIONS')}
+          style={{
+            padding: '0.6rem 1.1rem', borderRadius: '8px', border: 'none', cursor: 'pointer',
+            backgroundColor: masterTab === 'LOCATIONS' ? 'var(--brand-primary)' : 'var(--bg-surface)',
+            color: masterTab === 'LOCATIONS' ? '#FFF' : 'var(--text-secondary)',
+            fontWeight: 700, fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.45rem'
+          }}
+        >
+          <MapPin size={16} />
+          <span>Plant Locations ({locations.length})</span>
         </button>
       </div>
+
+      {masterTab === 'LOCATIONS' ? (
+        <div style={{ display: 'grid', gap: '1.25rem' }}>
+          <form onSubmit={handleSaveLocation} className="form-card" style={{ marginBottom: 0 }}>
+            <div className="form-section-header">
+              <h3>
+                <MapPin size={18} color="var(--brand-primary)" />
+                <span>{locForm.id ? 'Edit Plant Location' : 'Add Plant Location (Code & Name)'}</span>
+              </h3>
+            </div>
+            <div className="form-grid">
+              <div className="form-group">
+                <label htmlFor="loc-code-input">Location Code <span className="required">*</span></label>
+                <input
+                  id="loc-code-input"
+                  type="text"
+                  className="form-input"
+                  placeholder="e.g. 15"
+                  value={locForm.locationCode}
+                  onChange={e => setLocForm(prev => ({ ...prev, locationCode: e.target.value.toUpperCase() }))}
+                  style={{ fontFamily: 'var(--font-family-mono)', fontWeight: 700 }}
+                />
+              </div>
+              <div className="form-group">
+                <label htmlFor="loc-name-input">Location Name <span className="required">*</span></label>
+                <input
+                  id="loc-name-input"
+                  type="text"
+                  className="form-input"
+                  placeholder="e.g. Hedri Project Site (LMEL)"
+                  value={locForm.locationName}
+                  onChange={e => setLocForm(prev => ({ ...prev, locationName: e.target.value }))}
+                />
+              </div>
+              <div className="form-group">
+                <label htmlFor="loc-status-select">Status</label>
+                <select
+                  id="loc-status-select"
+                  className="form-select"
+                  value={locForm.status}
+                  onChange={e => setLocForm(prev => ({ ...prev, status: e.target.value }))}
+                >
+                  <option value="ACTIVE">ACTIVE</option>
+                  <option value="INACTIVE">INACTIVE</option>
+                </select>
+              </div>
+            </div>
+            <div style={{ marginTop: '1rem', display: 'flex', justifyContent: 'flex-end', gap: '0.65rem' }}>
+              {locForm.id && (
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setLocForm({ id: null, locationCode: '', locationName: '', status: 'ACTIVE' })}
+                >
+                  Cancel Edit
+                </button>
+              )}
+              <button type="submit" className="btn btn-primary" disabled={savingLocation}>
+                <Save size={15} />
+                <span>{savingLocation ? 'Saving...' : (locForm.id ? 'Update Location' : 'Add Location')}</span>
+              </button>
+            </div>
+          </form>
+
+          <div className="table-card">
+            <div style={{ padding: '1rem 1.25rem', borderBottom: '1px solid var(--border-light)', fontWeight: 800 }}>
+              Configured Plant / Site Locations (Shown in HR &amp; Contractor Dropdowns)
+            </div>
+            <div className="data-table-wrapper">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Location Code</th>
+                    <th>Location Name</th>
+                    <th>Status</th>
+                    <th style={{ textAlign: 'right' }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {locations.map(loc => (
+                    <tr key={loc.id || loc.locationCode}>
+                      <td>
+                        <span className="badge badge-info" style={{ fontFamily: 'var(--font-family-mono)', fontWeight: 800 }}>
+                          {loc.locationCode}
+                        </span>
+                      </td>
+                      <td style={{ fontWeight: 700 }}>{loc.locationName}</td>
+                      <td><StatusBadge status={loc.status || 'ACTIVE'} /></td>
+                      <td style={{ textAlign: 'right' }}>
+                        <div style={{ display: 'inline-flex', gap: '0.4rem' }}>
+                          <button
+                            type="button"
+                            className="btn btn-secondary"
+                            style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem' }}
+                            onClick={() => setLocForm({ id: loc.id, locationCode: loc.locationCode, locationName: loc.locationName, status: loc.status || 'ACTIVE' })}
+                          >
+                            <Pencil size={13} /> Edit
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-secondary"
+                            style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem', color: 'var(--danger-solid)' }}
+                            onClick={() => handleDeleteLocation(loc)}
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <>
 
       {/* KPI Summary Strip */}
       <div style={{
@@ -708,7 +938,7 @@ export const ContractorMaster = () => {
                                 📅 Validity & Record
                               </div>
                               <DetailRow label="Contractor Code" value={c.contractorCode} />
-                              <DetailRow label="Location Code" value={c.locationCode || '15'} />
+                              <DetailRow label="Location" value={resolveLocLabel(c.locationCode || '15', c.locationName)} />
                               <DetailRow label="Contractor ID" value={c.id} />
                               <DetailRow label="Valid From" value={c.validFrom} />
                               <DetailRow label="Valid Upto" value={c.validUpto} />
@@ -737,11 +967,14 @@ export const ContractorMaster = () => {
           <span>Lloyds Metals & Energy Ltd • Contractor Master Register • Internal Use Only</span>
         </div>
       </div>
+        </>
+      )}
 
       {/* Modals */}
       {modalOpen && (
         <ContractorModal
           contractor={editTarget}
+          locations={locations}
           onSave={handleSave}
           onClose={() => { setModalOpen(false); setEditTarget(null); }}
         />

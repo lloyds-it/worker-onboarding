@@ -41,8 +41,12 @@ BEGIN
         contractorName VARCHAR(200) NULL,
         contractorCode VARCHAR(50) NULL,
         locationCode VARCHAR(20) NULL,
+        locationName VARCHAR(200) NULL,
         contractorLicense VARCHAR(100) NULL,
         trade VARCHAR(100) NULL,
+        address VARCHAR(500) NULL,
+        workingLocation VARCHAR(250) NULL,
+        activity VARCHAR(200) NULL,
         emergencyPerson VARCHAR(200) NULL,
         emergencyRelationship VARCHAR(100) NULL,
         emergencyMobile VARCHAR(20) NULL,
@@ -125,6 +129,8 @@ BEGIN
         gatePassActive BIT NULL,
         allocatedBy VARCHAR(200) NULL,
         allocationDate VARCHAR(50) NULL,
+        contractorSupervisor VARCHAR(200) NULL,
+        supervisorMobile VARCHAR(30) NULL,
         allocatedAt VARCHAR(50) NULL
     );
     ALTER TABLE dbo.WorkerCampAllocation ADD CONSTRAINT PK_WorkerCampAllocation PRIMARY KEY NONCLUSTERED (workerId) NOT ENFORCED;
@@ -174,6 +180,7 @@ BEGIN
         id VARCHAR(50) NOT NULL,
         contractorCode VARCHAR(50) NULL,
         locationCode VARCHAR(20) NULL,
+        locationName VARCHAR(200) NULL,
         companyName VARCHAR(200) NOT NULL,
         licenseNo VARCHAR(100) NULL,
         department VARCHAR(100) NULL,
@@ -193,4 +200,17 @@ BEGIN
         createdAt VARCHAR(50) NULL
     );
     ALTER TABLE dbo.ContractorsMaster ADD CONSTRAINT PK_ContractorsMaster PRIMARY KEY NONCLUSTERED (id) NOT ENFORCED;
+END;
+
+-- 10. Create Locations Master Table
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'LocationsMaster' AND schema_id = SCHEMA_ID('dbo'))
+BEGIN
+    CREATE TABLE dbo.LocationsMaster (
+        id VARCHAR(50) NOT NULL,
+        locationCode VARCHAR(20) NOT NULL,
+        locationName VARCHAR(200) NOT NULL,
+        status VARCHAR(30) NOT NULL,
+        createdAt VARCHAR(50) NULL
+    );
+    ALTER TABLE dbo.LocationsMaster ADD CONSTRAINT PK_LocationsMaster PRIMARY KEY NONCLUSTERED (id) NOT ENFORCED;
 END;

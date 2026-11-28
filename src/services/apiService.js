@@ -179,6 +179,52 @@ export const apiCreateUser = async (userData) => {
 };
 
 /**
+ * Update a staff user configuration (Authorized Admin)
+ */
+export const apiUpdateUser = async (userId, userData) => {
+  try {
+    const res = await fetch(`${API_BASE}/auth/users/${encodeURIComponent(userId)}`, {
+      method: 'PUT',
+      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify(userData)
+    });
+    return await res.json();
+  } catch (err) {
+    return { success: false, error: 'Unable to connect to server to update user.' };
+  }
+};
+
+/**
+ * Fetch User Master Configuration
+ */
+export const apiGetUserConfig = async () => {
+  try {
+    const res = await fetch(`${API_BASE}/auth/user-config`, {
+      headers: getAuthHeaders()
+    });
+    return await res.json();
+  } catch (err) {
+    return { success: false, error: 'Unable to fetch user configuration.' };
+  }
+};
+
+/**
+ * Update User Master Configuration (Authorized Admin)
+ */
+export const apiUpdateUserConfig = async (config) => {
+  try {
+    const res = await fetch(`${API_BASE}/auth/user-config`, {
+      method: 'PUT',
+      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify(config)
+    });
+    return await res.json();
+  } catch (err) {
+    return { success: false, error: 'Unable to save user configuration.' };
+  }
+};
+
+/**
  * Delete a staff user (Authorized Admin)
  */
 export const apiDeleteUser = async (userId) => {
@@ -394,6 +440,16 @@ const attachEmailNotification = (data, emailNotification) => {
   return data;
 };
 
+const WRITE_TIMEOUT_MS = 20000;
+
+const parseWriteResponse = async (res, fallbackMessage) => {
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok || json.success === false) {
+    throw new Error(json.error || fallbackMessage || `Server rejected request (HTTP ${res.status})`);
+  }
+  return attachEmailNotification(json.data, json.emailNotification);
+};
+
 /**
  * Register worker (Step 1: HR - Authorized)
  */
@@ -403,17 +459,16 @@ export const apiRegisterWorker = async (newWorker) => {
       method: 'POST',
       headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(newWorker),
-      signal: AbortSignal.timeout(5000)
+      signal: AbortSignal.timeout(WRITE_TIMEOUT_MS)
     });
-    if (res.ok) {
-      const json = await res.json();
-      return attachEmailNotification(json.data, json.emailNotification);
-    }
+    return await parseWriteResponse(res, 'Failed to save worker HR registration.');
   } catch (err) {
-    console.warn('[API] Could not reach backend, saved locally.');
+    if (err?.name === 'AbortError' || err instanceof TypeError) {
+      console.warn('[API] Could not reach backend, saved locally:', err.message);
+      return newWorker;
+    }
+    throw err;
   }
-
-  return newWorker;
 };
 
 /**
@@ -425,7 +480,7 @@ export const apiUpdateWorkerPhoto = async (workerId, photoUrl) => {
       method: 'PATCH',
       headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ photo: photoUrl }),
-      signal: AbortSignal.timeout(6000)
+      signal: AbortSignal.timeout(WRITE_TIMEOUT_MS)
     });
     if (res.ok) {
       const json = await res.json();
@@ -446,16 +501,16 @@ export const apiUpdateMedical = async (workerId, medicalData, updatedWorker) => 
       method: 'PATCH',
       headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ medical: medicalData, worker: updatedWorker }),
-      signal: AbortSignal.timeout(5000)
+      signal: AbortSignal.timeout(WRITE_TIMEOUT_MS)
     });
-    if (res.ok) {
-      const json = await res.json();
-      return attachEmailNotification(json.data, json.emailNotification);
-    }
+    return await parseWriteResponse(res, 'Failed to save medical examination.');
   } catch (err) {
-    console.warn('[API] Medical update saved locally.');
+    if (err?.name === 'AbortError' || err instanceof TypeError) {
+      console.warn('[API] Medical update saved locally:', err.message);
+      return updatedWorker;
+    }
+    throw err;
   }
-  return updatedWorker;
 };
 
 /**
@@ -467,16 +522,16 @@ export const apiUpdateSafety = async (workerId, safetyData, updatedWorker) => {
       method: 'PATCH',
       headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ safety: safetyData, worker: updatedWorker }),
-      signal: AbortSignal.timeout(5000)
+      signal: AbortSignal.timeout(WRITE_TIMEOUT_MS)
     });
-    if (res.ok) {
-      const json = await res.json();
-      return attachEmailNotification(json.data, json.emailNotification);
-    }
+    return await parseWriteResponse(res, 'Failed to save EHS safety induction.');
   } catch (err) {
-    console.warn('[API] Safety update saved locally.');
+    if (err?.name === 'AbortError' || err instanceof TypeError) {
+      console.warn('[API] Safety update saved locally:', err.message);
+      return updatedWorker;
+    }
+    throw err;
   }
-  return updatedWorker;
 };
 
 /**
@@ -488,16 +543,16 @@ export const apiUpdateIT = async (workerId, itData, updatedWorker) => {
       method: 'PATCH',
       headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ it: itData, worker: updatedWorker }),
-      signal: AbortSignal.timeout(5000)
+      signal: AbortSignal.timeout(WRITE_TIMEOUT_MS)
     });
-    if (res.ok) {
-      const json = await res.json();
-      return attachEmailNotification(json.data, json.emailNotification);
-    }
+    return await parseWriteResponse(res, 'Failed to save IT biometric enrollment.');
   } catch (err) {
-    console.warn('[API] IT update saved locally.');
+    if (err?.name === 'AbortError' || err instanceof TypeError) {
+      console.warn('[API] IT update saved locally:', err.message);
+      return updatedWorker;
+    }
+    throw err;
   }
-  return updatedWorker;
 };
 
 /**
@@ -509,16 +564,16 @@ export const apiUpdateCamp = async (workerId, campData, updatedWorker) => {
       method: 'PATCH',
       headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ camp: campData, worker: updatedWorker }),
-      signal: AbortSignal.timeout(5000)
+      signal: AbortSignal.timeout(WRITE_TIMEOUT_MS)
     });
-    if (res.ok) {
-      const json = await res.json();
-      return attachEmailNotification(json.data, json.emailNotification);
-    }
+    return await parseWriteResponse(res, 'Failed to save camp allocation.');
   } catch (err) {
-    console.warn('[API] Camp update saved locally.');
+    if (err?.name === 'AbortError' || err instanceof TypeError) {
+      console.warn('[API] Camp update saved locally:', err.message);
+      return updatedWorker;
+    }
+    throw err;
   }
-  return updatedWorker;
 };
 
 /**
@@ -629,6 +684,52 @@ export const apiDeleteContractor = async (contractorId) => {
   const json = await res.json().catch(() => ({}));
   if (!res.ok || !json.success) {
     throw new Error(json.error || `Failed to delete contractor (HTTP ${res.status})`);
+  }
+  return json.data;
+};
+
+// ============================================================================
+// PLANT / SITE LOCATION MASTER API GATEWAY
+// ============================================================================
+
+export const apiGetLocations = async () => {
+  const res = await fetch(`${API_BASE}/locations`, {
+    headers: getAuthHeaders(),
+    signal: AbortSignal.timeout(5000)
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok || !json.success) {
+    throw new Error(json.error || `Failed to fetch locations (HTTP ${res.status})`);
+  }
+  return Array.isArray(json.data) ? json.data : [];
+};
+
+export const apiSaveLocation = async (location, isEdit = false) => {
+  const url = isEdit && location.id
+    ? `${API_BASE}/locations/${encodeURIComponent(location.id)}`
+    : `${API_BASE}/locations`;
+  const res = await fetch(url, {
+    method: isEdit ? 'PUT' : 'POST',
+    headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify(location),
+    signal: AbortSignal.timeout(10000)
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok || !json.success) {
+    throw new Error(json.error || `Failed to save location (HTTP ${res.status})`);
+  }
+  return json.data;
+};
+
+export const apiDeleteLocation = async (locationId) => {
+  const res = await fetch(`${API_BASE}/locations/${encodeURIComponent(locationId)}`, {
+    method: 'DELETE',
+    headers: getAuthHeaders(),
+    signal: AbortSignal.timeout(10000)
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok || !json.success) {
+    throw new Error(json.error || `Failed to delete location (HTTP ${res.status})`);
   }
   return json.data;
 };

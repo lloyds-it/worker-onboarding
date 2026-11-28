@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Home, CheckCircle2, Building, ShieldCheck, KeyRound } from 'lucide-react';
 import { CAMPS, BLOCKS } from '../../types/constants';
 import { useAuth } from '../../context/AuthContext';
@@ -9,46 +9,45 @@ export const Step5Camp = ({ initialData, worker, onSave, isReadOnly }) => {
     ? `${currentUser.name}${currentUser.designation ? ` (${currentUser.designation})` : ''}`
     : '';
 
-  const [formData, setFormData] = useState({
-    campName: initialData?.campName || CAMPS[0],
-    blockNumber: initialData?.blockNumber || BLOCKS[0],
-    roomNumber: initialData?.roomNumber || 'A-104',
-    bedNumber: initialData?.bedNumber || 'Bed 1',
-    contractorSupervisor: initialData?.contractorSupervisor || '',
-    supervisorMobile: initialData?.supervisorMobile || '',
-    allocatedBy: initialData?.allocatedBy || loggedInCampOfficer,
-    allocationDate: initialData?.allocationDate || new Date().toISOString().slice(0, 10)
+  const buildInitialCamp = (data, officer) => ({
+    campName: data?.campName || CAMPS[0],
+    blockNumber: data?.blockNumber || BLOCKS[0],
+    roomNumber: data?.roomNumber || 'A-104',
+    bedNumber: data?.bedNumber || 'Bed 1',
+    contractorSupervisor: data?.contractorSupervisor || '',
+    supervisorMobile: data?.supervisorMobile || '',
+    allocatedBy: data?.allocatedBy || officer,
+    allocationDate: data?.allocationDate || new Date().toISOString().slice(0, 10)
   });
 
+  const [formData, setFormData] = useState(() => buildInitialCamp(initialData, loggedInCampOfficer));
   const [errors, setErrors] = useState({});
+  const isDirtyRef = useRef(false);
+  const lastInitialJsonRef = useRef(JSON.stringify(initialData || null));
 
-  React.useEffect(() => {
+  useEffect(() => {
+    const serialized = JSON.stringify(initialData || null);
+    if (serialized === lastInitialJsonRef.current) return;
+    lastInitialJsonRef.current = serialized;
+    if (isDirtyRef.current) return;
     if (initialData) {
-      setFormData({
-        campName: initialData.campName || CAMPS[0],
-        blockNumber: initialData.blockNumber || BLOCKS[0],
-        roomNumber: initialData.roomNumber || 'A-104',
-        bedNumber: initialData.bedNumber || 'Bed 1',
-        contractorSupervisor: initialData.contractorSupervisor || '',
-        supervisorMobile: initialData.supervisorMobile || '',
-        allocatedBy: initialData.allocatedBy || loggedInCampOfficer,
-        allocationDate: initialData.allocationDate || new Date().toISOString().slice(0, 10)
-      });
+      setFormData(buildInitialCamp(initialData, loggedInCampOfficer));
       setErrors({});
     }
   }, [initialData, loggedInCampOfficer]);
 
-  React.useEffect(() => {
-    if (!initialData?.allocatedBy && loggedInCampOfficer) {
-      setFormData(prev => prev.allocatedBy ? prev : { ...prev, allocatedBy: loggedInCampOfficer });
+  useEffect(() => {
+    if (!initialData?.allocatedBy && loggedInCampOfficer && !isDirtyRef.current) {
+      setFormData(prev => (prev.allocatedBy ? prev : { ...prev, allocatedBy: loggedInCampOfficer }));
     }
   }, [loggedInCampOfficer, initialData]);
 
   const handleChange = (field, val) => {
     if (isReadOnly) return;
-    setFormData({ ...formData, [field]: val });
+    isDirtyRef.current = true;
+    setFormData(prev => ({ ...prev, [field]: val }));
     if (errors[field]) {
-      setErrors({ ...errors, [field]: null });
+      setErrors(prev => ({ ...prev, [field]: null }));
     }
   };
 
@@ -65,6 +64,7 @@ export const Step5Camp = ({ initialData, worker, onSave, isReadOnly }) => {
       return;
     }
 
+    isDirtyRef.current = false;
     onSave({
       ...formData,
       blockNumber: formData.blockNumber || BLOCKS[0],

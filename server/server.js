@@ -42,7 +42,10 @@ import {
   dbGetAuditLogs,
   dbGetAllContractors,
   dbSaveContractor,
-  dbDeleteContractor
+  dbDeleteContractor,
+  dbGetAllLocations,
+  dbSaveLocation,
+  dbDeleteLocation
 } from './fabricDb.js';
 import {
   notifyNextStageUsers,
@@ -93,7 +96,7 @@ app.use(cors({
     }
     return callback(new Error('Blocked by CORS policy.'));
   },
-  methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true
 }));
@@ -220,11 +223,89 @@ const isPasswordValid = (enteredPassword, storedHashOrPass) => {
   return enteredPassword === storedHashOrPass;
 };
 
+const DEFAULT_USER_MASTER_CONFIG = {
+  defaultPassword: process.env.DEFAULT_STAFF_PASSWORD || 'Lloyds@2026#',
+  enforceDepartmentIsolation: true,
+  allowSelfSignatureUpload: true,
+  roles: {
+    ADMIN: {
+      label: 'Chief Administrator',
+      department: 'Site Administration & Master Control',
+      defaultDesignation: 'Site Administrator / Director',
+      canViewAllStages: true,
+      canExportReports: true,
+      canManageMasters: true
+    },
+    HR: {
+      label: 'HR Operations Team',
+      department: 'Human Resources',
+      defaultDesignation: 'HR Induction Officer',
+      canViewAllStages: false,
+      canExportReports: false,
+      canManageMasters: false
+    },
+    MEDICAL: {
+      label: 'Medical & Health Officer',
+      department: 'Occupational Health & Medical Services',
+      defaultDesignation: 'Medical Officer (CIH)',
+      canViewAllStages: false,
+      canExportReports: false,
+      canManageMasters: false
+    },
+    SAFETY: {
+      label: 'EHS Safety Officer',
+      department: 'Environment, Health & Safety',
+      defaultDesignation: 'EHS Safety Inspector',
+      canViewAllStages: false,
+      canExportReports: false,
+      canManageMasters: false
+    },
+    IT: {
+      label: 'IT Systems Specialist',
+      department: 'Information Technology',
+      defaultDesignation: 'IT Biometric Systems Lead',
+      canViewAllStages: false,
+      canExportReports: false,
+      canManageMasters: false
+    },
+    CAMP: {
+      label: 'Camp Accommodation Lead',
+      department: 'Camp Administration (Gondwana)',
+      defaultDesignation: 'Camp Housing Coordinator',
+      canViewAllStages: false,
+      canExportReports: false,
+      canManageMasters: false
+    }
+  }
+};
+
+const mergeUserMasterConfig = (rawConfig) => {
+  const incoming = rawConfig && typeof rawConfig === 'object' ? rawConfig : {};
+  const mergedRoles = {};
+  Object.keys(DEFAULT_USER_MASTER_CONFIG.roles).forEach(roleKey => {
+    mergedRoles[roleKey] = {
+      ...DEFAULT_USER_MASTER_CONFIG.roles[roleKey],
+      ...(incoming.roles?.[roleKey] || {})
+    };
+  });
+  return {
+    ...DEFAULT_USER_MASTER_CONFIG,
+    ...incoming,
+    defaultPassword: (incoming.defaultPassword || DEFAULT_USER_MASTER_CONFIG.defaultPassword).trim() || DEFAULT_USER_MASTER_CONFIG.defaultPassword,
+    roles: mergedRoles
+  };
+};
+
+const getUserMasterConfig = () => {
+  const store = loadUserStore();
+  return mergeUserMasterConfig(store.userMasterConfig);
+};
+
 const syncAccountsWithStore = () => {
   const store = loadUserStore();
   let modified = false;
 
-  // 1. Sync custom passwords and signatures for seed accounts
+  // 1. Sync custom passwords, signatures, status, and editable profile overrides for seed accounts
   SYSTEM_ACCOUNTS.forEach(acc => {
     if (store[acc.id]) {
       if (store[acc.id].password) {
@@ -235,8 +316,13 @@ const syncAccountsWithStore = () => {
         }
         acc.passwordHash = store[acc.id].password;
       }
-      if (store[acc.id].signature) acc.signature = store[acc.id].signature;
+      if (store[acc.id].signature !== undefined) acc.signature = store[acc.id].signature;
       if (store[acc.id].status) acc.status = store[acc.id].status;
+      if (store[acc.id].name) acc.name = store[acc.id].name;
+      if (store[acc.id].designation) acc.designation = store[acc.id].designation;
+      if (store[acc.id].department) acc.department = store[acc.id].department;
+      if (store[acc.id].locationCode !== undefined) acc.locationCode = store[acc.id].locationCode;
+      if (store[acc.id].permissions !== undefined) acc.permissions = store[acc.id].permissions;
     }
   });
 
@@ -254,12 +340,20 @@ const syncAccountsWithStore = () => {
           role: customUser.role,
           designation: customUser.designation,
           department: customUser.department,
+          locationCode: customUser.locationCode || 'ALL',
+          permissions: customUser.permissions || null,
+          signature: customUser.signature || (store[customUser.id]?.signature || null),
           status: customUser.status || 'ACTIVE'
         });
       } else {
         SYSTEM_ACCOUNTS[idx].name = customUser.name;
+        SYSTEM_ACCOUNTS[idx].email = customUser.email.toLowerCase();
+        SYSTEM_ACCOUNTS[idx].role = customUser.role || SYSTEM_ACCOUNTS[idx].role;
         SYSTEM_ACCOUNTS[idx].designation = customUser.designation;
         SYSTEM_ACCOUNTS[idx].department = customUser.department;
+        SYSTEM_ACCOUNTS[idx].locationCode = customUser.locationCode || 'ALL';
+        SYSTEM_ACCOUNTS[idx].permissions = customUser.permissions || null;
+        if (customUser.aliases) SYSTEM_ACCOUNTS[idx].aliases = customUser.aliases;
         SYSTEM_ACCOUNTS[idx].status = customUser.status || 'ACTIVE';
         if (customUser.passwordHash) SYSTEM_ACCOUNTS[idx].passwordHash = customUser.passwordHash;
       }
@@ -380,6 +474,8 @@ app.post('/api/auth/login', (req, res) => {
         role: matched.role,
         designation: matched.designation,
         department: matched.department,
+        locationCode: matched.locationCode || 'ALL',
+        permissions: matched.permissions || null,
         signature: matched.signature || null
       },
       token
@@ -413,6 +509,8 @@ app.get('/api/auth/me', authenticateToken, (req, res) => {
       role: matched.role,
       designation: matched.designation,
       department: matched.department,
+      locationCode: matched.locationCode || 'ALL',
+      permissions: matched.permissions || null,
       signature: matched.signature || null
     }
   });
@@ -603,10 +701,26 @@ app.get('/api/auth/users', authenticateToken, (req, res) => {
     role: acc.role,
     designation: acc.designation,
     department: acc.department,
+    locationCode: acc.locationCode || 'ALL',
+    permissions: acc.permissions || null,
     signature: acc.signature || null,
     status: acc.status || 'ACTIVE'
   }));
-  return res.json({ success: true, users: safeUsers });
+  return res.json({ success: true, users: safeUsers, config: getUserMasterConfig() });
+});
+
+// Get & Update User Master Configuration
+app.get('/api/auth/user-config', authenticateToken, (req, res) => {
+  return res.json({ success: true, config: getUserMasterConfig() });
+});
+
+app.put('/api/auth/user-config', authenticateToken, requireRole(['ADMIN']), (req, res) => {
+  const store = loadUserStore();
+  const updatedConfig = mergeUserMasterConfig(req.body || {});
+  store.userMasterConfig = updatedConfig;
+  saveUserStore(store);
+  console.log(`[Auth] User Master configuration updated by Admin ${req.user.name}`);
+  return res.json({ success: true, config: updatedConfig });
 });
 
 // Admin Create New Staff Account
@@ -616,7 +730,8 @@ app.post('/api/auth/users', authenticateToken, async (req, res) => {
     return res.status(403).json({ success: false, error: 'Unauthorized: Only Chief Administrators can create user accounts.' });
   }
 
-  const { name, email, role, designation, department, password } = req.body || {};
+  const masterCfg = getUserMasterConfig();
+  const { name, email, role, designation, department, password, locationCode, permissions } = req.body || {};
   const cleanEmail = (email || '').trim().toLowerCase();
   const cleanName = (name || '').trim();
 
@@ -630,8 +745,10 @@ app.post('/api/auth/users', authenticateToken, async (req, res) => {
     return res.status(400).json({ success: false, error: 'A staff user with this email address already exists.' });
   }
 
-  const rawPass = (password || '').trim() || 'Lloyds@2026#';
-  const newId = `USR-${role || 'STAFF'}-${Date.now().toString().slice(-4)}`;
+  const rawPass = (password || '').trim() || masterCfg.defaultPassword || 'Lloyds@2026#';
+  const resolvedRole = role || 'HR';
+  const roleCfg = masterCfg.roles?.[resolvedRole] || {};
+  const newId = `USR-${resolvedRole}-${Date.now().toString().slice(-4)}`;
   const passHash = bcrypt.hashSync(rawPass, 10);
 
   const newUser = {
@@ -640,9 +757,11 @@ app.post('/api/auth/users', authenticateToken, async (req, res) => {
     email: cleanEmail,
     aliases: [cleanEmail, cleanEmail.split('@')[0], cleanName.toLowerCase().replace(/\s+/g, '.')],
     passwordHash: passHash,
-    role: role || 'HR',
-    designation: designation || 'Department Specialist',
-    department: department || 'Operations',
+    role: resolvedRole,
+    designation: designation || roleCfg.defaultDesignation || 'Department Specialist',
+    department: department || roleCfg.department || 'Operations',
+    locationCode: locationCode || 'ALL',
+    permissions: permissions || null,
     status: 'ACTIVE',
     createdAt: new Date().toISOString()
   };
@@ -677,8 +796,101 @@ app.post('/api/auth/users', authenticateToken, async (req, res) => {
       role: newUser.role,
       designation: newUser.designation,
       department: newUser.department,
+      locationCode: newUser.locationCode,
+      permissions: newUser.permissions,
       status: newUser.status,
       signature: null
+    }
+  });
+});
+
+// Admin Update Staff Account Configuration
+app.put('/api/auth/users/:id', authenticateToken, (req, res) => {
+  syncAccountsWithStore();
+  if (req.user.role !== 'ADMIN') {
+    return res.status(403).json({ success: false, error: 'Unauthorized: Only Chief Administrators can edit user accounts.' });
+  }
+
+  const { id } = req.params;
+  const matched = SYSTEM_ACCOUNTS.find(acc => acc.id === id);
+  if (!matched) {
+    return res.status(404).json({ success: false, error: 'User account not found.' });
+  }
+
+  const { name, email, role, designation, department, locationCode, permissions, status } = req.body || {};
+  const nextEmail = email ? String(email).trim().toLowerCase() : matched.email.toLowerCase();
+  if (!nextEmail || !nextEmail.includes('@')) {
+    return res.status(400).json({ success: false, error: 'A valid work email address is required.' });
+  }
+
+  const emailTaken = SYSTEM_ACCOUNTS.find(acc => acc.id !== id && acc.email.toLowerCase() === nextEmail);
+  if (emailTaken) {
+    return res.status(400).json({ success: false, error: 'Another staff account already uses this email address.' });
+  }
+
+  const isPrimaryAdmin = id === 'USR-ADMIN-01';
+  const nextRole = isPrimaryAdmin ? 'ADMIN' : (role || matched.role);
+  const nextStatus = isPrimaryAdmin ? 'ACTIVE' : (status || matched.status || 'ACTIVE');
+  const nextName = name ? String(name).trim() : matched.name;
+  const nextAliases = [...new Set([
+    ...(matched.aliases || []),
+    nextEmail,
+    nextEmail.split('@')[0],
+    nextName.toLowerCase().replace(/\s+/g, '.')
+  ])];
+
+  matched.name = nextName;
+  matched.email = nextEmail;
+  matched.role = nextRole;
+  matched.designation = designation !== undefined ? String(designation).trim() : matched.designation;
+  matched.department = department !== undefined ? String(department).trim() : matched.department;
+  matched.locationCode = locationCode !== undefined ? String(locationCode || 'ALL').trim().toUpperCase() : (matched.locationCode || 'ALL');
+  matched.permissions = permissions !== undefined ? permissions : (matched.permissions || null);
+  matched.status = nextStatus;
+  matched.aliases = nextAliases;
+
+  const store = loadUserStore();
+  if (!store[id]) store[id] = {};
+  store[id].name = matched.name;
+  store[id].designation = matched.designation;
+  store[id].department = matched.department;
+  store[id].locationCode = matched.locationCode;
+  store[id].permissions = matched.permissions;
+  store[id].status = matched.status;
+
+  if (Array.isArray(store.customUsers)) {
+    const idx = store.customUsers.findIndex(u => u.id === id);
+    if (idx !== -1) {
+      store.customUsers[idx] = {
+        ...store.customUsers[idx],
+        name: matched.name,
+        email: matched.email,
+        role: matched.role,
+        designation: matched.designation,
+        department: matched.department,
+        locationCode: matched.locationCode,
+        permissions: matched.permissions,
+        status: matched.status,
+        aliases: matched.aliases
+      };
+    }
+  }
+  saveUserStore(store);
+
+  console.log(`[Auth] User ${matched.name} (${id}) updated by Admin ${req.user.name}`);
+  return res.json({
+    success: true,
+    user: {
+      id: matched.id,
+      name: matched.name,
+      email: matched.email,
+      role: matched.role,
+      designation: matched.designation,
+      department: matched.department,
+      locationCode: matched.locationCode,
+      permissions: matched.permissions,
+      status: matched.status,
+      signature: matched.signature || null
     }
   });
 });
@@ -1345,6 +1557,60 @@ app.delete('/api/contractors/:id', authenticateToken, requireRole(['ADMIN']), as
   } catch (err) {
     console.error('[API DELETE /api/contractors/:id] Error:', err.message);
     res.status(500).json({ success: false, error: 'Failed to delete contractor record.' });
+  }
+});
+
+// ============================================================================
+// PLANT / SITE LOCATION MASTER ENDPOINTS
+// ============================================================================
+
+app.get('/api/locations', authenticateToken, async (req, res) => {
+  try {
+    const locations = await dbGetAllLocations();
+    res.json({ success: true, count: locations.length, data: locations });
+  } catch (err) {
+    console.error('[API GET /api/locations] Error:', err.message);
+    res.status(500).json({ success: false, error: 'Failed to retrieve location master list.' });
+  }
+});
+
+app.post('/api/locations', authenticateToken, requireRole(['ADMIN', 'HR']), async (req, res) => {
+  try {
+    const payload = req.body || {};
+    if (!payload.locationCode || !String(payload.locationCode).trim() || !payload.locationName || !String(payload.locationName).trim()) {
+      return res.status(400).json({ success: false, error: 'Both Location Code and Location Name are required.' });
+    }
+    const saved = await dbSaveLocation(payload);
+    res.status(201).json({ success: true, data: saved });
+  } catch (err) {
+    console.error('[API POST /api/locations] Error:', err.message);
+    res.status(500).json({ success: false, error: 'Failed to save location record.' });
+  }
+});
+
+app.put('/api/locations/:id', authenticateToken, requireRole(['ADMIN', 'HR']), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const payload = req.body || {};
+    if (!payload.locationCode || !String(payload.locationCode).trim() || !payload.locationName || !String(payload.locationName).trim()) {
+      return res.status(400).json({ success: false, error: 'Both Location Code and Location Name are required.' });
+    }
+    const saved = await dbSaveLocation({ ...payload, id });
+    res.json({ success: true, data: saved });
+  } catch (err) {
+    console.error('[API PUT /api/locations/:id] Error:', err.message);
+    res.status(500).json({ success: false, error: 'Failed to update location record.' });
+  }
+});
+
+app.delete('/api/locations/:id', authenticateToken, requireRole(['ADMIN']), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await dbDeleteLocation(id);
+    res.json({ success: true, data: result });
+  } catch (err) {
+    console.error('[API DELETE /api/locations/:id] Error:', err.message);
+    res.status(500).json({ success: false, error: 'Failed to delete location record.' });
   }
 });
 

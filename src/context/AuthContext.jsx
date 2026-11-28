@@ -10,6 +10,9 @@ import {
   apiGetUsers, 
   apiVerifySession,
   apiCreateUser,
+  apiUpdateUser,
+  apiGetUserConfig,
+  apiUpdateUserConfig,
   apiDeleteUser,
   apiToggleUserStatus,
   apiSendAdminResetLink
@@ -20,6 +23,63 @@ const AuthContext = createContext();
 const AUTH_SESSION_KEY = 'lloyd_auth_session_v3';
 const USERS_STORAGE_KEY = 'lloyd_system_users_v4';
 const SSO_SETTINGS_KEY = 'lloyd_sso_settings_v1';
+const USER_MASTER_CONFIG_KEY = 'lloyd_user_master_config_v1';
+
+export const DEFAULT_USER_MASTER_CONFIG = {
+  defaultPassword: 'Lloyds@2026#',
+  enforceDepartmentIsolation: true,
+  allowSelfSignatureUpload: true,
+  roles: {
+    [ROLES.ADMIN]: {
+      label: 'Chief Administrator',
+      department: 'Site Administration & Master Control',
+      defaultDesignation: 'Site Administrator / Director',
+      canViewAllStages: true,
+      canExportReports: true,
+      canManageMasters: true
+    },
+    [ROLES.HR]: {
+      label: 'HR Operations Team',
+      department: 'Human Resources',
+      defaultDesignation: 'HR Induction Officer',
+      canViewAllStages: false,
+      canExportReports: false,
+      canManageMasters: false
+    },
+    [ROLES.MEDICAL]: {
+      label: 'Medical & Health Officer',
+      department: 'Occupational Health & Medical Services',
+      defaultDesignation: 'Medical Officer (CIH)',
+      canViewAllStages: false,
+      canExportReports: false,
+      canManageMasters: false
+    },
+    [ROLES.SAFETY]: {
+      label: 'EHS Safety Officer',
+      department: 'Environment, Health & Safety',
+      defaultDesignation: 'EHS Safety Inspector',
+      canViewAllStages: false,
+      canExportReports: false,
+      canManageMasters: false
+    },
+    [ROLES.IT]: {
+      label: 'IT Systems Specialist',
+      department: 'Information Technology',
+      defaultDesignation: 'IT Biometric Systems Lead',
+      canViewAllStages: false,
+      canExportReports: false,
+      canManageMasters: false
+    },
+    [ROLES.CAMP]: {
+      label: 'Camp Accommodation Lead',
+      department: 'Camp Administration (Gondwana)',
+      defaultDesignation: 'Camp Housing Coordinator',
+      canViewAllStages: false,
+      canExportReports: false,
+      canManageMasters: false
+    }
+  }
+};
 
 export const DEFAULT_SSO_SETTINGS = {
   enabled: false,
@@ -107,6 +167,24 @@ export const AuthProvider = ({ children }) => {
     } catch {
       return DEFAULT_SSO_SETTINGS;
     }
+  });
+
+  const [userMasterConfig, setUserMasterConfig] = useState(() => {
+    try {
+      const saved = localStorage.getItem(USER_MASTER_CONFIG_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return {
+          ...DEFAULT_USER_MASTER_CONFIG,
+          ...parsed,
+          roles: {
+            ...DEFAULT_USER_MASTER_CONFIG.roles,
+            ...(parsed?.roles || {})
+          }
+        };
+      }
+    } catch { }
+    return DEFAULT_USER_MASTER_CONFIG;
   });
 
   const [currentRole, setCurrentRole] = useState(() => {
@@ -430,7 +508,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   // Admin creates new user (Synchronized with backend REST API and local state)
-  const createUser = async ({ name, email, role, designation, password }) => {
+  const createUser = async ({ name, email, role, designation, department, locationCode, permissions, password }) => {
     if (currentRole !== ROLES.ADMIN) {
       alert('Unauthorized: Only Chief Administrators can create new user accounts.');
       return false;
@@ -445,27 +523,11 @@ export const AuthProvider = ({ children }) => {
       return false;
     }
 
-    const deptMap = {
-      [ROLES.ADMIN]: 'Site Administration & Master Control',
-      [ROLES.HR]: 'Human Resources',
-      [ROLES.MEDICAL]: 'Occupational Health & Medical Services',
-      [ROLES.SAFETY]: 'Environment, Health & Safety',
-      [ROLES.IT]: 'Information Technology',
-      [ROLES.CAMP]: 'Camp Administration (Gondwana)'
-    };
-
-    const desigMap = {
-      [ROLES.ADMIN]: 'Site Administrator / Director',
-      [ROLES.HR]: 'HR Induction Officer',
-      [ROLES.MEDICAL]: 'Medical Officer (CIH)',
-      [ROLES.SAFETY]: 'EHS Safety Inspector',
-      [ROLES.IT]: 'IT Biometric Systems Lead',
-      [ROLES.CAMP]: 'Camp Housing Coordinator'
-    };
-
-    const rawPassword = (password || '').trim() || 'Lloyds@2026#';
-    const dept = deptMap[role] || 'Operations';
-    const cleanDesignation = (designation || '').trim() || desigMap[role] || 'Department Specialist';
+    const roleCfg = userMasterConfig?.roles?.[role] || DEFAULT_USER_MASTER_CONFIG.roles[role] || {};
+    const rawPassword = (password || '').trim() || userMasterConfig?.defaultPassword || 'Lloyds@2026#';
+    const dept = (department || '').trim() || roleCfg.department || 'Operations';
+    const cleanDesignation = (designation || '').trim() || roleCfg.defaultDesignation || 'Department Specialist';
+    const cleanLocation = String(locationCode || 'ALL').trim().toUpperCase() || 'ALL';
     const aliasList = [cleanEmail, cleanEmail.split('@')[0], cleanName.toLowerCase().replace(/\s+/g, '.')];
 
     let createdId = `USR-${role}-${Date.now().toString().slice(-4)}`;
@@ -479,6 +541,8 @@ export const AuthProvider = ({ children }) => {
         role,
         designation: cleanDesignation,
         department: dept,
+        locationCode: cleanLocation,
+        permissions: permissions || null,
         password: rawPassword
       });
       if (res && res.success === false && res.error) {
@@ -505,6 +569,8 @@ export const AuthProvider = ({ children }) => {
       role,
       designation: cleanDesignation,
       department: dept,
+      locationCode: cleanLocation,
+      permissions: permissions || null,
       status: 'ACTIVE',
       createdAt: new Date().toISOString()
     };
@@ -521,6 +587,93 @@ export const AuthProvider = ({ children }) => {
     });
 
     return { ...newUser, emailNotification };
+  };
+
+  // Admin updates an existing staff account's configurable profile / role / permissions
+  const updateUser = async (userId, updates) => {
+    if (currentRole !== ROLES.ADMIN) {
+      return { success: false, error: 'Unauthorized: Only Chief Administrators can configure staff accounts.' };
+    }
+
+    const existing = users.find(u => u.id === userId);
+    if (!existing) {
+      return { success: false, error: 'User account not found.' };
+    }
+
+    const roleCfg = userMasterConfig?.roles?.[updates.role || existing.role] || {};
+    const payload = {
+      name: (updates.name ?? existing.name).trim(),
+      email: (updates.email ?? existing.email).trim().toLowerCase(),
+      role: existing.id === 'USR-ADMIN-01' ? ROLES.ADMIN : (updates.role || existing.role),
+      designation: (updates.designation ?? roleCfg.defaultDesignation ?? existing.designation).trim(),
+      department: (updates.department ?? roleCfg.department ?? existing.department).trim(),
+      locationCode: String(updates.locationCode ?? existing.locationCode ?? 'ALL').trim().toUpperCase() || 'ALL',
+      permissions: updates.permissions !== undefined ? updates.permissions : (existing.permissions || null),
+      status: existing.id === 'USR-ADMIN-01' ? 'ACTIVE' : (updates.status || existing.status || 'ACTIVE')
+    };
+
+    try {
+      const res = await apiUpdateUser(userId, payload);
+      if (res && res.success === false && res.error) {
+        return { success: false, error: res.error };
+      }
+    } catch (e) {
+      console.warn('[Auth] Remote user update fallback:', e);
+    }
+
+    const updated = users.map(u => (u.id === userId ? { ...u, ...payload } : u));
+    commitUsers(updated);
+
+    if (currentUser && currentUser.id === userId) {
+      setCurrentUser(prev => ({ ...prev, ...payload }));
+      if (payload.role) setCurrentRole(payload.role);
+    }
+
+    logAuditEvent({
+      role: ROLES.ADMIN,
+      action: 'ADMIN_USER_CONFIGURED',
+      workerId: 'N/A',
+      workerName: payload.name,
+      details: `Updated User Master configuration for ${payload.name} (${payload.email}) -> Role: ${payload.role}, Location: ${payload.locationCode}.`
+    });
+
+    return { success: true, user: updated.find(u => u.id === userId) };
+  };
+
+  // Admin saves global User Master Configuration (default password, role templates & permissions)
+  const saveUserMasterConfig = async (nextConfig) => {
+    if (currentRole !== ROLES.ADMIN) {
+      return { success: false, error: 'Unauthorized: Only Chief Administrators can modify User Master configuration.' };
+    }
+
+    const merged = {
+      ...DEFAULT_USER_MASTER_CONFIG,
+      ...nextConfig,
+      roles: {
+        ...DEFAULT_USER_MASTER_CONFIG.roles,
+        ...(nextConfig?.roles || {})
+      }
+    };
+
+    try {
+      const res = await apiUpdateUserConfig(merged);
+      if (res && res.success && res.config) {
+        setUserMasterConfig(res.config);
+        localStorage.setItem(USER_MASTER_CONFIG_KEY, JSON.stringify(res.config));
+        return { success: true, config: res.config };
+      }
+      if (res && res.success === false) {
+        return { success: false, error: res.error || 'Failed to save user configuration.' };
+      }
+    } catch (e) {
+      console.warn('[Auth] Remote user config fallback:', e);
+    }
+
+    setUserMasterConfig(merged);
+    try {
+      localStorage.setItem(USER_MASTER_CONFIG_KEY, JSON.stringify(merged));
+    } catch (e) { }
+    return { success: true, config: merged };
   };
 
   // Admin sends password reset link email to user
@@ -620,10 +773,15 @@ export const AuthProvider = ({ children }) => {
               if (idx !== -1) {
                 merged[idx] = {
                   ...merged[idx],
+                  name: ru.name || merged[idx].name,
+                  email: ru.email || merged[idx].email,
+                  role: ru.role || merged[idx].role,
                   status: ru.status || merged[idx].status,
                   designation: ru.designation || merged[idx].designation,
                   department: ru.department || merged[idx].department,
-                  signature: ru.signature || merged[idx].signature
+                  locationCode: ru.locationCode || merged[idx].locationCode || 'ALL',
+                  permissions: ru.permissions !== undefined ? ru.permissions : merged[idx].permissions,
+                  signature: ru.signature !== undefined ? ru.signature : merged[idx].signature
                 };
               } else {
                 merged.push({
@@ -636,6 +794,8 @@ export const AuthProvider = ({ children }) => {
                   role: ru.role,
                   designation: ru.designation,
                   department: ru.department,
+                  locationCode: ru.locationCode || 'ALL',
+                  permissions: ru.permissions || null,
                   status: ru.status || 'ACTIVE',
                   signature: ru.signature || null,
                   createdAt: ru.createdAt || new Date().toISOString()
@@ -645,6 +805,12 @@ export const AuthProvider = ({ children }) => {
             localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(merged));
             return merged;
           });
+        }
+        if (res && res.config) {
+          setUserMasterConfig(res.config);
+          try {
+            localStorage.setItem(USER_MASTER_CONFIG_KEY, JSON.stringify(res.config));
+          } catch (e) { }
         }
       } catch (e) {}
     };
@@ -796,11 +962,14 @@ export const AuthProvider = ({ children }) => {
       currentUser,
       users,
       ssoSettings,
+      userMasterConfig,
       login,
       loginWithSSO,
       logout,
       updateSSOSettings,
       createUser,
+      updateUser,
+      saveUserMasterConfig,
       toggleUserStatus,
       deleteUser,
       changePassword,

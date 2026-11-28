@@ -17,6 +17,9 @@ import {
   apiGetContractors,
   apiSaveContractor,
   apiDeleteContractor,
+  apiGetLocations,
+  apiSaveLocation,
+  apiDeleteLocation,
   checkFabricHealth,
   testFabricDiagnostics,
   startFabricAuth,
@@ -25,6 +28,30 @@ import {
 
 const CONTRACTORS_STORAGE_KEY = 'lloyds_contractors_master_v2';
 const LEGACY_CONTRACTORS_STORAGE_KEY = 'lloyds_contractors_master_v1';
+const LOCATIONS_STORAGE_KEY = 'lloyds_locations_master_v1';
+
+const DEFAULT_LOCATIONS_LIST = [
+  { id: 'LOC-15', locationCode: '15', locationName: 'Hedri Project Site (LMEL)', status: 'ACTIVE' },
+  { id: 'LOC-11', locationCode: '11', locationName: 'Konsari Integrated Steel Plant', status: 'ACTIVE' },
+  { id: 'LOC-12', locationCode: '12', locationName: 'Ghugus DRI & Power Plant', status: 'ACTIVE' }
+];
+
+const getStoredLocations = () => {
+  try {
+    const raw = localStorage.getItem(LOCATIONS_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch (e) { }
+  return DEFAULT_LOCATIONS_LIST;
+};
+
+const saveStoredLocations = (list) => {
+  try {
+    localStorage.setItem(LOCATIONS_STORAGE_KEY, JSON.stringify(list));
+  } catch (e) { }
+};
 
 const getStoredContractors = () => {
   try {
@@ -51,6 +78,7 @@ export const WorkerProvider = ({ children }) => {
   const { currentRole, currentUser, isAuthenticated } = useAuth();
   const [workers, setWorkers] = useState([]);
   const [contractors, setContractors] = useState([]);
+  const [locations, setLocations] = useState(DEFAULT_LOCATIONS_LIST);
   const [activeWorker, setActiveWorker] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStageFilter, setSelectedStageFilter] = useState('ALL');
@@ -111,6 +139,16 @@ export const WorkerProvider = ({ children }) => {
       } catch (cErr) {
         console.warn('[WorkerContext] Contractors sync notice:', cErr.message);
       }
+
+      try {
+        const remoteLocations = await apiGetLocations();
+        if (Array.isArray(remoteLocations) && remoteLocations.length > 0) {
+          setLocations(remoteLocations);
+          saveStoredLocations(remoteLocations);
+        }
+      } catch (lErr) {
+        console.warn('[WorkerContext] Locations sync notice:', lErr.message);
+      }
     } catch (err) {
       console.warn('[WorkerContext] Fabric sync notice:', err);
     } finally {
@@ -127,6 +165,7 @@ export const WorkerProvider = ({ children }) => {
       // Clear in-memory worker & contractor rosters when logged out
       setWorkers([]);
       setContractors([]);
+      setLocations(DEFAULT_LOCATIONS_LIST);
       setActiveWorker(null);
       return undefined;
     }
@@ -141,6 +180,11 @@ export const WorkerProvider = ({ children }) => {
     const loadedContractors = getStoredContractors();
     if (loadedContractors.length > 0) {
       setContractors(loadedContractors);
+    }
+
+    const loadedLocations = getStoredLocations();
+    if (loadedLocations.length > 0) {
+      setLocations(loadedLocations);
     }
 
     // 2. Fetch fresh live data from database/Fabric
@@ -217,8 +261,12 @@ export const WorkerProvider = ({ children }) => {
       handleEmailFeedback(res?._emailNotification);
       lastMutationAtRef.current = Date.now();
       await syncFabricData(true, true);
+      return { ok: true };
     } catch (err) {
-      console.warn(`[Fabric] ${warningLabel} sync warning:`, err);
+      console.warn(`[Fabric] ${warningLabel} sync error:`, err);
+      showToast(err?.message || `${warningLabel} could not be saved to server.`, 'danger');
+      await syncFabricData(true, true);
+      return { ok: false, error: err?.message };
     }
   };
 
@@ -250,27 +298,7 @@ export const WorkerProvider = ({ children }) => {
       updatedAt: new Date().toISOString(),
       completedAt: null,
       hr: cleanHrData,
-      medical: {
-        bloodGroup: '',
-        heightCm: '',
-        weightKg: '',
-        bmi: '',
-        bmiCategory: '',
-        bpSystolic: '',
-        bpDiastolic: '',
-        spo2: '',
-        pulseRate: '',
-        respirationRate: '',
-        rbs: '',
-        alcoholTest: '',
-        visionTest: 'Normal',
-        hearingTest: 'Normal',
-        vertigoTest: 'Fit',
-        existingIllness: 'No',
-        fitnessStatus: '',
-        examinerName: '',
-        remarks: ''
-      },
+      medical: null,
       safety: null,
       it: null,
       camp: null
@@ -293,8 +321,8 @@ export const WorkerProvider = ({ children }) => {
     showToast(`Worker ${cleanHrData.fullName} (${employeeId}) registered and routed to Medical Team.`, 'success');
 
     // Sync to Microsoft Fabric, show Medical email feedback, and refresh live list
-    await persistStageMutation(apiRegisterWorker(newWorker), 'Registration');
-    return newWorker;
+    const saveRes = await persistStageMutation(apiRegisterWorker(newWorker), 'Registration');
+    return saveRes?.ok === false ? null : newWorker;
   };
 
   // Step 1: Update Existing Worker HR Profile
@@ -338,8 +366,9 @@ export const WorkerProvider = ({ children }) => {
     showToast(`Worker ${cleanHrData.fullName || 'profile'} updated successfully.`, 'success');
 
     if (updatedTarget) {
-      await persistStageMutation(apiRegisterWorker({ ...updatedTarget, _isUpdate: true }), 'HR update');
+      return await persistStageMutation(apiRegisterWorker({ ...updatedTarget, _isUpdate: true }), 'HR update');
     }
+    return { ok: true };
   };
 
   // Step 2: Medical Examination
@@ -407,8 +436,9 @@ export const WorkerProvider = ({ children }) => {
     }
 
     if (updatedTarget) {
-      await persistStageMutation(apiUpdateMedical(workerId, medicalData, updatedTarget), 'Medical');
+      return await persistStageMutation(apiUpdateMedical(workerId, medicalData, updatedTarget), 'Medical');
     }
+    return { ok: true };
   };
 
   // Step 3: Safety Briefing & PPE
@@ -459,8 +489,9 @@ export const WorkerProvider = ({ children }) => {
     showToast('Safety briefing & PPE issuance logged. Worker routed to IT Enrollment.', 'success');
 
     if (updatedTarget) {
-      await persistStageMutation(apiUpdateSafety(workerId, safetyData, updatedTarget), 'Safety');
+      return await persistStageMutation(apiUpdateSafety(workerId, safetyData, updatedTarget), 'Safety');
     }
+    return { ok: true };
   };
 
   // Step 4: IT Biometrics & Undertaking
@@ -512,8 +543,9 @@ export const WorkerProvider = ({ children }) => {
     showToast(`IT Enrollment complete. Worker ID ${updatedTarget.assignedWorkerId} assigned. Routed to Camp Team.`, 'success');
 
     if (updatedTarget) {
-      await persistStageMutation(apiUpdateIT(workerId, itData, updatedTarget), 'IT');
+      return await persistStageMutation(apiUpdateIT(workerId, itData, updatedTarget), 'IT');
     }
+    return { ok: true };
   };
 
   // Step 5: Camp Housing & Final Onboarding
@@ -558,8 +590,9 @@ export const WorkerProvider = ({ children }) => {
     showToast('Housing allocated! Worker onboarding complete and Gate Pass is ACTIVE.', 'success');
 
     if (updatedTarget) {
-      await persistStageMutation(apiUpdateCamp(workerId, campData, updatedTarget), 'Camp');
+      return await persistStageMutation(apiUpdateCamp(workerId, campData, updatedTarget), 'Camp');
     }
+    return { ok: true };
   };
 
   // Admin Override
@@ -677,12 +710,45 @@ export const WorkerProvider = ({ children }) => {
     });
   }, []);
 
+  // Save or update a location in Plant Location Master
+  const saveLocation = useCallback(async (formData, editId = null) => {
+    const isEdit = Boolean(editId);
+    const cleanCode = String(formData.locationCode || '').trim().toUpperCase();
+    const payload = {
+      ...formData,
+      id: editId || formData.id || `LOC-${cleanCode || Date.now().toString().slice(-6)}`,
+      locationCode: cleanCode,
+      locationName: String(formData.locationName || '').trim(),
+      status: formData.status || 'ACTIVE'
+    };
+    const saved = await apiSaveLocation(payload, isEdit);
+    setLocations(prev => {
+      const next = isEdit
+        ? prev.map(l => (l.id === editId ? saved : l))
+        : [...prev.filter(l => l.id !== saved.id && l.locationCode !== saved.locationCode), saved];
+      saveStoredLocations(next);
+      return next;
+    });
+    return saved;
+  }, []);
+
+  // Delete a location from Plant Location Master
+  const deleteLocation = useCallback(async (locationId) => {
+    await apiDeleteLocation(locationId);
+    setLocations(prev => {
+      const next = prev.filter(l => l.id !== locationId);
+      saveStoredLocations(next);
+      return next;
+    });
+  }, []);
+
   // Clear local browser cache and force live resync from database
   const clearLocalCache = useCallback(async () => {
     clearStoredWorkers();
     try {
       localStorage.removeItem(CONTRACTORS_STORAGE_KEY);
       localStorage.removeItem(LEGACY_CONTRACTORS_STORAGE_KEY);
+      localStorage.removeItem(LOCATIONS_STORAGE_KEY);
     } catch (e) { }
     showToast('Clearing local browser cache and refreshing from database...', 'info');
     await syncFabricData();
@@ -692,6 +758,7 @@ export const WorkerProvider = ({ children }) => {
   const value = useMemo(() => ({
     workers,
     contractors,
+    locations,
     activeWorker,
     setActiveWorker,
     searchQuery,
@@ -710,6 +777,8 @@ export const WorkerProvider = ({ children }) => {
     refreshContractors: syncFabricData,
     saveContractor,
     deleteContractor,
+    saveLocation,
+    deleteLocation,
     clearLocalCache,
     registerWorkerHR,
     updateWorkerHR,
@@ -723,6 +792,7 @@ export const WorkerProvider = ({ children }) => {
   }), [
     workers,
     contractors,
+    locations,
     activeWorker,
     searchQuery,
     selectedStageFilter,
@@ -734,6 +804,8 @@ export const WorkerProvider = ({ children }) => {
     syncFabricData,
     saveContractor,
     deleteContractor,
+    saveLocation,
+    deleteLocation,
     clearLocalCache,
     updateWorkerPhoto,
     currentRole

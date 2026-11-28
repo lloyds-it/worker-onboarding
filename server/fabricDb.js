@@ -86,6 +86,13 @@ const FABRIC_RETRY_COOLDOWN_MS = 60000;
 const WORKERS_STORE_PATH = path.join(process.cwd(), 'server', 'data', 'workers_store.json');
 const AUDIT_STORE_PATH = path.join(process.cwd(), 'server', 'data', 'audit_store.json');
 const CONTRACTORS_STORE_PATH = path.join(process.cwd(), 'server', 'data', 'contractors_store.json');
+const LOCATIONS_STORE_PATH = path.join(process.cwd(), 'server', 'data', 'locations_store.json');
+
+const DEFAULT_LOCATIONS = [
+  { id: 'LOC-15', locationCode: '15', locationName: 'Hedri Project Site (LMEL)', status: 'ACTIVE', createdAt: '2026-11-28T05:00:00.000Z' },
+  { id: 'LOC-11', locationCode: '11', locationName: 'Konsari Integrated Steel Plant', status: 'ACTIVE', createdAt: '2026-11-28T05:00:00.000Z' },
+  { id: 'LOC-12', locationCode: '12', locationName: 'Ghugus DRI & Power Plant', status: 'ACTIVE', createdAt: '2026-11-28T05:00:00.000Z' }
+];
 
 const loadJsonStore = (filePath, fallbackValue) => {
   try {
@@ -130,9 +137,20 @@ let fallbackWorkersCache = [];
 
 let fallbackAuditLogs = loadJsonStore(AUDIT_STORE_PATH, []);
 
-// Hydrate local worker and contractor stores from disk if available
+// Hydrate local worker, contractor, and location stores from disk if available
 fallbackWorkersCache = loadJsonStore(WORKERS_STORE_PATH, fallbackWorkersCache);
 let fallbackContractorsCache = loadJsonStore(CONTRACTORS_STORE_PATH, []);
+let fallbackLocationsCache = loadJsonStore(LOCATIONS_STORE_PATH, DEFAULT_LOCATIONS);
+
+const upsertFallbackWorker = (workerId, updatedWorker) => {
+  const exists = fallbackWorkersCache.some(w => w.id === workerId);
+  if (exists) {
+    fallbackWorkersCache = fallbackWorkersCache.map(w => w.id === workerId ? { ...w, ...updatedWorker } : w);
+  } else {
+    fallbackWorkersCache = [updatedWorker, ...fallbackWorkersCache];
+  }
+  saveJsonStore(WORKERS_STORE_PATH, fallbackWorkersCache);
+};
 
 /**
  * Configure SQL connection options for Microsoft Fabric
@@ -263,7 +281,7 @@ export const connectWithToken = async (token) => {
     });
     await pool.connect();
 
-    // Auto-verify photo & contractorCode columns and ContractorsMaster table
+    // Auto-verify columns and master tables
     try {
       await pool.request().query(`
         IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'WorkersMaster' AND COLUMN_NAME = 'completedAt')
@@ -282,12 +300,37 @@ export const connectWithToken = async (token) => {
         BEGIN
           ALTER TABLE dbo.WorkerHRData ADD locationCode VARCHAR(20) NULL;
         END;
+        IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'WorkerHRData' AND COLUMN_NAME = 'locationName')
+        BEGIN
+          ALTER TABLE dbo.WorkerHRData ADD locationName VARCHAR(200) NULL;
+        END;
+        IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'WorkerHRData' AND COLUMN_NAME = 'address')
+        BEGIN
+          ALTER TABLE dbo.WorkerHRData ADD address VARCHAR(500) NULL;
+        END;
+        IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'WorkerHRData' AND COLUMN_NAME = 'workingLocation')
+        BEGIN
+          ALTER TABLE dbo.WorkerHRData ADD workingLocation VARCHAR(250) NULL;
+        END;
+        IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'WorkerHRData' AND COLUMN_NAME = 'activity')
+        BEGIN
+          ALTER TABLE dbo.WorkerHRData ADD activity VARCHAR(200) NULL;
+        END;
+        IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'WorkerCampAllocation' AND COLUMN_NAME = 'contractorSupervisor')
+        BEGIN
+          ALTER TABLE dbo.WorkerCampAllocation ADD contractorSupervisor VARCHAR(200) NULL;
+        END;
+        IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'WorkerCampAllocation' AND COLUMN_NAME = 'supervisorMobile')
+        BEGIN
+          ALTER TABLE dbo.WorkerCampAllocation ADD supervisorMobile VARCHAR(30) NULL;
+        END;
         IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'ContractorsMaster' AND schema_id = SCHEMA_ID('dbo'))
         BEGIN
           CREATE TABLE dbo.ContractorsMaster (
             id VARCHAR(50) NOT NULL,
             contractorCode VARCHAR(50) NULL,
             locationCode VARCHAR(20) NULL,
+            locationName VARCHAR(200) NULL,
             companyName VARCHAR(200) NOT NULL,
             licenseNo VARCHAR(100) NULL,
             department VARCHAR(100) NULL,
@@ -318,6 +361,21 @@ export const connectWithToken = async (token) => {
           BEGIN
             ALTER TABLE dbo.ContractorsMaster ADD locationCode VARCHAR(20) NULL;
           END;
+          IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'ContractorsMaster' AND COLUMN_NAME = 'locationName')
+          BEGIN
+            ALTER TABLE dbo.ContractorsMaster ADD locationName VARCHAR(200) NULL;
+          END;
+        END;
+        IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'LocationsMaster' AND schema_id = SCHEMA_ID('dbo'))
+        BEGIN
+          CREATE TABLE dbo.LocationsMaster (
+            id VARCHAR(50) NOT NULL,
+            locationCode VARCHAR(20) NOT NULL,
+            locationName VARCHAR(200) NOT NULL,
+            status VARCHAR(30) NOT NULL,
+            createdAt VARCHAR(50) NULL
+          );
+          ALTER TABLE dbo.LocationsMaster ADD CONSTRAINT PK_LocationsMaster PRIMARY KEY NONCLUSTERED (id) NOT ENFORCED;
         END;
       `);
     } catch (scErr) { }
@@ -501,6 +559,7 @@ export const connectToFabric = async (force = false) => {
     console.log(`[Microsoft Fabric] Connected successfully to ${FABRIC_SERVER} / ${FABRIC_DATABASE}`);
     return pool;
   } catch (err) {
+    lastFabricFailureAt = Date.now();
     connectionStatus = {
       isConnected: false,
       server: FABRIC_SERVER,
@@ -621,11 +680,11 @@ export const dbGetAllWorkers = async () => {
       const query = `
         SELECT 
           w.id, w.assignedWorkerId, w.stage, w.status, w.fullName, w.contractorName, w.trade, w.mobileNumber, w.createdAt, w.updatedAt, w.completedAt,
-          hr.fatherHusbandName, hr.dob, hr.age, hr.gender, hr.idProofType, hr.idProofRef, hr.contractorCode, hr.locationCode, hr.contractorLicense, hr.emergencyPerson, hr.emergencyRelationship, hr.emergencyMobile, hr.photo,
+          hr.fatherHusbandName, hr.dob, hr.age, hr.gender, hr.idProofType, hr.idProofRef, hr.contractorCode, hr.locationCode, hr.locationName, hr.contractorLicense, hr.address, hr.workingLocation, hr.activity, hr.emergencyPerson, hr.emergencyRelationship, hr.emergencyMobile, hr.photo,
           m.bloodGroup, m.heightCm, m.weightKg, m.bmi, m.bmiCategory, m.bpSystolic, m.bpDiastolic, m.spo2, m.pulseRate, m.respirationRate, m.rbs, m.alcoholTest, m.visionTest, m.hearingTest, m.vertigoTest, m.existingIllness, m.fitnessStatus, m.examinerName, m.remarks AS medicalRemarks,
           s.briefingDone, s.topicsCovered, s.ppeIssued, s.safetyOfficerName, s.safetyDate,
           it.faceBiometricRegistered, it.cwmsRegistered, it.campusMasterUploaded, it.undertakingAccepted, it.itAdminSignature, it.itDate,
-          c.campName, c.blockNo, c.roomNo, c.bedNo, c.gatePassActive, c.allocatedBy, c.allocationDate, c.allocatedAt
+          c.campName, c.blockNo, c.roomNo, c.bedNo, c.gatePassActive, c.allocatedBy, c.allocationDate, c.allocatedAt, c.contractorSupervisor, c.supervisorMobile
         FROM dbo.WorkersMaster w
         LEFT JOIN dbo.WorkerHRData hr ON w.id = hr.workerId
         LEFT JOIN dbo.WorkerMedicalVitals m ON w.id = m.workerId
@@ -656,14 +715,18 @@ export const dbGetAllWorkers = async () => {
           contractorName: row.contractorName || '',
           contractorCode: row.contractorCode || '',
           locationCode: row.locationCode || '15',
+          locationName: row.locationName || '',
           contractorLicense: row.contractorLicense || '',
           trade: row.trade || '',
+          address: row.address || '',
+          workingLocation: row.workingLocation || '',
+          activity: row.activity || '',
           emergencyPerson: row.emergencyPerson || '',
           emergencyRelationship: row.emergencyRelationship || '',
           emergencyMobile: row.emergencyMobile || '',
           photo: row.photo || ''
         },
-        medical: row.bloodGroup ? {
+        medical: (row.bloodGroup || row.fitnessStatus || row.examinerName) ? {
           bloodGroup: row.bloodGroup,
           heightCm: row.heightCm,
           weightKg: row.weightKg,
@@ -684,14 +747,14 @@ export const dbGetAllWorkers = async () => {
           examinerName: row.examinerName,
           remarks: row.medicalRemarks
         } : null,
-        safety: row.briefingDone !== null ? {
+        safety: (row.briefingDone !== null || row.safetyOfficerName) ? {
           briefingDone: !!row.briefingDone,
           topicsCovered: row.topicsCovered ? row.topicsCovered.split(' | ') : [],
           ppeIssued: row.ppeIssued ? row.ppeIssued.split(' | ') : [],
           safetyOfficerName: row.safetyOfficerName || '',
           safetyDate: row.safetyDate || ''
         } : null,
-        it: row.faceBiometricRegistered !== null ? {
+        it: (row.faceBiometricRegistered !== null || row.itAdminSignature) ? {
           faceBiometricRegistered: !!row.faceBiometricRegistered,
           cwmsRegistered: !!row.cwmsRegistered,
           campusMasterUploaded: !!row.campusMasterUploaded,
@@ -700,14 +763,16 @@ export const dbGetAllWorkers = async () => {
           itAdminSignature: row.itAdminSignature || '',
           itDate: row.itDate || ''
         } : null,
-        camp: row.campName ? {
+        camp: (row.campName || row.roomNo) ? {
           campName: row.campName,
           blockNumber: row.blockNo,
           roomNumber: row.roomNo,
           bedNumber: row.bedNo,
           gatePassActive: !!row.gatePassActive,
           allocatedBy: row.allocatedBy || '',
-          allocationDate: row.allocationDate || ''
+          allocationDate: row.allocationDate || '',
+          contractorSupervisor: row.contractorSupervisor || '',
+          supervisorMobile: row.supervisorMobile || ''
         } : null
       }));
 
@@ -727,6 +792,7 @@ export const dbGetAllWorkers = async () => {
  */
 export const dbRegisterWorkerHR = async (newWorker) => {
   const now = new Date().toISOString();
+  await connectToFabric();
   if (pool && pool.connected) {
     try {
       const request = new sql.Request(pool);
@@ -749,7 +815,11 @@ export const dbRegisterWorkerHR = async (newWorker) => {
         .input('idProofRef', sql.VarChar(100), newWorker.hr.idProofRef || '')
         .input('contractorCode', sql.VarChar(50), newWorker.hr.contractorCode || '')
         .input('locationCode', sql.VarChar(20), newWorker.hr.locationCode || '15')
+        .input('locationName', sql.VarChar(200), newWorker.hr.locationName || '')
         .input('contractorLicense', sql.VarChar(100), newWorker.hr.contractorLicense || '')
+        .input('address', sql.VarChar(500), newWorker.hr.address || '')
+        .input('workingLocation', sql.VarChar(250), newWorker.hr.workingLocation || '')
+        .input('activity', sql.VarChar(200), newWorker.hr.activity || '')
         .input('emergencyPerson', sql.VarChar(200), newWorker.hr.emergencyPerson || '')
         .input('emergencyRelationship', sql.VarChar(100), newWorker.hr.emergencyRelationship || '')
         .input('emergencyMobile', sql.VarChar(20), newWorker.hr.emergencyMobile || '')
@@ -769,13 +839,13 @@ export const dbRegisterWorkerHR = async (newWorker) => {
 
           IF NOT EXISTS (SELECT 1 FROM dbo.WorkerHRData WHERE workerId = @id)
           BEGIN
-            INSERT INTO dbo.WorkerHRData (workerId, fullName, fatherHusbandName, dob, age, gender, mobileNumber, idProofType, idProofRef, contractorName, contractorCode, locationCode, contractorLicense, trade, emergencyPerson, emergencyRelationship, emergencyMobile, photo, registeredAt)
-            VALUES (@id, @fullName, @fatherHusbandName, @dob, @age, @gender, @mobileNumber, @idProofType, @idProofRef, @contractorName, @contractorCode, @locationCode, @contractorLicense, @trade, @emergencyPerson, @emergencyRelationship, @emergencyMobile, @photo, @createdAt);
+            INSERT INTO dbo.WorkerHRData (workerId, fullName, fatherHusbandName, dob, age, gender, mobileNumber, idProofType, idProofRef, contractorName, contractorCode, locationCode, locationName, contractorLicense, address, workingLocation, activity, emergencyPerson, emergencyRelationship, emergencyMobile, photo, registeredAt)
+            VALUES (@id, @fullName, @fatherHusbandName, @dob, @age, @gender, @mobileNumber, @idProofType, @idProofRef, @contractorName, @contractorCode, @locationCode, @locationName, @contractorLicense, @address, @workingLocation, @activity, @emergencyPerson, @emergencyRelationship, @emergencyMobile, @photo, @createdAt);
           END
           ELSE
           BEGIN
             UPDATE dbo.WorkerHRData
-            SET fullName = @fullName, fatherHusbandName = @fatherHusbandName, dob = @dob, age = @age, gender = @gender, mobileNumber = @mobileNumber, idProofType = @idProofType, idProofRef = @idProofRef, contractorName = @contractorName, contractorCode = @contractorCode, locationCode = @locationCode, contractorLicense = @contractorLicense, trade = @trade, emergencyPerson = @emergencyPerson, emergencyRelationship = @emergencyRelationship, emergencyMobile = @emergencyMobile, photo = COALESCE(NULLIF(@photo, ''), photo)
+            SET fullName = @fullName, fatherHusbandName = @fatherHusbandName, dob = @dob, age = @age, gender = @gender, mobileNumber = @mobileNumber, idProofType = @idProofType, idProofRef = @idProofRef, contractorName = @contractorName, contractorCode = @contractorCode, locationCode = @locationCode, locationName = @locationName, contractorLicense = @contractorLicense, address = @address, workingLocation = @workingLocation, activity = @activity, emergencyPerson = @emergencyPerson, emergencyRelationship = @emergencyRelationship, emergencyMobile = @emergencyMobile, photo = COALESCE(NULLIF(@photo, ''), photo)
             WHERE workerId = @id;
           END;
         `);
@@ -786,8 +856,7 @@ export const dbRegisterWorkerHR = async (newWorker) => {
   }
 
   // Keep fallback cache synced and dispatch live Fabric background sync
-  fallbackWorkersCache = [newWorker, ...fallbackWorkersCache.filter(w => w.id !== newWorker.id)];
-  saveJsonStore(WORKERS_STORE_PATH, fallbackWorkersCache);
+  upsertFallbackWorker(newWorker.id, newWorker);
   syncToPyBridge('register', newWorker);
   return newWorker;
 };
@@ -832,14 +901,15 @@ export const dbUpdateWorkerPhoto = async (workerId, photoUrl) => {
  */
 export const dbUpdateMedical = async (workerId, medicalData, updatedWorker) => {
   const now = new Date().toISOString();
+  await connectToFabric();
   if (pool && pool.connected) {
     try {
       const request = new sql.Request(pool);
       await request
         .input('workerId', sql.VarChar(50), workerId)
         .input('bloodGroup', sql.VarChar(10), medicalData.bloodGroup || '')
-        .input('heightCm', sql.Int, parseInt(medicalData.heightCm, 10) || null)
-        .input('weightKg', sql.Int, parseInt(medicalData.weightKg, 10) || null)
+        .input('heightCm', sql.Int, Math.round(Number(medicalData.heightCm)) || null)
+        .input('weightKg', sql.Int, Math.round(Number(medicalData.weightKg)) || null)
         .input('bmi', sql.VarChar(20), String(medicalData.bmi || ''))
         .input('bmiCategory', sql.VarChar(50), medicalData.bmiCategory || '')
         .input('bpSystolic', sql.Int, parseInt(medicalData.bpSystolic, 10) || null)
@@ -880,8 +950,7 @@ export const dbUpdateMedical = async (workerId, medicalData, updatedWorker) => {
     }
   }
 
-  fallbackWorkersCache = fallbackWorkersCache.map(w => w.id === workerId ? updatedWorker : w);
-  saveJsonStore(WORKERS_STORE_PATH, fallbackWorkersCache);
+  upsertFallbackWorker(workerId, { ...updatedWorker, updatedAt: now });
   syncToPyBridge('update_medical', { workerId, medical: medicalData, worker: updatedWorker });
   return updatedWorker;
 };
@@ -891,6 +960,7 @@ export const dbUpdateMedical = async (workerId, medicalData, updatedWorker) => {
  */
 export const dbUpdateSafety = async (workerId, safetyData, updatedWorker) => {
   const now = new Date().toISOString();
+  await connectToFabric();
   if (pool && pool.connected) {
     try {
       const topicsStr = (safetyData.topicsCovered || []).join(' | ');
@@ -927,8 +997,7 @@ export const dbUpdateSafety = async (workerId, safetyData, updatedWorker) => {
     }
   }
 
-  fallbackWorkersCache = fallbackWorkersCache.map(w => w.id === workerId ? updatedWorker : w);
-  saveJsonStore(WORKERS_STORE_PATH, fallbackWorkersCache);
+  upsertFallbackWorker(workerId, { ...updatedWorker, updatedAt: now });
   syncToPyBridge('update_safety', { workerId, safety: safetyData, worker: updatedWorker });
   return updatedWorker;
 };
@@ -938,6 +1007,7 @@ export const dbUpdateSafety = async (workerId, safetyData, updatedWorker) => {
  */
 export const dbUpdateIT = async (workerId, itData, updatedWorker) => {
   const now = new Date().toISOString();
+  await connectToFabric();
   if (pool && pool.connected) {
     try {
       const request = new sql.Request(pool);
@@ -973,8 +1043,7 @@ export const dbUpdateIT = async (workerId, itData, updatedWorker) => {
     }
   }
 
-  fallbackWorkersCache = fallbackWorkersCache.map(w => w.id === workerId ? updatedWorker : w);
-  saveJsonStore(WORKERS_STORE_PATH, fallbackWorkersCache);
+  upsertFallbackWorker(workerId, { ...updatedWorker, updatedAt: now });
   syncToPyBridge('update_it', { workerId, it: itData, worker: updatedWorker });
   return updatedWorker;
 };
@@ -986,6 +1055,7 @@ export const dbUpdateCamp = async (workerId, campData, updatedWorker) => {
   const now = new Date().toISOString();
   const completedAt = updatedWorker.completedAt || now;
   const persistedWorker = { ...updatedWorker, updatedAt: now, completedAt };
+  await connectToFabric();
   if (pool && pool.connected) {
     try {
       const request = new sql.Request(pool);
@@ -998,6 +1068,8 @@ export const dbUpdateCamp = async (workerId, campData, updatedWorker) => {
         .input('gatePassActive', sql.Bit, campData.gatePassActive ? 1 : 0)
         .input('allocatedBy', sql.VarChar(200), campData.allocatedBy || '')
         .input('allocationDate', sql.VarChar(50), campData.allocationDate || now.slice(0, 10))
+        .input('contractorSupervisor', sql.VarChar(200), campData.contractorSupervisor || '')
+        .input('supervisorMobile', sql.VarChar(30), campData.supervisorMobile || '')
         .input('stage', sql.Int, persistedWorker.stage)
         .input('status', sql.VarChar(50), persistedWorker.status)
         .input('updatedAt', sql.VarChar(50), now)
@@ -1005,13 +1077,13 @@ export const dbUpdateCamp = async (workerId, campData, updatedWorker) => {
         .query(`
           IF NOT EXISTS (SELECT 1 FROM dbo.WorkerCampAllocation WHERE workerId = @workerId)
           BEGIN
-            INSERT INTO dbo.WorkerCampAllocation (workerId, campName, blockNo, roomNo, bedNo, gatePassActive, allocatedBy, allocationDate, allocatedAt)
-            VALUES (@workerId, @campName, @blockNo, @roomNo, @bedNo, @gatePassActive, @allocatedBy, @allocationDate, @updatedAt);
+            INSERT INTO dbo.WorkerCampAllocation (workerId, campName, blockNo, roomNo, bedNo, gatePassActive, allocatedBy, allocationDate, contractorSupervisor, supervisorMobile, allocatedAt)
+            VALUES (@workerId, @campName, @blockNo, @roomNo, @bedNo, @gatePassActive, @allocatedBy, @allocationDate, @contractorSupervisor, @supervisorMobile, @updatedAt);
           END
           ELSE
           BEGIN
             UPDATE dbo.WorkerCampAllocation
-            SET campName = @campName, blockNo = @blockNo, roomNo = @roomNo, bedNo = @bedNo, gatePassActive = @gatePassActive, allocatedBy = @allocatedBy, allocationDate = @allocationDate, allocatedAt = @updatedAt
+            SET campName = @campName, blockNo = @blockNo, roomNo = @roomNo, bedNo = @bedNo, gatePassActive = @gatePassActive, allocatedBy = @allocatedBy, allocationDate = @allocationDate, contractorSupervisor = @contractorSupervisor, supervisorMobile = @supervisorMobile, allocatedAt = @updatedAt
             WHERE workerId = @workerId;
           END;
 
@@ -1023,8 +1095,7 @@ export const dbUpdateCamp = async (workerId, campData, updatedWorker) => {
     }
   }
 
-  fallbackWorkersCache = fallbackWorkersCache.map(w => w.id === workerId ? persistedWorker : w);
-  saveJsonStore(WORKERS_STORE_PATH, fallbackWorkersCache);
+  upsertFallbackWorker(workerId, persistedWorker);
   syncToPyBridge('update_camp', { workerId, camp: campData, worker: persistedWorker });
   return persistedWorker;
 };
@@ -1146,6 +1217,7 @@ export const dbSaveContractor = async (contractor) => {
     id: contractor.id || `CTR-${Date.now().toString().slice(-6)}`,
     contractorCode: String(contractor.contractorCode || '').trim().toUpperCase(),
     locationCode: String(contractor.locationCode || '15').trim().toUpperCase() || '15',
+    locationName: contractor.locationName || '',
     companyName: String(contractor.companyName || '').trim(),
     licenseNo: contractor.licenseNo || '',
     department: contractor.department || 'Civil',
@@ -1173,6 +1245,7 @@ export const dbSaveContractor = async (contractor) => {
         .input('id', sql.VarChar(50), normalized.id)
         .input('contractorCode', sql.VarChar(50), normalized.contractorCode)
         .input('locationCode', sql.VarChar(20), normalized.locationCode)
+        .input('locationName', sql.VarChar(200), normalized.locationName)
         .input('companyName', sql.VarChar(200), normalized.companyName)
         .input('licenseNo', sql.VarChar(100), normalized.licenseNo)
         .input('department', sql.VarChar(100), normalized.department)
@@ -1196,6 +1269,7 @@ export const dbSaveContractor = async (contractor) => {
             UPDATE dbo.ContractorsMaster SET
               contractorCode = @contractorCode,
               locationCode = @locationCode,
+              locationName = @locationName,
               companyName = @companyName,
               licenseNo = @licenseNo,
               department = @department,
@@ -1217,11 +1291,11 @@ export const dbSaveContractor = async (contractor) => {
           ELSE
           BEGIN
             INSERT INTO dbo.ContractorsMaster (
-              id, contractorCode, locationCode, companyName, licenseNo, department, contactPerson, contactMobile,
+              id, contractorCode, locationCode, locationName, companyName, licenseNo, department, contactPerson, contactMobile,
               email, address, registrationNo, labourLicenseNo, pfCode, esicCode,
               gstNo, panNo, validFrom, validUpto, status, createdAt
             ) VALUES (
-              @id, @contractorCode, @locationCode, @companyName, @licenseNo, @department, @contactPerson, @contactMobile,
+              @id, @contractorCode, @locationCode, @locationName, @companyName, @licenseNo, @department, @contactPerson, @contactMobile,
               @email, @address, @registrationNo, @labourLicenseNo, @pfCode, @esicCode,
               @gstNo, @panNo, @validFrom, @validUpto, @status, @createdAt
             );
@@ -1264,5 +1338,98 @@ export const dbDeleteContractor = async (id) => {
 
   fallbackContractorsCache = fallbackContractorsCache.filter(c => c.id !== id);
   saveJsonStore(CONTRACTORS_STORE_PATH, fallbackContractorsCache);
+  return { deleted: true, id };
+};
+
+// ============================================================================
+// PLANT / SITE LOCATION MASTER PERSISTENCE
+// ============================================================================
+
+export const dbGetAllLocations = async () => {
+  await connectToFabric();
+  if (pool && pool.connected) {
+    try {
+      const result = await pool.request().query('SELECT * FROM dbo.LocationsMaster ORDER BY locationCode ASC');
+      const rows = Array.isArray(result.recordset) ? result.recordset : [];
+      if (rows.length > 0) {
+        fallbackLocationsCache = rows;
+        saveJsonStore(LOCATIONS_STORE_PATH, rows);
+        return rows;
+      }
+    } catch (err) {
+      console.error('[Microsoft Fabric] Query error in dbGetAllLocations, using local store:', err.message);
+    }
+  }
+  return Array.isArray(fallbackLocationsCache) && fallbackLocationsCache.length > 0
+    ? fallbackLocationsCache
+    : DEFAULT_LOCATIONS;
+};
+
+export const dbSaveLocation = async (loc) => {
+  const now = new Date().toISOString();
+  const cleanCode = String(loc.locationCode || '').trim().toUpperCase();
+  const normalized = {
+    id: loc.id || `LOC-${cleanCode || Date.now().toString().slice(-6)}`,
+    locationCode: cleanCode,
+    locationName: String(loc.locationName || '').trim(),
+    status: loc.status || 'ACTIVE',
+    createdAt: loc.createdAt || now
+  };
+
+  await connectToFabric();
+  if (pool && pool.connected) {
+    try {
+      const request = new sql.Request(pool);
+      await request
+        .input('id', sql.VarChar(50), normalized.id)
+        .input('locationCode', sql.VarChar(20), normalized.locationCode)
+        .input('locationName', sql.VarChar(200), normalized.locationName)
+        .input('status', sql.VarChar(30), normalized.status)
+        .input('createdAt', sql.VarChar(50), normalized.createdAt)
+        .query(`
+          IF EXISTS (SELECT 1 FROM dbo.LocationsMaster WHERE id = @id)
+          BEGIN
+            UPDATE dbo.LocationsMaster SET
+              locationCode = @locationCode,
+              locationName = @locationName,
+              status = @status
+            WHERE id = @id;
+          END
+          ELSE
+          BEGIN
+            INSERT INTO dbo.LocationsMaster (id, locationCode, locationName, status, createdAt)
+            VALUES (@id, @locationCode, @locationName, @status, @createdAt);
+          END
+        `);
+    } catch (err) {
+      console.error('[Microsoft Fabric] Location save error:', err.message);
+    }
+  }
+
+  const idx = fallbackLocationsCache.findIndex(l => l.id === normalized.id || l.locationCode === normalized.locationCode);
+  if (idx >= 0) {
+    fallbackLocationsCache = fallbackLocationsCache.map((l, i) =>
+      i === idx ? { ...l, ...normalized, id: l.id || normalized.id, createdAt: l.createdAt || normalized.createdAt } : l
+    );
+  } else {
+    fallbackLocationsCache = [...fallbackLocationsCache, normalized];
+  }
+  saveJsonStore(LOCATIONS_STORE_PATH, fallbackLocationsCache);
+  return fallbackLocationsCache.find(l => l.id === normalized.id || l.locationCode === normalized.locationCode) || normalized;
+};
+
+export const dbDeleteLocation = async (id) => {
+  await connectToFabric();
+  if (pool && pool.connected) {
+    try {
+      const request = new sql.Request(pool);
+      await request.input('id', sql.VarChar(50), id).query('DELETE FROM dbo.LocationsMaster WHERE id = @id;');
+    } catch (err) {
+      console.error('[Microsoft Fabric] Location delete error:', err.message);
+    }
+  }
+
+  fallbackLocationsCache = fallbackLocationsCache.filter(l => l.id !== id);
+  saveJsonStore(LOCATIONS_STORE_PATH, fallbackLocationsCache);
   return { deleted: true, id };
 };

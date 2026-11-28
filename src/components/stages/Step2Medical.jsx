@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Stethoscope, AlertTriangle, CheckCircle2, XCircle, HeartPulse, ShieldAlert, PauseCircle } from 'lucide-react';
 import { validateMedicalStep, calculateBMI } from '../../services/validationService';
 import { useAuth } from '../../context/AuthContext';
@@ -9,86 +9,76 @@ export const Step2Medical = ({ initialData, onSave, isReadOnly }) => {
     ? `${currentUser.name}${currentUser.designation ? ` (${currentUser.designation})` : ''}`
     : '';
 
-  const [formData, setFormData] = useState({
-    bloodGroup: initialData?.bloodGroup || 'B+',
-    heightCm: initialData?.heightCm || '',
-    weightKg: initialData?.weightKg || '',
-    bmi: initialData?.bmi || '',
-    bmiCategory: initialData?.bmiCategory || '',
-    bpSystolic: initialData?.bpSystolic || '120',
-    bpDiastolic: initialData?.bpDiastolic || '80',
-    spo2: initialData?.spo2 || '98',
-    pulseRate: initialData?.pulseRate || '72',
-    respirationRate: initialData?.respirationRate || '16',
-    rbs: initialData?.rbs || '100',
-    alcoholTest: initialData?.alcoholTest || 'Pass',
-    visionTest: initialData?.visionTest || 'Normal',
-    hearingTest: initialData?.hearingTest || 'Normal',
-    vertigoTest: initialData?.vertigoTest || 'Fit',
-    existingIllness: initialData?.existingIllness || 'No',
-    fitnessStatus: initialData?.fitnessStatus || 'FIT',
-    examinerName: initialData?.examinerName || loggedInExaminer,
-    remarks: initialData?.remarks || 'Fit for heavy industrial plant work.'
+  const buildInitialForm = (data, examiner) => ({
+    bloodGroup: data?.bloodGroup || 'B+',
+    heightCm: data?.heightCm || '',
+    weightKg: data?.weightKg || '',
+    bmi: data?.bmi || '',
+    bmiCategory: data?.bmiCategory || '',
+    bpSystolic: data?.bpSystolic || '120',
+    bpDiastolic: data?.bpDiastolic || '80',
+    spo2: data?.spo2 || '98',
+    pulseRate: data?.pulseRate || '72',
+    respirationRate: data?.respirationRate || '16',
+    rbs: data?.rbs || '100',
+    alcoholTest: data?.alcoholTest || 'Pass',
+    visionTest: data?.visionTest || 'Normal',
+    hearingTest: data?.hearingTest || 'Normal',
+    vertigoTest: data?.vertigoTest || 'Fit',
+    existingIllness: data?.existingIllness || 'No',
+    fitnessStatus: data?.fitnessStatus || 'FIT',
+    examinerName: data?.examinerName || examiner,
+    remarks: data?.remarks || 'Fit for heavy industrial plant work.'
   });
 
+  const [formData, setFormData] = useState(() => buildInitialForm(initialData, loggedInExaminer));
   const [errors, setErrors] = useState({});
+  const isDirtyRef = useRef(false);
+  const lastInitialJsonRef = useRef(JSON.stringify(initialData || null));
 
-  React.useEffect(() => {
+  useEffect(() => {
+    const serialized = JSON.stringify(initialData || null);
+    if (serialized === lastInitialJsonRef.current) return;
+    lastInitialJsonRef.current = serialized;
+    if (isDirtyRef.current) return;
     if (initialData) {
-      setFormData({
-        bloodGroup: initialData.bloodGroup || 'B+',
-        heightCm: initialData.heightCm || '',
-        weightKg: initialData.weightKg || '',
-        bmi: initialData.bmi || '',
-        bmiCategory: initialData.bmiCategory || '',
-        bpSystolic: initialData.bpSystolic || '120',
-        bpDiastolic: initialData.bpDiastolic || '80',
-        spo2: initialData.spo2 || '98',
-        pulseRate: initialData.pulseRate || '72',
-        respirationRate: initialData.respirationRate || '16',
-        rbs: initialData.rbs || '100',
-        alcoholTest: initialData.alcoholTest || 'Pass',
-        visionTest: initialData.visionTest || 'Normal',
-        hearingTest: initialData.hearingTest || 'Normal',
-        vertigoTest: initialData.vertigoTest || 'Fit',
-        existingIllness: initialData.existingIllness || 'No',
-        fitnessStatus: initialData.fitnessStatus || 'FIT',
-        examinerName: initialData.examinerName || loggedInExaminer,
-        remarks: initialData.remarks || 'Fit for heavy industrial plant work.'
-      });
+      setFormData(buildInitialForm(initialData, loggedInExaminer));
       setErrors({});
     }
   }, [initialData, loggedInExaminer]);
 
-  React.useEffect(() => {
-    if (!initialData?.examinerName && loggedInExaminer) {
-      setFormData(prev => prev.examinerName ? prev : { ...prev, examinerName: loggedInExaminer });
+  useEffect(() => {
+    if (!initialData?.examinerName && loggedInExaminer && !isDirtyRef.current) {
+      setFormData(prev => (prev.examinerName ? prev : { ...prev, examinerName: loggedInExaminer }));
     }
   }, [loggedInExaminer, initialData]);
 
   const handleVitalChange = (field, val) => {
     if (isReadOnly) return;
-    const next = { ...formData, [field]: val };
+    isDirtyRef.current = true;
+    setFormData(prev => {
+      const next = { ...prev, [field]: val };
 
-    if (field === 'heightCm' || field === 'weightKg') {
-      const h = field === 'heightCm' ? val : formData.heightCm;
-      const w = field === 'weightKg' ? val : formData.weightKg;
-      const res = calculateBMI(h, w);
-      next.bmi = res.bmi;
-      next.bmiCategory = res.category;
-    }
-
-    if (field === 'fitnessStatus') {
-      if (val !== 'FIT' && prevRemarksIsDefaultFit(formData.remarks)) {
-        next.remarks = '';
-      } else if (val === 'FIT' && !formData.remarks?.trim()) {
-        next.remarks = 'Fit for heavy industrial plant work.';
+      if (field === 'heightCm' || field === 'weightKg') {
+        const h = field === 'heightCm' ? val : prev.heightCm;
+        const w = field === 'weightKg' ? val : prev.weightKg;
+        const res = calculateBMI(h, w);
+        next.bmi = res.bmi;
+        next.bmiCategory = res.category;
       }
-    }
 
-    setFormData(next);
+      if (field === 'fitnessStatus') {
+        if (val !== 'FIT' && prevRemarksIsDefaultFit(prev.remarks)) {
+          next.remarks = '';
+        } else if (val === 'FIT' && !prev.remarks?.trim()) {
+          next.remarks = 'Fit for heavy industrial plant work.';
+        }
+      }
+
+      return next;
+    });
     if (errors[field]) {
-      setErrors({ ...errors, [field]: null });
+      setErrors(prev => ({ ...prev, [field]: null }));
     }
   };
 
@@ -104,6 +94,7 @@ export const Step2Medical = ({ initialData, onSave, isReadOnly }) => {
       return;
     }
 
+    isDirtyRef.current = false;
     onSave(formData);
   };
 

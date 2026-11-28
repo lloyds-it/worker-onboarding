@@ -34,8 +34,9 @@ export const DedicatedStageProcessPage = ({ worker: propWorker, onSelectWorker, 
     updateWorkerCamp
   } = useWorkers();
 
-  // Resilient worker resolution - never allow a null/blank page if workers exist
-  const worker = propWorker || (workers.length > 0 ? workers[0] : null);
+  // Resilient worker resolution - prefer live record from workers state so stage updates reflect immediately
+  const targetWorkerId = propWorker?.id;
+  const worker = (targetWorkerId && workers.find(w => w.id === targetWorkerId)) || propWorker || (workers.length > 0 ? workers[0] : null);
 
   // Department-to-Stage Mapping
   const roleStageMap = useMemo(() => ({
@@ -74,7 +75,8 @@ export const DedicatedStageProcessPage = ({ worker: propWorker, onSelectWorker, 
   }, [worker?.id, worker?.stage, currentRole, roleStageMap]);
 
   const handleStageSave = async (savePromise, shouldReturnToQueue = currentRole !== ROLES.ADMIN) => {
-    await savePromise;
+    const res = await savePromise;
+    if (res?.ok === false) return;
     if (shouldReturnToQueue) {
       onBack();
     }

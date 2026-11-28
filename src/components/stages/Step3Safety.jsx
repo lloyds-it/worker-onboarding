@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { HardHat, ShieldCheck, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { SAFETY_TOPICS, PPE_ITEMS } from '../../types/constants';
 import { useAuth } from '../../context/AuthContext';
@@ -22,8 +22,14 @@ export const Step3Safety = ({ initialData, onSave, isReadOnly }) => {
     initialData?.safetyDate || new Date().toISOString().slice(0, 10)
   );
   const [error, setError] = useState(null);
+  const isDirtyRef = useRef(false);
+  const lastInitialJsonRef = useRef(JSON.stringify(initialData || null));
 
-  React.useEffect(() => {
+  useEffect(() => {
+    const serialized = JSON.stringify(initialData || null);
+    if (serialized === lastInitialJsonRef.current) return;
+    lastInitialJsonRef.current = serialized;
+    if (isDirtyRef.current) return;
     if (initialData) {
       setTopicsCovered(initialData.topicsCovered || SAFETY_TOPICS);
       setPpeIssued(initialData.ppeIssued || ['helmet', 'jacket', 'shoes', 'gloves', 'earplugs']);
@@ -33,14 +39,15 @@ export const Step3Safety = ({ initialData, onSave, isReadOnly }) => {
     }
   }, [initialData, defaultOfficerName]);
 
-  React.useEffect(() => {
-    if (!initialData?.safetyOfficerName && defaultOfficerName) {
+  useEffect(() => {
+    if (!initialData?.safetyOfficerName && defaultOfficerName && !isDirtyRef.current) {
       setSafetyOfficerName(prev => prev || defaultOfficerName);
     }
   }, [defaultOfficerName, initialData]);
 
   const toggleTopic = (topic) => {
     if (isReadOnly) return;
+    isDirtyRef.current = true;
     if (topicsCovered.includes(topic)) {
       setTopicsCovered(topicsCovered.filter(t => t !== topic));
     } else {
@@ -50,6 +57,7 @@ export const Step3Safety = ({ initialData, onSave, isReadOnly }) => {
 
   const togglePpe = (itemId) => {
     if (isReadOnly) return;
+    isDirtyRef.current = true;
     if (ppeIssued.includes(itemId)) {
       setPpeIssued(ppeIssued.filter(id => id !== itemId));
     } else {
@@ -72,6 +80,7 @@ export const Step3Safety = ({ initialData, onSave, isReadOnly }) => {
     }
 
     setError(null);
+    isDirtyRef.current = false;
 
     onSave({
       briefingDone: true,
@@ -206,7 +215,10 @@ export const Step3Safety = ({ initialData, onSave, isReadOnly }) => {
             type="text"
             className="form-input"
             value={safetyOfficerName}
-            onChange={(e) => setSafetyOfficerName(e.target.value)}
+            onChange={(e) => {
+              isDirtyRef.current = true;
+              setSafetyOfficerName(e.target.value);
+            }}
             disabled={isReadOnly}
           />
         </div>
@@ -218,7 +230,10 @@ export const Step3Safety = ({ initialData, onSave, isReadOnly }) => {
             type="date"
             className="form-input"
             value={safetyDate}
-            onChange={(e) => setSafetyDate(e.target.value)}
+            onChange={(e) => {
+              isDirtyRef.current = true;
+              setSafetyDate(e.target.value);
+            }}
             disabled={isReadOnly}
           />
         </div>

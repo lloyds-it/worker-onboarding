@@ -16,47 +16,75 @@ import {
   Fingerprint,
   Home,
   Eye,
-  EyeOff
+  EyeOff,
+  Pencil,
+  Sliders,
+  MapPin,
+  Save
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { useWorkers } from '../../context/WorkerContext';
 import { ROLES, ROLE_LABELS } from '../../types/constants';
 import { SSOConfigTab } from './SSOConfigTab';
 import { ChangePasswordModal } from '../common/ChangePasswordModal';
 import { DigitalSignatureModal } from '../common/DigitalSignatureModal';
 
 export const UserManagement = () => {
-  const { users, createUser, toggleUserStatus, deleteUser, sendResetPasswordLink, currentUser } = useAuth();
+  const {
+    users,
+    createUser,
+    updateUser,
+    userMasterConfig,
+    saveUserMasterConfig,
+    toggleUserStatus,
+    deleteUser,
+    sendResetPasswordLink,
+    currentUser
+  } = useAuth();
+  const { locations = [] } = useWorkers();
 
-  const [adminSubTab, setAdminSubTab] = useState('ACCOUNTS'); // 'ACCOUNTS' | 'SSO'
+  const [adminSubTab, setAdminSubTab] = useState('ACCOUNTS'); // 'ACCOUNTS' | 'CONFIG' | 'SSO'
   const [isCreating, setIsCreating] = useState(false);
+  const [editingUser, setEditingUser] = useState(null);
+  const [editForm, setEditForm] = useState(null);
   const [passwordModalUser, setPasswordModalUser] = useState(null);
   const [signatureModalUser, setSignatureModalUser] = useState(null);
   const [sendingResetId, setSendingResetId] = useState(null);
+  const [configDraft, setConfigDraft] = useState(userMasterConfig);
+  const [savingConfig, setSavingConfig] = useState(false);
+
+  const getRoleTemplate = (role) => {
+    const cfg = userMasterConfig?.roles?.[role];
+    return {
+      designation: cfg?.defaultDesignation || '',
+      department: cfg?.department || ''
+    };
+  };
+
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     role: ROLES.HR,
-    designation: '',
+    designation: getRoleTemplate(ROLES.HR).designation,
+    department: getRoleTemplate(ROLES.HR).department,
+    locationCode: 'ALL',
     password: ''
   });
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  const defaultDesignations = {
-    [ROLES.ADMIN]: 'Site Administrator / Director',
-    [ROLES.HR]: 'HR Induction Officer',
-    [ROLES.MEDICAL]: 'Medical Officer (CIH)',
-    [ROLES.SAFETY]: 'EHS Safety Inspector',
-    [ROLES.IT]: 'IT Biometric Systems Lead',
-    [ROLES.CAMP]: 'Camp Housing Coordinator'
-  };
+  React.useEffect(() => {
+    setConfigDraft(userMasterConfig);
+  }, [userMasterConfig]);
 
   const handleRoleChange = (role) => {
+    const tpl = getRoleTemplate(role);
     setFormData({
       ...formData,
       role,
-      designation: defaultDesignations[role] || ''
+      designation: tpl.designation,
+      department: tpl.department
     });
   };
 
@@ -74,12 +102,15 @@ export const UserManagement = () => {
       return;
     }
 
+    const tpl = getRoleTemplate(formData.role);
     const created = await createUser({
       name: formData.name,
       email: formData.email,
       role: formData.role,
-      designation: formData.designation || defaultDesignations[formData.role],
-      password: formData.password || 'Lloyds@2026#'
+      designation: formData.designation || tpl.designation,
+      department: formData.department || tpl.department,
+      locationCode: formData.locationCode || 'ALL',
+      password: formData.password || userMasterConfig?.defaultPassword || 'Lloyds@2026#'
     });
 
     if (created) {
@@ -90,14 +121,70 @@ export const UserManagement = () => {
           ? ` (Email status: ${mailStatus}${created.emailNotification?.error ? ` — ${created.emailNotification.error}` : ''})`
           : '';
       setSuccess(`Account created for ${formData.name} in ${ROLE_LABELS[formData.role]}.${mailNote}`);
+      const resetTpl = getRoleTemplate(ROLES.HR);
       setFormData({
         name: '',
         email: '',
         role: ROLES.HR,
-        designation: '',
+        designation: resetTpl.designation,
+        department: resetTpl.department,
+        locationCode: 'ALL',
         password: ''
       });
       setIsCreating(false);
+    }
+  };
+
+  const openEditUser = (u) => {
+    setError('');
+    setSuccess('');
+    const roleDefaults = userMasterConfig?.roles?.[u.role] || {};
+    setEditingUser(u);
+    setEditForm({
+      name: u.name || '',
+      email: u.email || '',
+      role: u.role || ROLES.HR,
+      designation: u.designation || roleDefaults.defaultDesignation || '',
+      department: u.department || roleDefaults.department || '',
+      locationCode: u.locationCode || 'ALL',
+      status: u.status || 'ACTIVE',
+      permissions: {
+        canViewAllStages: u.permissions?.canViewAllStages ?? Boolean(roleDefaults.canViewAllStages),
+        canExportReports: u.permissions?.canExportReports ?? Boolean(roleDefaults.canExportReports),
+        canManageMasters: u.permissions?.canManageMasters ?? Boolean(roleDefaults.canManageMasters)
+      }
+    });
+  };
+
+  const handleSaveUserEdit = async (e) => {
+    e.preventDefault();
+    if (!editingUser || !editForm) return;
+    setError('');
+    setSuccess('');
+    const res = await updateUser(editingUser.id, editForm);
+    if (res && res.success) {
+      setSuccess(`Updated configuration for ${editForm.name} (${editForm.email}).`);
+      setEditingUser(null);
+      setEditForm(null);
+    } else {
+      setError(res?.error || 'Failed to update staff account configuration.');
+    }
+  };
+
+  const handleSaveMasterConfig = async (e) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+    setSavingConfig(true);
+    try {
+      const res = await saveUserMasterConfig(configDraft);
+      if (res && res.success) {
+        setSuccess('User Master role defaults and access configuration saved.');
+      } else {
+        setError(res?.error || 'Failed to save User Master configuration.');
+      }
+    } finally {
+      setSavingConfig(false);
     }
   };
 
@@ -171,6 +258,29 @@ export const UserManagement = () => {
         </button>
 
         <button
+          id="btn-tab-user-config"
+          type="button"
+          onClick={() => setAdminSubTab('CONFIG')}
+          style={{
+            padding: '0.6rem 1.1rem',
+            borderRadius: '8px',
+            border: 'none',
+            backgroundColor: adminSubTab === 'CONFIG' ? 'var(--brand-primary)' : 'var(--bg-surface)',
+            color: adminSubTab === 'CONFIG' ? '#FFFFFF' : 'var(--text-secondary)',
+            fontWeight: 700,
+            fontSize: '0.85rem',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            boxShadow: adminSubTab === 'CONFIG' ? 'var(--shadow-sm)' : 'none'
+          }}
+        >
+          <Sliders size={16} />
+          <span>User Master Configuration</span>
+        </button>
+
+        <button
           id="btn-tab-enterprise-sso"
           type="button"
           onClick={() => setAdminSubTab('SSO')}
@@ -206,6 +316,148 @@ export const UserManagement = () => {
 
       {adminSubTab === 'SSO' ? (
         <SSOConfigTab />
+      ) : adminSubTab === 'CONFIG' ? (
+        <form onSubmit={handleSaveMasterConfig} className="form-card" style={{ marginBottom: 0 }}>
+          <div className="form-section-header">
+            <h3>
+              <Sliders size={18} color="var(--brand-primary)" />
+              <span>Configurable User Master Policies &amp; Role Templates</span>
+            </h3>
+            <span className="badge badge-info">Admin Config</span>
+          </div>
+
+          {success && (
+            <div style={{
+              backgroundColor: 'var(--success-bg)', color: 'var(--success-text)',
+              border: '1px solid var(--success-border)', borderRadius: 'var(--radius-sm)',
+              padding: '0.75rem 1rem', marginBottom: '1rem', fontSize: '0.85rem', fontWeight: 600
+            }}>
+              {success}
+            </div>
+          )}
+          {error && (
+            <div style={{
+              backgroundColor: 'var(--danger-bg)', color: 'var(--danger-text)',
+              border: '1px solid var(--danger-border)', borderRadius: 'var(--radius-sm)',
+              padding: '0.75rem 1rem', marginBottom: '1rem', fontSize: '0.85rem', fontWeight: 600
+            }}>
+              {error}
+            </div>
+          )}
+
+          <div className="form-grid" style={{ marginBottom: '1.5rem' }}>
+            <div className="form-group">
+              <label htmlFor="cfg-default-pass">Default Initial Password (for New Staff)</label>
+              <input
+                id="cfg-default-pass"
+                type="text"
+                className="form-input"
+                value={configDraft?.defaultPassword || ''}
+                onChange={e => setConfigDraft(prev => ({ ...prev, defaultPassword: e.target.value }))}
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Department Isolation Policy</label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.55rem 0.75rem', border: '1px solid var(--border-medium)', borderRadius: 'var(--radius-sm)', cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={configDraft?.enforceDepartmentIsolation !== false}
+                  onChange={e => setConfigDraft(prev => ({ ...prev, enforceDepartmentIsolation: e.target.checked }))}
+                />
+                <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>Enforce strict department queue isolation</span>
+              </label>
+            </div>
+          </div>
+
+          <h4 style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: '0.75rem' }}>
+            Department Role Templates &amp; Permissions
+          </h4>
+
+          <div className="data-table-wrapper">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Role</th>
+                  <th>Department Name</th>
+                  <th>Default Designation</th>
+                  <th>All Stages</th>
+                  <th>Export Reports</th>
+                  <th>Manage Masters</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Object.keys(ROLES).map(key => {
+                  const roleKey = ROLES[key];
+                  const rCfg = configDraft?.roles?.[roleKey] || {};
+                  const updateRoleCfg = (field, val) => {
+                    setConfigDraft(prev => ({
+                      ...prev,
+                      roles: {
+                        ...prev.roles,
+                        [roleKey]: {
+                          ...(prev.roles?.[roleKey] || {}),
+                          [field]: val
+                        }
+                      }
+                    }));
+                  };
+                  return (
+                    <tr key={roleKey}>
+                      <td>{getRoleBadge(roleKey)}</td>
+                      <td>
+                        <input
+                          type="text"
+                          className="form-input"
+                          value={rCfg.department || ''}
+                          onChange={e => updateRoleCfg('department', e.target.value)}
+                          style={{ minWidth: '180px' }}
+                        />
+                      </td>
+                      <td>
+                        <input
+                          type="text"
+                          className="form-input"
+                          value={rCfg.defaultDesignation || ''}
+                          onChange={e => updateRoleCfg('defaultDesignation', e.target.value)}
+                          style={{ minWidth: '180px' }}
+                        />
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        <input
+                          type="checkbox"
+                          checked={Boolean(rCfg.canViewAllStages)}
+                          onChange={e => updateRoleCfg('canViewAllStages', e.target.checked)}
+                        />
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        <input
+                          type="checkbox"
+                          checked={Boolean(rCfg.canExportReports)}
+                          onChange={e => updateRoleCfg('canExportReports', e.target.checked)}
+                        />
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        <input
+                          type="checkbox"
+                          checked={Boolean(rCfg.canManageMasters)}
+                          onChange={e => updateRoleCfg('canManageMasters', e.target.checked)}
+                        />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          <div style={{ marginTop: '1.25rem', display: 'flex', justifyContent: 'flex-end' }}>
+            <button type="submit" className="btn btn-primary" disabled={savingConfig}>
+              <Save size={16} />
+              <span>{savingConfig ? 'Saving Configuration...' : 'Save User Master Configuration'}</span>
+            </button>
+          </div>
+        </form>
       ) : (
         <>
           {/* Header Banner */}
@@ -348,13 +600,42 @@ export const UserManagement = () => {
                 </div>
 
                 <div className="form-group">
+                  <label htmlFor="staff-department">Department Display Title</label>
+                  <input
+                    id="staff-department"
+                    type="text"
+                    className="form-input"
+                    placeholder="e.g. Human Resources"
+                    value={formData.department}
+                    onChange={(e) => setFormData({ ...formData, department: e.target.value })}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="staff-location">Assigned Plant Location</label>
+                  <select
+                    id="staff-location"
+                    className="form-select"
+                    value={formData.locationCode || 'ALL'}
+                    onChange={(e) => setFormData({ ...formData, locationCode: e.target.value })}
+                  >
+                    <option value="ALL">ALL — All Plant Locations</option>
+                    {locations.filter(l => l.status !== 'INACTIVE').map(loc => (
+                      <option key={loc.id || loc.locationCode} value={loc.locationCode}>
+                        {loc.locationCode} — {loc.locationName}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="form-group">
                   <label htmlFor="staff-password">Initial Password (Optional)</label>
                   <div style={{ position: 'relative' }}>
                     <input
                       id="staff-password"
                       type={showPassword ? 'text' : 'password'}
                       className="form-input"
-                      placeholder="Leave blank for default (Lloyds@2026#)"
+                      placeholder={`Leave blank for default (${userMasterConfig?.defaultPassword || 'Lloyds@2026#'})`}
                       value={formData.password}
                       onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                       style={{ paddingRight: '2.5rem' }}
@@ -478,7 +759,9 @@ export const UserManagement = () => {
 
                         <td>
                           <div style={{ fontSize: '0.825rem', fontWeight: 600 }}>{u.designation}</div>
-                          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{u.department}</div>
+                          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                            {u.department} {u.locationCode && u.locationCode !== 'ALL' ? `• Loc ${u.locationCode}` : ''}
+                          </div>
                         </td>
 
                         <td>
@@ -526,6 +809,17 @@ export const UserManagement = () => {
 
                         <td style={{ textAlign: 'right' }}>
                           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.4rem', flexWrap: 'wrap' }}>
+                            <button
+                              type="button"
+                              className="btn btn-secondary"
+                              style={{ padding: '0.35rem 0.6rem', fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                              onClick={() => openEditUser(u)}
+                              title={`Edit / configure ${u.name}`}
+                            >
+                              <Pencil size={13} color="var(--brand-primary)" />
+                              <span>Edit</span>
+                            </button>
+
                             <button
                               className="btn btn-secondary"
                               style={{ padding: '0.35rem 0.6rem', fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
@@ -595,6 +889,161 @@ export const UserManagement = () => {
             </div>
           </div>
         </>
+      )}
+
+      {/* Edit Staff Configuration Modal */}
+      {editingUser && editForm && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 1000,
+          backgroundColor: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem'
+        }}>
+          <div style={{
+            backgroundColor: 'var(--bg-surface)', borderRadius: 'var(--radius-lg)',
+            border: '1px solid var(--border-medium)', boxShadow: 'var(--shadow-xl)',
+            width: '100%', maxWidth: '640px', maxHeight: '90vh', overflowY: 'auto', padding: '1.5rem'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', borderBottom: '1px solid var(--border-light)', paddingBottom: '0.75rem' }}>
+              <h3 style={{ fontSize: '1.05rem', fontWeight: 800 }}>
+                Configure Staff Account — {editingUser.name}
+              </h3>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem' }}
+                onClick={() => { setEditingUser(null); setEditForm(null); }}
+              >
+                Close
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveUserEdit}>
+              <div className="form-grid">
+                <div className="form-group">
+                  <label>Full Name <span className="required">*</span></label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={editForm.name}
+                    onChange={e => setEditForm(prev => ({ ...prev, name: e.target.value }))}
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Work Email <span className="required">*</span></label>
+                  <input
+                    type="email"
+                    className="form-input"
+                    value={editForm.email}
+                    onChange={e => setEditForm(prev => ({ ...prev, email: e.target.value }))}
+                    disabled={editingUser.id === 'USR-ADMIN-01'}
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Assigned Department Role</label>
+                  <select
+                    className="form-select"
+                    value={editForm.role}
+                    disabled={editingUser.id === 'USR-ADMIN-01'}
+                    onChange={e => {
+                      const nextRole = e.target.value;
+                      const tpl = getRoleTemplate(nextRole);
+                      setEditForm(prev => ({
+                        ...prev,
+                        role: nextRole,
+                        designation: tpl.designation || prev.designation,
+                        department: tpl.department || prev.department
+                      }));
+                    }}
+                  >
+                    <option value={ROLES.HR}>HR Operations (Step 1)</option>
+                    <option value={ROLES.MEDICAL}>Medical Health (Step 2)</option>
+                    <option value={ROLES.SAFETY}>EHS Safety (Step 3)</option>
+                    <option value={ROLES.IT}>IT Systems &amp; Biometrics (Step 4)</option>
+                    <option value={ROLES.CAMP}>Camp Housing (Step 5)</option>
+                    <option value={ROLES.ADMIN}>Chief Administrator</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>Official Designation</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={editForm.designation}
+                    onChange={e => setEditForm(prev => ({ ...prev, designation: e.target.value }))}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Department Name</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={editForm.department}
+                    onChange={e => setEditForm(prev => ({ ...prev, department: e.target.value }))}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Assigned Plant Location Scope</label>
+                  <select
+                    className="form-select"
+                    value={editForm.locationCode || 'ALL'}
+                    onChange={e => setEditForm(prev => ({ ...prev, locationCode: e.target.value }))}
+                  >
+                    <option value="ALL">ALL — All Plant Locations</option>
+                    {locations.filter(l => l.status !== 'INACTIVE').map(loc => (
+                      <option key={loc.id || loc.locationCode} value={loc.locationCode}>
+                        {loc.locationCode} — {loc.locationName}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div style={{ marginTop: '1rem', padding: '0.85rem', backgroundColor: 'var(--bg-surface-subtle)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-light)' }}>
+                <div style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>
+                  Granular Account Capabilities
+                </div>
+                <div style={{ display: 'flex', gap: '1.25rem', flexWrap: 'wrap', fontSize: '0.82rem' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={Boolean(editForm.permissions?.canViewAllStages)}
+                      onChange={e => setEditForm(prev => ({ ...prev, permissions: { ...prev.permissions, canViewAllStages: e.target.checked } }))}
+                    />
+                    <span>View All Stages</span>
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={Boolean(editForm.permissions?.canExportReports)}
+                      onChange={e => setEditForm(prev => ({ ...prev, permissions: { ...prev.permissions, canExportReports: e.target.checked } }))}
+                    />
+                    <span>Export Reports</span>
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={Boolean(editForm.permissions?.canManageMasters)}
+                      onChange={e => setEditForm(prev => ({ ...prev, permissions: { ...prev.permissions, canManageMasters: e.target.checked } }))}
+                    />
+                    <span>Manage Contractors &amp; Locations</span>
+                  </label>
+                </div>
+              </div>
+
+              <div style={{ marginTop: '1.25rem', display: 'flex', justifyContent: 'flex-end', gap: '0.65rem' }}>
+                <button type="button" className="btn btn-secondary" onClick={() => { setEditingUser(null); setEditForm(null); }}>
+                  Cancel
+                </button>
+                <button type="submit" className="btn btn-primary">
+                  <Save size={15} />
+                  <span>Save User Configuration</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
 
       {/* Change / Reset Password Modal */}

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { User, Briefcase, Phone, AlertCircle, CheckCircle2, MapPin, Building2, Wrench, RefreshCw, BadgeCheck } from 'lucide-react';
 import { TRADES, ID_TYPES } from '../../types/constants';
 import { validateHRStep, calculateAge, generateEmployeeId, DEFAULT_LOCATION_CODE } from '../../services/validationService';
@@ -6,9 +6,31 @@ import { useWorkers } from '../../context/WorkerContext';
 import { WorkerPhotoUpload } from '../common/WorkerPhotoUpload';
 
 export const Step1HR = ({ initialData, onSave, isReadOnly }) => {
-  const { workers = [], contractors = [] } = useWorkers();
+  const { workers = [], contractors = [], locations = [] } = useWorkers();
 
-  const availableContractors = React.useMemo(() => {
+  const availableLocations = useMemo(() => {
+    const activeLocs = (locations || []).filter(l => l && l.locationCode && l.status !== 'INACTIVE');
+    const code = initialData?.locationCode;
+    if (code && !activeLocs.some(l => l.locationCode === code)) {
+      return [
+        ...activeLocs,
+        {
+          id: `LOC-LEGACY-${code}`,
+          locationCode: code,
+          locationName: initialData?.locationName || `Location ${code}`,
+          status: 'ACTIVE'
+        }
+      ];
+    }
+    return activeLocs;
+  }, [locations, initialData]);
+
+  const resolveLocationName = (locCode, fallbackName = '') => {
+    const matched = availableLocations.find(l => l.locationCode === locCode);
+    return matched?.locationName || fallbackName || '';
+  };
+
+  const availableContractors = useMemo(() => {
     const active = contractors.filter(c => c && c.companyName && c.status === 'ACTIVE');
     if (
       initialData?.contractorName &&
@@ -21,6 +43,7 @@ export const Step1HR = ({ initialData, onSave, isReadOnly }) => {
           companyName: initialData.contractorName,
           contractorCode: initialData.contractorCode || '',
           locationCode: initialData.locationCode || DEFAULT_LOCATION_CODE,
+          locationName: initialData.locationName || '',
           licenseNo: initialData.contractorLicense || ''
         }
       ];
@@ -30,72 +53,72 @@ export const Step1HR = ({ initialData, onSave, isReadOnly }) => {
 
   const initialContractor = availableContractors[0];
   const initialContractorCode = initialData?.contractorCode || initialContractor?.contractorCode || '';
-  const initialLocationCode = initialData?.locationCode || initialContractor?.locationCode || DEFAULT_LOCATION_CODE;
+  const initialLocationCode = initialData?.locationCode || initialContractor?.locationCode || availableLocations[0]?.locationCode || DEFAULT_LOCATION_CODE;
 
-  const [isIdManuallyEdited, setIsIdManuallyEdited] = useState(false);
-
-  const [formData, setFormData] = useState({
-    assignedWorkerId: initialData?.assignedWorkerId || generateEmployeeId(workers, initialContractorCode, initialLocationCode),
-    fullName: initialData?.fullName || '',
-    fatherHusbandName: initialData?.fatherHusbandName || '',
-    dob: initialData?.dob || '',
-    age: initialData?.age || (initialData?.dob ? calculateAge(initialData.dob) : ''),
-    gender: initialData?.gender || 'M',
-    mobileNumber: initialData?.mobileNumber || '',
-    idProofType: initialData?.idProofType || ID_TYPES[0],
-    idProofRef: initialData?.idProofRef || '',
-    contractorName: initialData?.contractorName || initialContractor?.companyName || '',
-    contractorCode: initialContractorCode,
-    locationCode: initialLocationCode,
-    contractorLicense: initialData?.contractorLicense || initialContractor?.licenseNo || '',
-    trade: initialData?.trade || TRADES[0],
-    photo: initialData?.photo || '',
-    address: initialData?.address || '',
-    workingLocation: initialData?.workingLocation || 'LLOYDS METALS AND ENERGY LIMITED HEDRI',
-    activity: initialData?.activity || (initialData?.trade ? `${initialData.trade} & Structural Work` : 'Welding & Structural Fabrication'),
-    emergencyPerson: initialData?.emergencyPerson || '',
-    emergencyRelationship: initialData?.emergencyRelationship || '',
-    emergencyMobile: initialData?.emergencyMobile || ''
+  const [isIdManuallyEdited, setIsIdManuallyEdited] = useState(Boolean(initialData?.assignedWorkerId));
+  const [isEmergencySynced, setIsEmergencySynced] = useState(() => {
+    if (!initialData) return true;
+    const mob = (initialData.mobileNumber || '').trim();
+    const em = (initialData.emergencyMobile || '').trim();
+    return !em || em === mob;
   });
+
+  const buildInitialForm = (data) => {
+    const code = data?.contractorCode || initialContractor?.contractorCode || '';
+    const loc = data?.locationCode || initialContractor?.locationCode || availableLocations[0]?.locationCode || DEFAULT_LOCATION_CODE;
+    const locName = data?.locationName || resolveLocationName(loc, initialContractor?.locationName || '');
+    const mob = data?.mobileNumber || '';
+    return {
+      assignedWorkerId: data?.assignedWorkerId || generateEmployeeId(workers, code, loc),
+      fullName: data?.fullName || '',
+      fatherHusbandName: data?.fatherHusbandName || '',
+      dob: data?.dob || '',
+      age: data?.age || (data?.dob ? calculateAge(data.dob) : ''),
+      gender: data?.gender || 'M',
+      mobileNumber: mob,
+      idProofType: data?.idProofType || ID_TYPES[0],
+      idProofRef: data?.idProofRef || '',
+      contractorName: data?.contractorName || initialContractor?.companyName || '',
+      contractorCode: code,
+      locationCode: loc,
+      locationName: locName,
+      contractorLicense: data?.contractorLicense || initialContractor?.licenseNo || '',
+      trade: data?.trade || TRADES[0],
+      photo: data?.photo || '',
+      address: data?.address || '',
+      workingLocation: data?.workingLocation || locName || 'LLOYDS METALS AND ENERGY LIMITED HEDRI',
+      activity: data?.activity || (data?.trade ? `${data.trade} & Structural Work` : 'Welding & Structural Fabrication'),
+      emergencyPerson: data?.emergencyPerson || '',
+      emergencyRelationship: data?.emergencyRelationship || '',
+      emergencyMobile: data?.emergencyMobile || mob
+    };
+  };
+
+  const [formData, setFormData] = useState(() => buildInitialForm(initialData));
 
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const isDirtyRef = useRef(false);
+  const lastInitialJsonRef = useRef(JSON.stringify(initialData || null));
 
-  React.useEffect(() => {
+  useEffect(() => {
+    const serialized = JSON.stringify(initialData || null);
+    if (serialized === lastInitialJsonRef.current) return;
+    lastInitialJsonRef.current = serialized;
+    if (isDirtyRef.current) return;
     if (initialData) {
-      const code = initialData?.contractorCode || initialContractor?.contractorCode || '';
-      const loc = initialData?.locationCode || initialContractor?.locationCode || DEFAULT_LOCATION_CODE;
       setIsIdManuallyEdited(Boolean(initialData?.assignedWorkerId));
-      setFormData({
-        assignedWorkerId: initialData?.assignedWorkerId || generateEmployeeId(workers, code, loc),
-        fullName: initialData?.fullName || '',
-        fatherHusbandName: initialData?.fatherHusbandName || '',
-        dob: initialData?.dob || '',
-        age: initialData?.age || (initialData?.dob ? calculateAge(initialData.dob) : ''),
-        gender: initialData?.gender || 'M',
-        mobileNumber: initialData?.mobileNumber || '',
-        idProofType: initialData?.idProofType || ID_TYPES[0],
-        idProofRef: initialData?.idProofRef || '',
-        contractorName: initialData?.contractorName || initialContractor?.companyName || '',
-        contractorCode: code,
-        locationCode: loc,
-        contractorLicense: initialData?.contractorLicense || initialContractor?.licenseNo || '',
-        trade: initialData?.trade || TRADES[0],
-        photo: initialData?.photo || '',
-        address: initialData?.address || '',
-        workingLocation: initialData?.workingLocation || 'LLOYDS METALS AND ENERGY LIMITED HEDRI',
-        activity: initialData?.activity || (initialData?.trade ? `${initialData.trade} & Structural Work` : 'Welding & Structural Fabrication'),
-        emergencyPerson: initialData?.emergencyPerson || '',
-        emergencyRelationship: initialData?.emergencyRelationship || '',
-        emergencyMobile: initialData?.emergencyMobile || ''
-      });
+      const mob = (initialData.mobileNumber || '').trim();
+      const em = (initialData.emergencyMobile || '').trim();
+      setIsEmergencySynced(!em || em === mob);
+      setFormData(buildInitialForm(initialData));
       setErrors({});
     }
   }, [initialData]);
 
-  // Keep selected contractor & auto-generated Employee Code synced with live Contractor Master
-  React.useEffect(() => {
-    if (initialData) return;
+  // Keep selected contractor & auto-generated Employee Code synced with live Contractor & Location Masters
+  useEffect(() => {
+    if (initialData || isDirtyRef.current) return;
     setFormData(prev => {
       const matched = (prev.contractorName && availableContractors.find(c => c.companyName === prev.contractorName)) || availableContractors[0];
       if (!matched) return prev;
@@ -105,7 +128,8 @@ export const Step1HR = ({ initialData, onSave, isReadOnly }) => {
       const nextLicense = matched.licenseNo || '';
       const nextLocation = prev.contractorName === nextName && prev.locationCode
         ? prev.locationCode
-        : (matched.locationCode || DEFAULT_LOCATION_CODE);
+        : (matched.locationCode || availableLocations[0]?.locationCode || DEFAULT_LOCATION_CODE);
+      const nextLocationName = resolveLocationName(nextLocation, matched.locationName || '');
       const nextEmployeeId = !isIdManuallyEdited
         ? generateEmployeeId(workers, nextCode, nextLocation)
         : prev.assignedWorkerId;
@@ -115,6 +139,7 @@ export const Step1HR = ({ initialData, onSave, isReadOnly }) => {
         prev.contractorCode === nextCode &&
         prev.contractorLicense === nextLicense &&
         prev.locationCode === nextLocation &&
+        prev.locationName === nextLocationName &&
         prev.assignedWorkerId === nextEmployeeId
       ) {
         return prev;
@@ -126,41 +151,64 @@ export const Step1HR = ({ initialData, onSave, isReadOnly }) => {
         contractorCode: nextCode,
         contractorLicense: nextLicense,
         locationCode: nextLocation,
+        locationName: nextLocationName,
         assignedWorkerId: nextEmployeeId
       };
     });
-  }, [availableContractors, initialData, isIdManuallyEdited, workers]);
+  }, [availableContractors, availableLocations, initialData, isIdManuallyEdited, workers]);
 
   const handleChange = (field, value) => {
     if (isReadOnly) return;
+    isDirtyRef.current = true;
     const normalizedValue = (field === 'assignedWorkerId' || field === 'locationCode')
       ? value.toUpperCase()
       : value;
-    const next = { ...formData, [field]: normalizedValue };
-    if (field === 'dob') {
-      next.age = calculateAge(value);
-    }
-    if (field === 'assignedWorkerId') {
-      setIsIdManuallyEdited(true);
-    }
-    if (field === 'contractorName') {
-      const match = availableContractors.find(c => c.companyName === value);
-      next.contractorCode = match ? (match.contractorCode || '') : '';
-      next.contractorLicense = match ? (match.licenseNo || '') : '';
-      next.locationCode = match ? (match.locationCode || DEFAULT_LOCATION_CODE) : DEFAULT_LOCATION_CODE;
-      if (!initialData && !isIdManuallyEdited) {
-        next.assignedWorkerId = generateEmployeeId(workers, next.contractorCode, next.locationCode);
+
+    setFormData(prev => {
+      const next = { ...prev, [field]: normalizedValue };
+      if (field === 'dob') {
+        next.age = calculateAge(value);
       }
-    }
-    if (field === 'locationCode' && !initialData && !isIdManuallyEdited) {
-      next.assignedWorkerId = generateEmployeeId(workers, next.contractorCode, normalizedValue);
-    }
-    if (field === 'trade' && !formData.activity) {
-      next.activity = `${value} & Plant Operations`;
-    }
-    setFormData(next);
+      if (field === 'assignedWorkerId') {
+        setIsIdManuallyEdited(true);
+      }
+      if (field === 'mobileNumber' && isEmergencySynced) {
+        next.emergencyMobile = normalizedValue;
+      }
+      if (field === 'emergencyMobile') {
+        if (!normalizedValue) {
+          setIsEmergencySynced(true);
+          next.emergencyMobile = prev.mobileNumber;
+        } else {
+          setIsEmergencySynced(normalizedValue === prev.mobileNumber);
+        }
+      }
+      if (field === 'contractorName') {
+        const match = availableContractors.find(c => c.companyName === value);
+        next.contractorCode = match ? (match.contractorCode || '') : '';
+        next.contractorLicense = match ? (match.licenseNo || '') : '';
+        next.locationCode = match ? (match.locationCode || availableLocations[0]?.locationCode || DEFAULT_LOCATION_CODE) : DEFAULT_LOCATION_CODE;
+        next.locationName = resolveLocationName(next.locationCode, match?.locationName || '');
+        if (!initialData && !isIdManuallyEdited) {
+          next.assignedWorkerId = generateEmployeeId(workers, next.contractorCode, next.locationCode);
+        }
+      }
+      if (field === 'locationCode') {
+        next.locationName = resolveLocationName(normalizedValue, '');
+        if (next.locationName && (!prev.workingLocation || prev.workingLocation === prev.locationName)) {
+          next.workingLocation = next.locationName;
+        }
+        if (!initialData && !isIdManuallyEdited) {
+          next.assignedWorkerId = generateEmployeeId(workers, next.contractorCode, normalizedValue);
+        }
+      }
+      if (field === 'trade' && !prev.activity) {
+        next.activity = `${value} & Plant Operations`;
+      }
+      return next;
+    });
     if (errors[field]) {
-      setErrors({ ...errors, [field]: null });
+      setErrors(prev => ({ ...prev, [field]: null }));
     }
   };
 
@@ -178,6 +226,7 @@ export const Step1HR = ({ initialData, onSave, isReadOnly }) => {
       return;
     }
     setIsSubmitting(true);
+    isDirtyRef.current = false;
     onSave(formData);
     setTimeout(() => {
       setIsSubmitting(false);
@@ -449,19 +498,25 @@ export const Step1HR = ({ initialData, onSave, isReadOnly }) => {
           />
         </div>
 
-        {/* Location Code */}
+        {/* Location Code & Location Name Dropdown */}
         <div className="form-group">
-          <label htmlFor="worker-location-code">Location Code</label>
-          <input
+          <label htmlFor="worker-location-code">
+            Location Code &amp; Name <span className="required">*</span>
+          </label>
+          <select
             id="worker-location-code"
-            type="text"
-            className="form-input"
-            value={formData.locationCode || '15'}
+            className="form-select"
+            value={formData.locationCode || DEFAULT_LOCATION_CODE}
             onChange={(e) => handleChange('locationCode', e.target.value)}
             disabled={isReadOnly}
-            placeholder="e.g. 15"
             style={{ fontFamily: 'var(--font-family-mono)', fontWeight: 700 }}
-          />
+          >
+            {availableLocations.map(loc => (
+              <option key={loc.id || loc.locationCode} value={loc.locationCode}>
+                {loc.locationCode} — {loc.locationName}
+              </option>
+            ))}
+          </select>
         </div>
 
         {/* Contractor License */}
@@ -578,13 +633,33 @@ export const Step1HR = ({ initialData, onSave, isReadOnly }) => {
           </div>
 
           <div className="form-group">
-            <label htmlFor="emergency-mobile">Emergency Mobile <span className="required">*</span></label>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
+              <label htmlFor="emergency-mobile" style={{ marginBottom: 0 }}>
+                Emergency Mobile <span className="required">*</span>
+              </label>
+              {!isReadOnly && (
+                <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.72rem', fontWeight: 600, color: 'var(--brand-primary)', cursor: 'pointer', marginBottom: 0 }}>
+                  <input
+                    type="checkbox"
+                    checked={isEmergencySynced}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      setIsEmergencySynced(checked);
+                      if (checked) {
+                        setFormData(prev => ({ ...prev, emergencyMobile: prev.mobileNumber }));
+                      }
+                    }}
+                  />
+                  <span>Same as Mobile</span>
+                </label>
+              )}
+            </div>
             <input
               id="emergency-mobile"
               type="tel"
               maxLength={10}
               className={`form-input ${errors.emergencyMobile ? 'error' : ''}`}
-              placeholder="e.g. 9765432109"
+              placeholder="Auto-filled from Mobile Number"
               value={formData.emergencyMobile}
               onChange={(e) => handleChange('emergencyMobile', e.target.value.replace(/\D/g, ''))}
               disabled={isReadOnly}

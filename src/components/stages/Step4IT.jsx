@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Fingerprint, CheckCircle2, ShieldCheck, UserCheck } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -21,8 +21,14 @@ export const Step4IT = ({ initialData, worker, onSave, isReadOnly }) => {
     initialData?.itAdminSignature || loggedInIT
   );
   const [error, setError] = useState(null);
+  const isDirtyRef = useRef(false);
+  const lastInitialJsonRef = useRef(JSON.stringify(initialData || null));
 
-  React.useEffect(() => {
+  useEffect(() => {
+    const serialized = JSON.stringify(initialData || null);
+    if (serialized === lastInitialJsonRef.current) return;
+    lastInitialJsonRef.current = serialized;
+    if (isDirtyRef.current) return;
     if (initialData) {
       setFaceBiometricRegistered(initialData.faceBiometricRegistered ?? true);
       setCwmsRegistered(initialData.cwmsRegistered ?? true);
@@ -32,8 +38,8 @@ export const Step4IT = ({ initialData, worker, onSave, isReadOnly }) => {
     }
   }, [initialData, loggedInIT]);
 
-  React.useEffect(() => {
-    if (!initialData?.itAdminSignature && loggedInIT) {
+  useEffect(() => {
+    if (!initialData?.itAdminSignature && loggedInIT && !isDirtyRef.current) {
       setItAdminSignature(prev => prev || loggedInIT);
     }
   }, [loggedInIT, initialData]);
@@ -51,6 +57,7 @@ export const Step4IT = ({ initialData, worker, onSave, isReadOnly }) => {
       return;
     }
 
+    isDirtyRef.current = false;
     onSave({
       faceBiometricRegistered,
       cwmsRegistered,
@@ -134,7 +141,10 @@ export const Step4IT = ({ initialData, worker, onSave, isReadOnly }) => {
                   type="radio"
                   name="faceBio"
                   checked={faceBiometricRegistered === true}
-                  onChange={() => setFaceBiometricRegistered(true)}
+                  onChange={() => {
+                    isDirtyRef.current = true;
+                    setFaceBiometricRegistered(true);
+                  }}
                   disabled={isReadOnly}
                 />
                 <span style={{ fontWeight: 600, color: 'var(--success-solid)' }}>Registered (YES)</span>
@@ -144,7 +154,10 @@ export const Step4IT = ({ initialData, worker, onSave, isReadOnly }) => {
                   type="radio"
                   name="faceBio"
                   checked={faceBiometricRegistered === false}
-                  onChange={() => setFaceBiometricRegistered(false)}
+                  onChange={() => {
+                    isDirtyRef.current = true;
+                    setFaceBiometricRegistered(false);
+                  }}
                   disabled={isReadOnly}
                 />
                 <span style={{ fontWeight: 600, color: 'var(--danger-solid)' }}>Pending (NO)</span>
@@ -169,7 +182,10 @@ export const Step4IT = ({ initialData, worker, onSave, isReadOnly }) => {
               <input
                 type="checkbox"
                 checked={cwmsRegistered}
-                onChange={(e) => setCwmsRegistered(e.target.checked)}
+                onChange={(e) => {
+                  isDirtyRef.current = true;
+                  setCwmsRegistered(e.target.checked);
+                }}
                 disabled={isReadOnly}
               />
               <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>Synchronized with CWMS Database</span>
@@ -186,7 +202,10 @@ export const Step4IT = ({ initialData, worker, onSave, isReadOnly }) => {
           type="text"
           className="form-input"
           value={itAdminSignature}
-          onChange={(e) => setItAdminSignature(e.target.value)}
+          onChange={(e) => {
+            isDirtyRef.current = true;
+            setItAdminSignature(e.target.value);
+          }}
           disabled={isReadOnly}
         />
       </div>
