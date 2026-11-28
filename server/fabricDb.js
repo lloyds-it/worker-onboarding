@@ -142,14 +142,76 @@ fallbackWorkersCache = loadJsonStore(WORKERS_STORE_PATH, fallbackWorkersCache);
 let fallbackContractorsCache = loadJsonStore(CONTRACTORS_STORE_PATH, []);
 let fallbackLocationsCache = loadJsonStore(LOCATIONS_STORE_PATH, DEFAULT_LOCATIONS);
 
-const upsertFallbackWorker = (workerId, updatedWorker) => {
+const upsertFallbackWorker = (workerId, updatedWorker, isPendingSync = false) => {
+  const cleanRecord = { ...updatedWorker };
+  if (isPendingSync) {
+    cleanRecord._fabricPendingSync = true;
+  } else {
+    delete cleanRecord._fabricPendingSync;
+  }
   const exists = fallbackWorkersCache.some(w => w.id === workerId);
   if (exists) {
-    fallbackWorkersCache = fallbackWorkersCache.map(w => w.id === workerId ? { ...w, ...updatedWorker } : w);
+    fallbackWorkersCache = fallbackWorkersCache.map(w => w.id === workerId ? { ...w, ...cleanRecord } : w);
   } else {
-    fallbackWorkersCache = [updatedWorker, ...fallbackWorkersCache];
+    fallbackWorkersCache = [cleanRecord, ...fallbackWorkersCache];
   }
   saveJsonStore(WORKERS_STORE_PATH, fallbackWorkersCache);
+};
+
+const clipStr = (val, maxLen) => {
+  if (val === null || val === undefined) return '';
+  const str = String(val);
+  return maxLen && str.length > maxLen ? str.slice(0, maxLen) : str;
+};
+
+const SCHEMA_STATEMENTS = [
+  `IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'WorkersMaster' AND COLUMN_NAME = 'completedAt') BEGIN ALTER TABLE dbo.WorkersMaster ADD completedAt VARCHAR(50) NULL; END;`,
+  `IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'WorkerHRData' AND COLUMN_NAME = 'photo') BEGIN ALTER TABLE dbo.WorkerHRData ADD photo VARCHAR(MAX) NULL; END;`,
+  `IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'WorkerHRData' AND COLUMN_NAME = 'contractorCode') BEGIN ALTER TABLE dbo.WorkerHRData ADD contractorCode VARCHAR(50) NULL; END;`,
+  `IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'WorkerHRData' AND COLUMN_NAME = 'locationCode') BEGIN ALTER TABLE dbo.WorkerHRData ADD locationCode VARCHAR(20) NULL; END;`,
+  `IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'WorkerHRData' AND COLUMN_NAME = 'locationName') BEGIN ALTER TABLE dbo.WorkerHRData ADD locationName VARCHAR(200) NULL; END;`,
+  `IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'WorkerHRData' AND COLUMN_NAME = 'address') BEGIN ALTER TABLE dbo.WorkerHRData ADD address VARCHAR(500) NULL; END;`,
+  `IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'WorkerHRData' AND COLUMN_NAME = 'workingLocation') BEGIN ALTER TABLE dbo.WorkerHRData ADD workingLocation VARCHAR(250) NULL; END;`,
+  `IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'WorkerHRData' AND COLUMN_NAME = 'activity') BEGIN ALTER TABLE dbo.WorkerHRData ADD activity VARCHAR(200) NULL; END;`,
+  `IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'WorkerCampAllocation' AND COLUMN_NAME = 'contractorSupervisor') BEGIN ALTER TABLE dbo.WorkerCampAllocation ADD contractorSupervisor VARCHAR(200) NULL; END;`,
+  `IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'WorkerCampAllocation' AND COLUMN_NAME = 'supervisorMobile') BEGIN ALTER TABLE dbo.WorkerCampAllocation ADD supervisorMobile VARCHAR(30) NULL; END;`,
+  `IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'ContractorsMaster' AND schema_id = SCHEMA_ID('dbo')) BEGIN CREATE TABLE dbo.ContractorsMaster (id VARCHAR(50) NOT NULL, contractorCode VARCHAR(50) NULL, locationCode VARCHAR(20) NULL, locationName VARCHAR(200) NULL, companyName VARCHAR(200) NOT NULL, licenseNo VARCHAR(100) NULL, department VARCHAR(100) NULL, contactPerson VARCHAR(200) NULL, contactMobile VARCHAR(30) NULL, email VARCHAR(200) NULL, address VARCHAR(500) NULL, registrationNo VARCHAR(100) NULL, labourLicenseNo VARCHAR(100) NULL, pfCode VARCHAR(100) NULL, esicCode VARCHAR(100) NULL, gstNo VARCHAR(50) NULL, panNo VARCHAR(50) NULL, validFrom VARCHAR(50) NULL, validUpto VARCHAR(50) NULL, status VARCHAR(30) NOT NULL, createdAt VARCHAR(50) NULL); ALTER TABLE dbo.ContractorsMaster ADD CONSTRAINT PK_ContractorsMaster PRIMARY KEY NONCLUSTERED (id) NOT ENFORCED; END;`,
+  `IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'ContractorsMaster' AND COLUMN_NAME = 'contractorCode') BEGIN ALTER TABLE dbo.ContractorsMaster ADD contractorCode VARCHAR(50) NULL; END;`,
+  `IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'ContractorsMaster' AND COLUMN_NAME = 'locationCode') BEGIN ALTER TABLE dbo.ContractorsMaster ADD locationCode VARCHAR(20) NULL; END;`,
+  `IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'ContractorsMaster' AND COLUMN_NAME = 'locationName') BEGIN ALTER TABLE dbo.ContractorsMaster ADD locationName VARCHAR(200) NULL; END;`,
+  `IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'LocationsMaster' AND schema_id = SCHEMA_ID('dbo')) BEGIN CREATE TABLE dbo.LocationsMaster (id VARCHAR(50) NOT NULL, locationCode VARCHAR(20) NOT NULL, locationName VARCHAR(200) NOT NULL, status VARCHAR(30) NOT NULL, createdAt VARCHAR(50) NULL); ALTER TABLE dbo.LocationsMaster ADD CONSTRAINT PK_LocationsMaster PRIMARY KEY NONCLUSTERED (id) NOT ENFORCED; END;`
+];
+
+const ensureFabricSchema = async (targetPool) => {
+  if (!targetPool || !targetPool.connected) return;
+  for (const stmt of SCHEMA_STATEMENTS) {
+    try {
+      await targetPool.request().query(stmt);
+    } catch (err) {
+      console.warn('[Microsoft Fabric] Schema sync notice:', err.message);
+    }
+  }
+};
+
+const runFabricWriteWithRetry = async (label, writeFn) => {
+  await connectToFabric();
+  if (!pool || !pool.connected) return false;
+  try {
+    await writeFn(pool);
+    return true;
+  } catch (err) {
+    console.error(`[Microsoft Fabric] ${label} error:`, err.message);
+    if (String(err.message || '').includes('Invalid column') || String(err.message || '').includes('Invalid object')) {
+      try {
+        await ensureFabricSchema(pool);
+        await writeFn(pool);
+        return true;
+      } catch (retryErr) {
+        console.error(`[Microsoft Fabric] ${label} retry error:`, retryErr.message);
+      }
+    }
+    return false;
+  }
 };
 
 /**
@@ -281,104 +343,8 @@ export const connectWithToken = async (token) => {
     });
     await pool.connect();
 
-    // Auto-verify columns and master tables
-    try {
-      await pool.request().query(`
-        IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'WorkersMaster' AND COLUMN_NAME = 'completedAt')
-        BEGIN
-          ALTER TABLE dbo.WorkersMaster ADD completedAt VARCHAR(50) NULL;
-        END;
-        IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'WorkerHRData' AND COLUMN_NAME = 'photo')
-        BEGIN
-          ALTER TABLE dbo.WorkerHRData ADD photo VARCHAR(MAX) NULL;
-        END;
-        IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'WorkerHRData' AND COLUMN_NAME = 'contractorCode')
-        BEGIN
-          ALTER TABLE dbo.WorkerHRData ADD contractorCode VARCHAR(50) NULL;
-        END;
-        IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'WorkerHRData' AND COLUMN_NAME = 'locationCode')
-        BEGIN
-          ALTER TABLE dbo.WorkerHRData ADD locationCode VARCHAR(20) NULL;
-        END;
-        IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'WorkerHRData' AND COLUMN_NAME = 'locationName')
-        BEGIN
-          ALTER TABLE dbo.WorkerHRData ADD locationName VARCHAR(200) NULL;
-        END;
-        IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'WorkerHRData' AND COLUMN_NAME = 'address')
-        BEGIN
-          ALTER TABLE dbo.WorkerHRData ADD address VARCHAR(500) NULL;
-        END;
-        IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'WorkerHRData' AND COLUMN_NAME = 'workingLocation')
-        BEGIN
-          ALTER TABLE dbo.WorkerHRData ADD workingLocation VARCHAR(250) NULL;
-        END;
-        IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'WorkerHRData' AND COLUMN_NAME = 'activity')
-        BEGIN
-          ALTER TABLE dbo.WorkerHRData ADD activity VARCHAR(200) NULL;
-        END;
-        IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'WorkerCampAllocation' AND COLUMN_NAME = 'contractorSupervisor')
-        BEGIN
-          ALTER TABLE dbo.WorkerCampAllocation ADD contractorSupervisor VARCHAR(200) NULL;
-        END;
-        IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'WorkerCampAllocation' AND COLUMN_NAME = 'supervisorMobile')
-        BEGIN
-          ALTER TABLE dbo.WorkerCampAllocation ADD supervisorMobile VARCHAR(30) NULL;
-        END;
-        IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'ContractorsMaster' AND schema_id = SCHEMA_ID('dbo'))
-        BEGIN
-          CREATE TABLE dbo.ContractorsMaster (
-            id VARCHAR(50) NOT NULL,
-            contractorCode VARCHAR(50) NULL,
-            locationCode VARCHAR(20) NULL,
-            locationName VARCHAR(200) NULL,
-            companyName VARCHAR(200) NOT NULL,
-            licenseNo VARCHAR(100) NULL,
-            department VARCHAR(100) NULL,
-            contactPerson VARCHAR(200) NULL,
-            contactMobile VARCHAR(30) NULL,
-            email VARCHAR(200) NULL,
-            address VARCHAR(500) NULL,
-            registrationNo VARCHAR(100) NULL,
-            labourLicenseNo VARCHAR(100) NULL,
-            pfCode VARCHAR(100) NULL,
-            esicCode VARCHAR(100) NULL,
-            gstNo VARCHAR(50) NULL,
-            panNo VARCHAR(50) NULL,
-            validFrom VARCHAR(50) NULL,
-            validUpto VARCHAR(50) NULL,
-            status VARCHAR(30) NOT NULL,
-            createdAt VARCHAR(50) NULL
-          );
-          ALTER TABLE dbo.ContractorsMaster ADD CONSTRAINT PK_ContractorsMaster PRIMARY KEY NONCLUSTERED (id) NOT ENFORCED;
-        END
-        ELSE
-        BEGIN
-          IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'ContractorsMaster' AND COLUMN_NAME = 'contractorCode')
-          BEGIN
-            ALTER TABLE dbo.ContractorsMaster ADD contractorCode VARCHAR(50) NULL;
-          END;
-          IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'ContractorsMaster' AND COLUMN_NAME = 'locationCode')
-          BEGIN
-            ALTER TABLE dbo.ContractorsMaster ADD locationCode VARCHAR(20) NULL;
-          END;
-          IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'ContractorsMaster' AND COLUMN_NAME = 'locationName')
-          BEGIN
-            ALTER TABLE dbo.ContractorsMaster ADD locationName VARCHAR(200) NULL;
-          END;
-        END;
-        IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'LocationsMaster' AND schema_id = SCHEMA_ID('dbo'))
-        BEGIN
-          CREATE TABLE dbo.LocationsMaster (
-            id VARCHAR(50) NOT NULL,
-            locationCode VARCHAR(20) NOT NULL,
-            locationName VARCHAR(200) NOT NULL,
-            status VARCHAR(30) NOT NULL,
-            createdAt VARCHAR(50) NULL
-          );
-          ALTER TABLE dbo.LocationsMaster ADD CONSTRAINT PK_LocationsMaster PRIMARY KEY NONCLUSTERED (id) NOT ENFORCED;
-        END;
-      `);
-    } catch (scErr) { }
+    // Auto-verify columns and master tables independently
+    await ensureFabricSchema(pool);
 
     connectionStatus = {
       isConnected: true,
@@ -547,6 +513,7 @@ export const connectToFabric = async (force = false) => {
     const config = getSqlConfig();
     pool = new sql.ConnectionPool(config);
     await pool.connect();
+    await ensureFabricSchema(pool);
 
     connectionStatus = {
       isConnected: true,
@@ -776,9 +743,22 @@ export const dbGetAllWorkers = async () => {
         } : null
       }));
 
-      fallbackWorkersCache = records;
-      saveJsonStore(WORKERS_STORE_PATH, records);
-      return records;
+      // Preserve any locally-saved pending-sync records so Fabric reads never wipe unsynced worker submissions
+      const pendingLocal = (fallbackWorkersCache || []).filter(w => w && w._fabricPendingSync);
+      const mergedById = new Map(records.map(r => [r.id, r]));
+      pendingLocal.forEach(p => {
+        const existing = mergedById.get(p.id);
+        if (!existing || new Date(p.updatedAt || 0).getTime() >= new Date(existing.updatedAt || 0).getTime()) {
+          mergedById.set(p.id, p);
+        }
+      });
+      const finalRecords = Array.from(mergedById.values()).sort(
+        (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+      );
+
+      fallbackWorkersCache = finalRecords;
+      saveJsonStore(WORKERS_STORE_PATH, finalRecords);
+      return finalRecords;
     } catch (err) {
       console.error('[Microsoft Fabric] Query error in dbGetAllWorkers, using fallback:', err.message);
     }
@@ -792,71 +772,66 @@ export const dbGetAllWorkers = async () => {
  */
 export const dbRegisterWorkerHR = async (newWorker) => {
   const now = new Date().toISOString();
-  await connectToFabric();
-  if (pool && pool.connected) {
-    try {
-      const request = new sql.Request(pool);
-      await request
-        .input('id', sql.VarChar(50), newWorker.id)
-        .input('assignedWorkerId', sql.VarChar(50), newWorker.assignedWorkerId || '')
-        .input('stage', sql.Int, newWorker.stage)
-        .input('status', sql.VarChar(50), newWorker.status)
-        .input('fullName', sql.VarChar(200), newWorker.hr.fullName)
-        .input('contractorName', sql.VarChar(200), newWorker.hr.contractorName || '')
-        .input('trade', sql.VarChar(100), newWorker.hr.trade || '')
-        .input('mobileNumber', sql.VarChar(20), newWorker.hr.mobileNumber || '')
-        .input('createdAt', sql.VarChar(50), newWorker.createdAt || now)
-        .input('updatedAt', sql.VarChar(50), newWorker.updatedAt || now)
-        .input('fatherHusbandName', sql.VarChar(200), newWorker.hr.fatherHusbandName || '')
-        .input('dob', sql.VarChar(50), newWorker.hr.dob || '')
-        .input('age', sql.Int, parseInt(newWorker.hr.age, 10) || null)
-        .input('gender', sql.VarChar(10), newWorker.hr.gender || '')
-        .input('idProofType', sql.VarChar(100), newWorker.hr.idProofType || '')
-        .input('idProofRef', sql.VarChar(100), newWorker.hr.idProofRef || '')
-        .input('contractorCode', sql.VarChar(50), newWorker.hr.contractorCode || '')
-        .input('locationCode', sql.VarChar(20), newWorker.hr.locationCode || '15')
-        .input('locationName', sql.VarChar(200), newWorker.hr.locationName || '')
-        .input('contractorLicense', sql.VarChar(100), newWorker.hr.contractorLicense || '')
-        .input('address', sql.VarChar(500), newWorker.hr.address || '')
-        .input('workingLocation', sql.VarChar(250), newWorker.hr.workingLocation || '')
-        .input('activity', sql.VarChar(200), newWorker.hr.activity || '')
-        .input('emergencyPerson', sql.VarChar(200), newWorker.hr.emergencyPerson || '')
-        .input('emergencyRelationship', sql.VarChar(100), newWorker.hr.emergencyRelationship || '')
-        .input('emergencyMobile', sql.VarChar(20), newWorker.hr.emergencyMobile || '')
-        .input('photo', sql.VarChar(sql.MAX), newWorker.hr.photo || '')
-        .query(`
-          IF NOT EXISTS (SELECT 1 FROM dbo.WorkersMaster WHERE id = @id)
-          BEGIN
-            INSERT INTO dbo.WorkersMaster (id, assignedWorkerId, stage, status, fullName, contractorName, trade, mobileNumber, createdAt, updatedAt)
-            VALUES (@id, @assignedWorkerId, @stage, @status, @fullName, @contractorName, @trade, @mobileNumber, @createdAt, @updatedAt);
-          END
-          ELSE
-          BEGIN
-            UPDATE dbo.WorkersMaster 
-            SET assignedWorkerId = @assignedWorkerId, stage = @stage, status = @status, fullName = @fullName, contractorName = @contractorName, trade = @trade, mobileNumber = @mobileNumber, updatedAt = @updatedAt
-            WHERE id = @id;
-          END;
+  const fabricSaved = await runFabricWriteWithRetry(`Register HR ${newWorker.id}`, async (targetPool) => {
+    const request = new sql.Request(targetPool);
+    await request
+      .input('id', sql.VarChar(50), clipStr(newWorker.id, 50))
+      .input('assignedWorkerId', sql.VarChar(50), clipStr(newWorker.assignedWorkerId, 50))
+      .input('stage', sql.Int, Number(newWorker.stage) || 2)
+      .input('status', sql.VarChar(50), clipStr(newWorker.status || 'IN_PROGRESS', 50))
+      .input('fullName', sql.VarChar(200), clipStr(newWorker.hr.fullName, 200))
+      .input('contractorName', sql.VarChar(200), clipStr(newWorker.hr.contractorName, 200))
+      .input('trade', sql.VarChar(100), clipStr(newWorker.hr.trade, 100))
+      .input('mobileNumber', sql.VarChar(20), clipStr(newWorker.hr.mobileNumber, 20))
+      .input('createdAt', sql.VarChar(50), clipStr(newWorker.createdAt || now, 50))
+      .input('updatedAt', sql.VarChar(50), clipStr(newWorker.updatedAt || now, 50))
+      .input('fatherHusbandName', sql.VarChar(200), clipStr(newWorker.hr.fatherHusbandName, 200))
+      .input('dob', sql.VarChar(50), clipStr(newWorker.hr.dob, 50))
+      .input('age', sql.Int, parseInt(newWorker.hr.age, 10) || null)
+      .input('gender', sql.VarChar(10), clipStr(newWorker.hr.gender, 10))
+      .input('idProofType', sql.VarChar(100), clipStr(newWorker.hr.idProofType, 100))
+      .input('idProofRef', sql.VarChar(100), clipStr(newWorker.hr.idProofRef, 100))
+      .input('contractorCode', sql.VarChar(50), clipStr(newWorker.hr.contractorCode, 50))
+      .input('locationCode', sql.VarChar(20), clipStr(newWorker.hr.locationCode || '15', 20))
+      .input('locationName', sql.VarChar(200), clipStr(newWorker.hr.locationName, 200))
+      .input('contractorLicense', sql.VarChar(100), clipStr(newWorker.hr.contractorLicense, 100))
+      .input('address', sql.VarChar(500), clipStr(newWorker.hr.address, 500))
+      .input('workingLocation', sql.VarChar(250), clipStr(newWorker.hr.workingLocation, 250))
+      .input('activity', sql.VarChar(200), clipStr(newWorker.hr.activity, 200))
+      .input('emergencyPerson', sql.VarChar(200), clipStr(newWorker.hr.emergencyPerson, 200))
+      .input('emergencyRelationship', sql.VarChar(100), clipStr(newWorker.hr.emergencyRelationship, 100))
+      .input('emergencyMobile', sql.VarChar(20), clipStr(newWorker.hr.emergencyMobile, 20))
+      .input('photo', sql.VarChar(sql.MAX), newWorker.hr.photo || '')
+      .query(`
+        IF NOT EXISTS (SELECT 1 FROM dbo.WorkersMaster WHERE id = @id)
+        BEGIN
+          INSERT INTO dbo.WorkersMaster (id, assignedWorkerId, stage, status, fullName, contractorName, trade, mobileNumber, createdAt, updatedAt)
+          VALUES (@id, @assignedWorkerId, @stage, @status, @fullName, @contractorName, @trade, @mobileNumber, @createdAt, @updatedAt);
+        END
+        ELSE
+        BEGIN
+          UPDATE dbo.WorkersMaster 
+          SET assignedWorkerId = @assignedWorkerId, stage = @stage, status = @status, fullName = @fullName, contractorName = @contractorName, trade = @trade, mobileNumber = @mobileNumber, updatedAt = @updatedAt
+          WHERE id = @id;
+        END;
 
-          IF NOT EXISTS (SELECT 1 FROM dbo.WorkerHRData WHERE workerId = @id)
-          BEGIN
-            INSERT INTO dbo.WorkerHRData (workerId, fullName, fatherHusbandName, dob, age, gender, mobileNumber, idProofType, idProofRef, contractorName, contractorCode, locationCode, locationName, contractorLicense, address, workingLocation, activity, emergencyPerson, emergencyRelationship, emergencyMobile, photo, registeredAt)
-            VALUES (@id, @fullName, @fatherHusbandName, @dob, @age, @gender, @mobileNumber, @idProofType, @idProofRef, @contractorName, @contractorCode, @locationCode, @locationName, @contractorLicense, @address, @workingLocation, @activity, @emergencyPerson, @emergencyRelationship, @emergencyMobile, @photo, @createdAt);
-          END
-          ELSE
-          BEGIN
-            UPDATE dbo.WorkerHRData
-            SET fullName = @fullName, fatherHusbandName = @fatherHusbandName, dob = @dob, age = @age, gender = @gender, mobileNumber = @mobileNumber, idProofType = @idProofType, idProofRef = @idProofRef, contractorName = @contractorName, contractorCode = @contractorCode, locationCode = @locationCode, locationName = @locationName, contractorLicense = @contractorLicense, address = @address, workingLocation = @workingLocation, activity = @activity, emergencyPerson = @emergencyPerson, emergencyRelationship = @emergencyRelationship, emergencyMobile = @emergencyMobile, photo = COALESCE(NULLIF(@photo, ''), photo)
-            WHERE workerId = @id;
-          END;
-        `);
-      console.log(`[Microsoft Fabric] Live Insert: Worker ${newWorker.id} saved in Fabric SQL database.`);
-    } catch (err) {
-      console.error('[Microsoft Fabric] Insert failed:', err.message);
-    }
-  }
+        IF NOT EXISTS (SELECT 1 FROM dbo.WorkerHRData WHERE workerId = @id)
+        BEGIN
+          INSERT INTO dbo.WorkerHRData (workerId, fullName, fatherHusbandName, dob, age, gender, mobileNumber, idProofType, idProofRef, contractorName, contractorCode, locationCode, locationName, contractorLicense, address, workingLocation, activity, emergencyPerson, emergencyRelationship, emergencyMobile, photo, registeredAt)
+          VALUES (@id, @fullName, @fatherHusbandName, @dob, @age, @gender, @mobileNumber, @idProofType, @idProofRef, @contractorName, @contractorCode, @locationCode, @locationName, @contractorLicense, @address, @workingLocation, @activity, @emergencyPerson, @emergencyRelationship, @emergencyMobile, @photo, @createdAt);
+        END
+        ELSE
+        BEGIN
+          UPDATE dbo.WorkerHRData
+          SET fullName = @fullName, fatherHusbandName = @fatherHusbandName, dob = @dob, age = @age, gender = @gender, mobileNumber = @mobileNumber, idProofType = @idProofType, idProofRef = @idProofRef, contractorName = @contractorName, contractorCode = @contractorCode, locationCode = @locationCode, locationName = @locationName, contractorLicense = @contractorLicense, address = @address, workingLocation = @workingLocation, activity = @activity, emergencyPerson = @emergencyPerson, emergencyRelationship = @emergencyRelationship, emergencyMobile = @emergencyMobile, photo = COALESCE(NULLIF(@photo, ''), photo)
+          WHERE workerId = @id;
+        END;
+      `);
+    console.log(`[Microsoft Fabric] Live Insert: Worker ${newWorker.id} saved in Fabric SQL database.`);
+  });
 
-  // Keep fallback cache synced and dispatch live Fabric background sync
-  upsertFallbackWorker(newWorker.id, newWorker);
+  // Keep fallback cache synced and preserve _fabricPendingSync if Fabric write failed
+  upsertFallbackWorker(newWorker.id, newWorker, !fabricSaved);
   syncToPyBridge('register', newWorker);
   return newWorker;
 };
@@ -901,56 +876,51 @@ export const dbUpdateWorkerPhoto = async (workerId, photoUrl) => {
  */
 export const dbUpdateMedical = async (workerId, medicalData, updatedWorker) => {
   const now = new Date().toISOString();
-  await connectToFabric();
-  if (pool && pool.connected) {
-    try {
-      const request = new sql.Request(pool);
-      await request
-        .input('workerId', sql.VarChar(50), workerId)
-        .input('bloodGroup', sql.VarChar(10), medicalData.bloodGroup || '')
-        .input('heightCm', sql.Int, Math.round(Number(medicalData.heightCm)) || null)
-        .input('weightKg', sql.Int, Math.round(Number(medicalData.weightKg)) || null)
-        .input('bmi', sql.VarChar(20), String(medicalData.bmi || ''))
-        .input('bmiCategory', sql.VarChar(50), medicalData.bmiCategory || '')
-        .input('bpSystolic', sql.Int, parseInt(medicalData.bpSystolic, 10) || null)
-        .input('bpDiastolic', sql.Int, parseInt(medicalData.bpDiastolic, 10) || null)
-        .input('spo2', sql.Int, parseInt(medicalData.spo2, 10) || null)
-        .input('pulseRate', sql.Int, parseInt(medicalData.pulseRate, 10) || null)
-        .input('respirationRate', sql.Int, parseInt(medicalData.respirationRate, 10) || null)
-        .input('rbs', sql.Int, parseInt(medicalData.rbs, 10) || null)
-        .input('alcoholTest', sql.VarChar(20), medicalData.alcoholTest || '')
-        .input('visionTest', sql.VarChar(50), medicalData.visionTest || '')
-        .input('hearingTest', sql.VarChar(50), medicalData.hearingTest || '')
-        .input('vertigoTest', sql.VarChar(50), medicalData.vertigoTest || '')
-        .input('existingIllness', sql.VarChar(500), medicalData.existingIllness || '')
-        .input('fitnessStatus', sql.VarChar(50), medicalData.fitnessStatus || '')
-        .input('examinerName', sql.VarChar(200), medicalData.examinerName || '')
-        .input('remarks', sql.VarChar(1000), medicalData.remarks || '')
-        .input('stage', sql.Int, updatedWorker.stage)
-        .input('status', sql.VarChar(50), updatedWorker.status)
-        .input('updatedAt', sql.VarChar(50), now)
-        .query(`
-          IF NOT EXISTS (SELECT 1 FROM dbo.WorkerMedicalVitals WHERE workerId = @workerId)
-          BEGIN
-            INSERT INTO dbo.WorkerMedicalVitals (workerId, bloodGroup, heightCm, weightKg, bmi, bmiCategory, bpSystolic, bpDiastolic, spo2, pulseRate, respirationRate, rbs, alcoholTest, visionTest, hearingTest, vertigoTest, existingIllness, fitnessStatus, examinerName, remarks, examinedAt)
-            VALUES (@workerId, @bloodGroup, @heightCm, @weightKg, @bmi, @bmiCategory, @bpSystolic, @bpDiastolic, @spo2, @pulseRate, @respirationRate, @rbs, @alcoholTest, @visionTest, @hearingTest, @vertigoTest, @existingIllness, @fitnessStatus, @examinerName, @remarks, @updatedAt);
-          END
-          ELSE
-          BEGIN
-            UPDATE dbo.WorkerMedicalVitals
-            SET bloodGroup = @bloodGroup, heightCm = @heightCm, weightKg = @weightKg, bmi = @bmi, bmiCategory = @bmiCategory, bpSystolic = @bpSystolic, bpDiastolic = @bpDiastolic, spo2 = @spo2, pulseRate = @pulseRate, respirationRate = @respirationRate, rbs = @rbs, alcoholTest = @alcoholTest, visionTest = @visionTest, hearingTest = @hearingTest, vertigoTest = @vertigoTest, existingIllness = @existingIllness, fitnessStatus = @fitnessStatus, examinerName = @examinerName, remarks = @remarks, examinedAt = @updatedAt
-            WHERE workerId = @workerId;
-          END;
+  const fabricSaved = await runFabricWriteWithRetry(`Update Medical ${workerId}`, async (targetPool) => {
+    const request = new sql.Request(targetPool);
+    await request
+      .input('workerId', sql.VarChar(50), clipStr(workerId, 50))
+      .input('bloodGroup', sql.VarChar(10), clipStr(medicalData.bloodGroup, 10))
+      .input('heightCm', sql.Int, Math.round(Number(medicalData.heightCm)) || null)
+      .input('weightKg', sql.Int, Math.round(Number(medicalData.weightKg)) || null)
+      .input('bmi', sql.VarChar(20), clipStr(medicalData.bmi, 20))
+      .input('bmiCategory', sql.VarChar(50), clipStr(medicalData.bmiCategory, 50))
+      .input('bpSystolic', sql.Int, parseInt(medicalData.bpSystolic, 10) || null)
+      .input('bpDiastolic', sql.Int, parseInt(medicalData.bpDiastolic, 10) || null)
+      .input('spo2', sql.Int, parseInt(medicalData.spo2, 10) || null)
+      .input('pulseRate', sql.Int, parseInt(medicalData.pulseRate, 10) || null)
+      .input('respirationRate', sql.Int, parseInt(medicalData.respirationRate, 10) || null)
+      .input('rbs', sql.Int, parseInt(medicalData.rbs, 10) || null)
+      .input('alcoholTest', sql.VarChar(20), clipStr(medicalData.alcoholTest, 20))
+      .input('visionTest', sql.VarChar(50), clipStr(medicalData.visionTest, 50))
+      .input('hearingTest', sql.VarChar(50), clipStr(medicalData.hearingTest, 50))
+      .input('vertigoTest', sql.VarChar(50), clipStr(medicalData.vertigoTest, 50))
+      .input('existingIllness', sql.VarChar(500), clipStr(medicalData.existingIllness, 500))
+      .input('fitnessStatus', sql.VarChar(50), clipStr(medicalData.fitnessStatus, 50))
+      .input('examinerName', sql.VarChar(200), clipStr(medicalData.examinerName, 200))
+      .input('remarks', sql.VarChar(1000), clipStr(medicalData.remarks, 1000))
+      .input('stage', sql.Int, updatedWorker.stage)
+      .input('status', sql.VarChar(50), clipStr(updatedWorker.status, 50))
+      .input('updatedAt', sql.VarChar(50), now)
+      .query(`
+        IF NOT EXISTS (SELECT 1 FROM dbo.WorkerMedicalVitals WHERE workerId = @workerId)
+        BEGIN
+          INSERT INTO dbo.WorkerMedicalVitals (workerId, bloodGroup, heightCm, weightKg, bmi, bmiCategory, bpSystolic, bpDiastolic, spo2, pulseRate, respirationRate, rbs, alcoholTest, visionTest, hearingTest, vertigoTest, existingIllness, fitnessStatus, examinerName, remarks, examinedAt)
+          VALUES (@workerId, @bloodGroup, @heightCm, @weightKg, @bmi, @bmiCategory, @bpSystolic, @bpDiastolic, @spo2, @pulseRate, @respirationRate, @rbs, @alcoholTest, @visionTest, @hearingTest, @vertigoTest, @existingIllness, @fitnessStatus, @examinerName, @remarks, @updatedAt);
+        END
+        ELSE
+        BEGIN
+          UPDATE dbo.WorkerMedicalVitals
+          SET bloodGroup = @bloodGroup, heightCm = @heightCm, weightKg = @weightKg, bmi = @bmi, bmiCategory = @bmiCategory, bpSystolic = @bpSystolic, bpDiastolic = @bpDiastolic, spo2 = @spo2, pulseRate = @pulseRate, respirationRate = @respirationRate, rbs = @rbs, alcoholTest = @alcoholTest, visionTest = @visionTest, hearingTest = @hearingTest, vertigoTest = @vertigoTest, existingIllness = @existingIllness, fitnessStatus = @fitnessStatus, examinerName = @examinerName, remarks = @remarks, examinedAt = @updatedAt
+          WHERE workerId = @workerId;
+        END;
 
-          UPDATE dbo.WorkersMaster SET stage = @stage, status = @status, updatedAt = @updatedAt WHERE id = @workerId;
-        `);
-      console.log(`[Microsoft Fabric] Medical update saved for ${workerId}`);
-    } catch (err) {
-      console.error('[Microsoft Fabric] Medical update error:', err.message);
-    }
-  }
+        UPDATE dbo.WorkersMaster SET stage = @stage, status = @status, updatedAt = @updatedAt WHERE id = @workerId;
+      `);
+    console.log(`[Microsoft Fabric] Medical update saved for ${workerId}`);
+  });
 
-  upsertFallbackWorker(workerId, { ...updatedWorker, updatedAt: now });
+  upsertFallbackWorker(workerId, { ...updatedWorker, updatedAt: now }, !fabricSaved);
   syncToPyBridge('update_medical', { workerId, medical: medicalData, worker: updatedWorker });
   return updatedWorker;
 };
@@ -960,44 +930,39 @@ export const dbUpdateMedical = async (workerId, medicalData, updatedWorker) => {
  */
 export const dbUpdateSafety = async (workerId, safetyData, updatedWorker) => {
   const now = new Date().toISOString();
-  await connectToFabric();
-  if (pool && pool.connected) {
-    try {
-      const topicsStr = (safetyData.topicsCovered || []).join(' | ');
-      const ppeStr = (safetyData.ppeIssued || []).join(' | ');
+  const fabricSaved = await runFabricWriteWithRetry(`Update Safety ${workerId}`, async (targetPool) => {
+    const topicsStr = (safetyData.topicsCovered || []).join(' | ');
+    const ppeStr = (safetyData.ppeIssued || []).join(' | ');
 
-      const request = new sql.Request(pool);
-      await request
-        .input('workerId', sql.VarChar(50), workerId)
-        .input('briefingDone', sql.Bit, safetyData.briefingDone ? 1 : 0)
-        .input('topicsCovered', sql.VarChar(2000), topicsStr)
-        .input('ppeIssued', sql.VarChar(2000), ppeStr)
-        .input('safetyOfficerName', sql.VarChar(200), safetyData.safetyOfficerName || '')
-        .input('safetyDate', sql.VarChar(50), safetyData.safetyDate || now.slice(0, 10))
-        .input('stage', sql.Int, updatedWorker.stage)
-        .input('updatedAt', sql.VarChar(50), now)
-        .query(`
-          IF NOT EXISTS (SELECT 1 FROM dbo.WorkerSafetyInduction WHERE workerId = @workerId)
-          BEGIN
-            INSERT INTO dbo.WorkerSafetyInduction (workerId, briefingDone, topicsCovered, ppeIssued, safetyOfficerName, safetyDate, inductedAt)
-            VALUES (@workerId, @briefingDone, @topicsCovered, @ppeIssued, @safetyOfficerName, @safetyDate, @updatedAt);
-          END
-          ELSE
-          BEGIN
-            UPDATE dbo.WorkerSafetyInduction
-            SET briefingDone = @briefingDone, topicsCovered = @topicsCovered, ppeIssued = @ppeIssued, safetyOfficerName = @safetyOfficerName, safetyDate = @safetyDate, inductedAt = @updatedAt
-            WHERE workerId = @workerId;
-          END;
+    const request = new sql.Request(targetPool);
+    await request
+      .input('workerId', sql.VarChar(50), clipStr(workerId, 50))
+      .input('briefingDone', sql.Bit, safetyData.briefingDone ? 1 : 0)
+      .input('topicsCovered', sql.VarChar(2000), clipStr(topicsStr, 2000))
+      .input('ppeIssued', sql.VarChar(2000), clipStr(ppeStr, 2000))
+      .input('safetyOfficerName', sql.VarChar(200), clipStr(safetyData.safetyOfficerName, 200))
+      .input('safetyDate', sql.VarChar(50), clipStr(safetyData.safetyDate || now.slice(0, 10), 50))
+      .input('stage', sql.Int, updatedWorker.stage)
+      .input('updatedAt', sql.VarChar(50), now)
+      .query(`
+        IF NOT EXISTS (SELECT 1 FROM dbo.WorkerSafetyInduction WHERE workerId = @workerId)
+        BEGIN
+          INSERT INTO dbo.WorkerSafetyInduction (workerId, briefingDone, topicsCovered, ppeIssued, safetyOfficerName, safetyDate, inductedAt)
+          VALUES (@workerId, @briefingDone, @topicsCovered, @ppeIssued, @safetyOfficerName, @safetyDate, @updatedAt);
+        END
+        ELSE
+        BEGIN
+          UPDATE dbo.WorkerSafetyInduction
+          SET briefingDone = @briefingDone, topicsCovered = @topicsCovered, ppeIssued = @ppeIssued, safetyOfficerName = @safetyOfficerName, safetyDate = @safetyDate, inductedAt = @updatedAt
+          WHERE workerId = @workerId;
+        END;
 
-          UPDATE dbo.WorkersMaster SET stage = @stage, updatedAt = @updatedAt WHERE id = @workerId;
-        `);
-      console.log(`[Microsoft Fabric] Safety induction saved for ${workerId}`);
-    } catch (err) {
-      console.error('[Microsoft Fabric] Safety update error:', err.message);
-    }
-  }
+        UPDATE dbo.WorkersMaster SET stage = @stage, updatedAt = @updatedAt WHERE id = @workerId;
+      `);
+    console.log(`[Microsoft Fabric] Safety induction saved for ${workerId}`);
+  });
 
-  upsertFallbackWorker(workerId, { ...updatedWorker, updatedAt: now });
+  upsertFallbackWorker(workerId, { ...updatedWorker, updatedAt: now }, !fabricSaved);
   syncToPyBridge('update_safety', { workerId, safety: safetyData, worker: updatedWorker });
   return updatedWorker;
 };
@@ -1007,43 +972,38 @@ export const dbUpdateSafety = async (workerId, safetyData, updatedWorker) => {
  */
 export const dbUpdateIT = async (workerId, itData, updatedWorker) => {
   const now = new Date().toISOString();
-  await connectToFabric();
-  if (pool && pool.connected) {
-    try {
-      const request = new sql.Request(pool);
-      await request
-        .input('workerId', sql.VarChar(50), workerId)
-        .input('assignedWorkerId', sql.VarChar(50), updatedWorker.assignedWorkerId || '')
-        .input('faceBiometricRegistered', sql.Bit, itData.faceBiometricRegistered ? 1 : 0)
-        .input('cwmsRegistered', sql.Bit, itData.cwmsRegistered ? 1 : 0)
-        .input('campusMasterUploaded', sql.Bit, itData.campusMasterUploaded ? 1 : 0)
-        .input('undertakingAccepted', sql.Bit, itData.undertakingAccepted ? 1 : 0)
-        .input('itAdminSignature', sql.VarChar(200), itData.itAdminSignature || '')
-        .input('itDate', sql.VarChar(50), itData.itDate || now.slice(0, 10))
-        .input('stage', sql.Int, updatedWorker.stage)
-        .input('updatedAt', sql.VarChar(50), now)
-        .query(`
-          IF NOT EXISTS (SELECT 1 FROM dbo.WorkerITBiometrics WHERE workerId = @workerId)
-          BEGIN
-            INSERT INTO dbo.WorkerITBiometrics (workerId, assignedWorkerId, faceBiometricRegistered, cwmsRegistered, campusMasterUploaded, undertakingAccepted, itAdminSignature, itDate, enrolledAt)
-            VALUES (@workerId, @assignedWorkerId, @faceBiometricRegistered, @cwmsRegistered, @campusMasterUploaded, @undertakingAccepted, @itAdminSignature, @itDate, @updatedAt);
-          END
-          ELSE
-          BEGIN
-            UPDATE dbo.WorkerITBiometrics
-            SET assignedWorkerId = @assignedWorkerId, faceBiometricRegistered = @faceBiometricRegistered, cwmsRegistered = @cwmsRegistered, campusMasterUploaded = @campusMasterUploaded, undertakingAccepted = @undertakingAccepted, itAdminSignature = @itAdminSignature, itDate = @itDate, enrolledAt = @updatedAt
-            WHERE workerId = @workerId;
-          END;
+  const fabricSaved = await runFabricWriteWithRetry(`Update IT ${workerId}`, async (targetPool) => {
+    const request = new sql.Request(targetPool);
+    await request
+      .input('workerId', sql.VarChar(50), clipStr(workerId, 50))
+      .input('assignedWorkerId', sql.VarChar(50), clipStr(updatedWorker.assignedWorkerId, 50))
+      .input('faceBiometricRegistered', sql.Bit, itData.faceBiometricRegistered ? 1 : 0)
+      .input('cwmsRegistered', sql.Bit, itData.cwmsRegistered ? 1 : 0)
+      .input('campusMasterUploaded', sql.Bit, itData.campusMasterUploaded ? 1 : 0)
+      .input('undertakingAccepted', sql.Bit, itData.undertakingAccepted ? 1 : 0)
+      .input('itAdminSignature', sql.VarChar(200), clipStr(itData.itAdminSignature, 200))
+      .input('itDate', sql.VarChar(50), clipStr(itData.itDate || now.slice(0, 10), 50))
+      .input('stage', sql.Int, updatedWorker.stage)
+      .input('updatedAt', sql.VarChar(50), now)
+      .query(`
+        IF NOT EXISTS (SELECT 1 FROM dbo.WorkerITBiometrics WHERE workerId = @workerId)
+        BEGIN
+          INSERT INTO dbo.WorkerITBiometrics (workerId, assignedWorkerId, faceBiometricRegistered, cwmsRegistered, campusMasterUploaded, undertakingAccepted, itAdminSignature, itDate, enrolledAt)
+          VALUES (@workerId, @assignedWorkerId, @faceBiometricRegistered, @cwmsRegistered, @campusMasterUploaded, @undertakingAccepted, @itAdminSignature, @itDate, @updatedAt);
+        END
+        ELSE
+        BEGIN
+          UPDATE dbo.WorkerITBiometrics
+          SET assignedWorkerId = @assignedWorkerId, faceBiometricRegistered = @faceBiometricRegistered, cwmsRegistered = @cwmsRegistered, campusMasterUploaded = @campusMasterUploaded, undertakingAccepted = @undertakingAccepted, itAdminSignature = @itAdminSignature, itDate = @itDate, enrolledAt = @updatedAt
+          WHERE workerId = @workerId;
+        END;
 
-          UPDATE dbo.WorkersMaster SET assignedWorkerId = @assignedWorkerId, stage = @stage, updatedAt = @updatedAt WHERE id = @workerId;
-        `);
-      console.log(`[Microsoft Fabric] IT Biometrics saved for ${workerId}`);
-    } catch (err) {
-      console.error('[Microsoft Fabric] IT update error:', err.message);
-    }
-  }
+        UPDATE dbo.WorkersMaster SET assignedWorkerId = @assignedWorkerId, stage = @stage, updatedAt = @updatedAt WHERE id = @workerId;
+      `);
+    console.log(`[Microsoft Fabric] IT Biometrics saved for ${workerId}`);
+  });
 
-  upsertFallbackWorker(workerId, { ...updatedWorker, updatedAt: now });
+  upsertFallbackWorker(workerId, { ...updatedWorker, updatedAt: now }, !fabricSaved);
   syncToPyBridge('update_it', { workerId, it: itData, worker: updatedWorker });
   return updatedWorker;
 };
@@ -1055,47 +1015,42 @@ export const dbUpdateCamp = async (workerId, campData, updatedWorker) => {
   const now = new Date().toISOString();
   const completedAt = updatedWorker.completedAt || now;
   const persistedWorker = { ...updatedWorker, updatedAt: now, completedAt };
-  await connectToFabric();
-  if (pool && pool.connected) {
-    try {
-      const request = new sql.Request(pool);
-      await request
-        .input('workerId', sql.VarChar(50), workerId)
-        .input('campName', sql.VarChar(100), campData.campName || '')
-        .input('blockNo', sql.VarChar(50), campData.blockNumber || '')
-        .input('roomNo', sql.VarChar(50), campData.roomNumber || '')
-        .input('bedNo', sql.VarChar(50), campData.bedNumber || '')
-        .input('gatePassActive', sql.Bit, campData.gatePassActive ? 1 : 0)
-        .input('allocatedBy', sql.VarChar(200), campData.allocatedBy || '')
-        .input('allocationDate', sql.VarChar(50), campData.allocationDate || now.slice(0, 10))
-        .input('contractorSupervisor', sql.VarChar(200), campData.contractorSupervisor || '')
-        .input('supervisorMobile', sql.VarChar(30), campData.supervisorMobile || '')
-        .input('stage', sql.Int, persistedWorker.stage)
-        .input('status', sql.VarChar(50), persistedWorker.status)
-        .input('updatedAt', sql.VarChar(50), now)
-        .input('completedAt', sql.VarChar(50), completedAt)
-        .query(`
-          IF NOT EXISTS (SELECT 1 FROM dbo.WorkerCampAllocation WHERE workerId = @workerId)
-          BEGIN
-            INSERT INTO dbo.WorkerCampAllocation (workerId, campName, blockNo, roomNo, bedNo, gatePassActive, allocatedBy, allocationDate, contractorSupervisor, supervisorMobile, allocatedAt)
-            VALUES (@workerId, @campName, @blockNo, @roomNo, @bedNo, @gatePassActive, @allocatedBy, @allocationDate, @contractorSupervisor, @supervisorMobile, @updatedAt);
-          END
-          ELSE
-          BEGIN
-            UPDATE dbo.WorkerCampAllocation
-            SET campName = @campName, blockNo = @blockNo, roomNo = @roomNo, bedNo = @bedNo, gatePassActive = @gatePassActive, allocatedBy = @allocatedBy, allocationDate = @allocationDate, contractorSupervisor = @contractorSupervisor, supervisorMobile = @supervisorMobile, allocatedAt = @updatedAt
-            WHERE workerId = @workerId;
-          END;
+  const fabricSaved = await runFabricWriteWithRetry(`Update Camp ${workerId}`, async (targetPool) => {
+    const request = new sql.Request(targetPool);
+    await request
+      .input('workerId', sql.VarChar(50), clipStr(workerId, 50))
+      .input('campName', sql.VarChar(100), clipStr(campData.campName, 100))
+      .input('blockNo', sql.VarChar(50), clipStr(campData.blockNumber, 50))
+      .input('roomNo', sql.VarChar(50), clipStr(campData.roomNumber, 50))
+      .input('bedNo', sql.VarChar(50), clipStr(campData.bedNumber, 50))
+      .input('gatePassActive', sql.Bit, campData.gatePassActive ? 1 : 0)
+      .input('allocatedBy', sql.VarChar(200), clipStr(campData.allocatedBy, 200))
+      .input('allocationDate', sql.VarChar(50), clipStr(campData.allocationDate || now.slice(0, 10), 50))
+      .input('contractorSupervisor', sql.VarChar(200), clipStr(campData.contractorSupervisor, 200))
+      .input('supervisorMobile', sql.VarChar(30), clipStr(campData.supervisorMobile, 30))
+      .input('stage', sql.Int, persistedWorker.stage)
+      .input('status', sql.VarChar(50), clipStr(persistedWorker.status, 50))
+      .input('updatedAt', sql.VarChar(50), now)
+      .input('completedAt', sql.VarChar(50), completedAt)
+      .query(`
+        IF NOT EXISTS (SELECT 1 FROM dbo.WorkerCampAllocation WHERE workerId = @workerId)
+        BEGIN
+          INSERT INTO dbo.WorkerCampAllocation (workerId, campName, blockNo, roomNo, bedNo, gatePassActive, allocatedBy, allocationDate, contractorSupervisor, supervisorMobile, allocatedAt)
+          VALUES (@workerId, @campName, @blockNo, @roomNo, @bedNo, @gatePassActive, @allocatedBy, @allocationDate, @contractorSupervisor, @supervisorMobile, @updatedAt);
+        END
+        ELSE
+        BEGIN
+          UPDATE dbo.WorkerCampAllocation
+          SET campName = @campName, blockNo = @blockNo, roomNo = @roomNo, bedNo = @bedNo, gatePassActive = @gatePassActive, allocatedBy = @allocatedBy, allocationDate = @allocationDate, contractorSupervisor = @contractorSupervisor, supervisorMobile = @supervisorMobile, allocatedAt = @updatedAt
+          WHERE workerId = @workerId;
+        END;
 
-          UPDATE dbo.WorkersMaster SET stage = @stage, status = @status, updatedAt = @updatedAt, completedAt = @completedAt WHERE id = @workerId;
-        `);
-      console.log(`[Microsoft Fabric] Camp allocation saved for ${workerId}`);
-    } catch (err) {
-      console.error('[Microsoft Fabric] Camp update error:', err.message);
-    }
-  }
+        UPDATE dbo.WorkersMaster SET stage = @stage, status = @status, updatedAt = @updatedAt, completedAt = @completedAt WHERE id = @workerId;
+      `);
+    console.log(`[Microsoft Fabric] Camp allocation saved for ${workerId}`);
+  });
 
-  upsertFallbackWorker(workerId, persistedWorker);
+  upsertFallbackWorker(workerId, persistedWorker, !fabricSaved);
   syncToPyBridge('update_camp', { workerId, camp: campData, worker: persistedWorker });
   return persistedWorker;
 };

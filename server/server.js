@@ -1282,9 +1282,29 @@ app.post('/api/workers', authenticateToken, requireRole(['ADMIN', 'HR']), async 
       return res.status(400).json({ success: false, error: 'Candidate age must be between 18 and 75 years per statutory regulations.' });
     }
 
+    const existing = await dbGetAllWorkers();
+
+    // Prevent accidental overwrite of an existing worker when browser state had not loaded all records yet
+    if (!_isUpdate && existing.some(w => w.id === newWorker.id)) {
+      const year = new Date().getFullYear();
+      let maxRef = 0;
+      existing.forEach(w => {
+        const m = String(w.id || '').match(/-(\d+)$/);
+        if (m) {
+          const n = parseInt(m[1], 10);
+          if (n > maxRef) maxRef = n;
+        }
+      });
+      newWorker.id = `WRK-${year}-${String(maxRef + 1).padStart(3, '0')}`;
+    }
+
+    if (!_isUpdate) {
+      newWorker.stage = Number(newWorker.stage) || 2;
+      newWorker.status = newWorker.status || 'IN_PROGRESS';
+    }
+
     // Ensure Employee ID is created at HR intake if not already provided
     if (!newWorker.assignedWorkerId || !String(newWorker.assignedWorkerId).trim()) {
-      const existing = await dbGetAllWorkers();
       const year = new Date().getFullYear();
       let maxNum = 1000;
       existing.forEach(w => {

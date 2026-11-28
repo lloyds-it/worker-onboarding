@@ -118,8 +118,9 @@ export const Step1HR = ({ initialData, onSave, isReadOnly }) => {
 
   // Keep selected contractor & auto-generated Employee Code synced with live Contractor & Location Masters
   useEffect(() => {
-    if (initialData || isDirtyRef.current) return;
+    if (initialData) return;
     setFormData(prev => {
+      if (isDirtyRef.current && prev.contractorName) return prev;
       const matched = (prev.contractorName && availableContractors.find(c => c.companyName === prev.contractorName)) || availableContractors[0];
       if (!matched) return prev;
 
@@ -212,7 +213,7 @@ export const Step1HR = ({ initialData, onSave, isReadOnly }) => {
     }
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (isReadOnly || isSubmitting) return;
 
@@ -227,10 +228,11 @@ export const Step1HR = ({ initialData, onSave, isReadOnly }) => {
     }
     setIsSubmitting(true);
     isDirtyRef.current = false;
-    onSave(formData);
-    setTimeout(() => {
+    try {
+      await onSave(formData);
+    } finally {
       setIsSubmitting(false);
-    }, 2500);
+    }
   };
 
   return (
