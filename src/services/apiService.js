@@ -728,3 +728,34 @@ export const apiDeleteLocation = async (locationId) => {
   }
   return json.data;
 };
+
+// ============================================================================
+// CONFIGURABLE STAGE DROPDOWN MASTERS API GATEWAY
+// ============================================================================
+
+export const apiGetDropdownMasters = async () => {
+  const res = await fetch(`${API_BASE}/masters/dropdowns`, {
+    headers: getAuthHeaders({ 'Cache-Control': 'no-cache' }),
+    cache: 'no-store',
+    signal: AbortSignal.timeout(8000)
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok || !json.success) {
+    throw new Error(json.error || `Failed to fetch dropdown masters (HTTP ${res.status})`);
+  }
+  return json.data || null;
+};
+
+export const apiSaveDropdownMasters = async (config) => {
+  const res = await fetch(`${API_BASE}/masters/dropdowns`, {
+    method: 'PUT',
+    headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify(config),
+    signal: AbortSignal.timeout(10000)
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok || !json.success) {
+    throw new Error(json.error || `Failed to save dropdown masters (HTTP ${res.status})`);
+  }
+  return json.data;
+};

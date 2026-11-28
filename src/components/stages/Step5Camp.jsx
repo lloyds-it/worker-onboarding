@@ -1,19 +1,39 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Home, CheckCircle2, Building, ShieldCheck, KeyRound } from 'lucide-react';
-import { CAMPS, BLOCKS } from '../../types/constants';
+import { CAMPS, BLOCKS, DEFAULT_DROPDOWN_MASTERS } from '../../types/constants';
 import { useAuth } from '../../context/AuthContext';
+import { useWorkers } from '../../context/WorkerContext';
 
 export const Step5Camp = ({ initialData, worker, onSave, isReadOnly }) => {
   const { currentUser } = useAuth();
+  const { dropdownMasters = {} } = useWorkers();
+
+  const campOptions = useMemo(() => {
+    const base = dropdownMasters?.camps?.length ? dropdownMasters.camps : CAMPS;
+    return initialData?.campName && !base.includes(initialData.campName) ? [...base, initialData.campName] : base;
+  }, [dropdownMasters, initialData]);
+
+  const blockOptions = useMemo(() => {
+    const base = dropdownMasters?.blocks?.length ? dropdownMasters.blocks : BLOCKS;
+    return initialData?.blockNumber && !base.includes(initialData.blockNumber) ? [...base, initialData.blockNumber] : base;
+  }, [dropdownMasters, initialData]);
+
+  const bedOptions = useMemo(() => {
+    const base = dropdownMasters?.beds?.length ? dropdownMasters.beds : DEFAULT_DROPDOWN_MASTERS.beds;
+    return initialData?.bedNumber && !base.some(b => b.value === initialData.bedNumber)
+      ? [...base, { value: initialData.bedNumber, label: initialData.bedNumber }]
+      : base;
+  }, [dropdownMasters, initialData]);
+
   const loggedInCampOfficer = currentUser?.name
     ? `${currentUser.name}${currentUser.designation ? ` (${currentUser.designation})` : ''}`
     : '';
 
   const buildInitialCamp = (data, officer) => ({
-    campName: data?.campName || CAMPS[0],
-    blockNumber: data?.blockNumber || BLOCKS[0],
+    campName: data?.campName || campOptions[0] || CAMPS[0],
+    blockNumber: data?.blockNumber || blockOptions[0] || BLOCKS[0],
     roomNumber: data?.roomNumber || 'A-104',
-    bedNumber: data?.bedNumber || 'Bed 1',
+    bedNumber: data?.bedNumber || bedOptions[0]?.value || 'Bed 1',
     contractorSupervisor: data?.contractorSupervisor || '',
     supervisorMobile: data?.supervisorMobile || '',
     allocatedBy: data?.allocatedBy || officer,
@@ -70,8 +90,8 @@ export const Step5Camp = ({ initialData, worker, onSave, isReadOnly }) => {
     try {
       await onSave({
         ...formData,
-        blockNumber: formData.blockNumber || BLOCKS[0],
-        bedNumber: formData.bedNumber || 'Bed 1',
+        blockNumber: formData.blockNumber || blockOptions[0] || BLOCKS[0],
+        bedNumber: formData.bedNumber || bedOptions[0]?.value || 'Bed 1',
         contractorSupervisor: formData.contractorSupervisor || '',
         gatePassActive: true
       });
@@ -127,7 +147,7 @@ export const Step5Camp = ({ initialData, worker, onSave, isReadOnly }) => {
             onChange={(e) => handleChange('campName', e.target.value)}
             disabled={isReadOnly}
           >
-            {CAMPS.map(c => (
+            {campOptions.map(c => (
               <option key={c} value={c}>{c}</option>
             ))}
           </select>
@@ -144,7 +164,7 @@ export const Step5Camp = ({ initialData, worker, onSave, isReadOnly }) => {
             onChange={(e) => handleChange('blockNumber', e.target.value)}
             disabled={isReadOnly}
           >
-            {BLOCKS.map(b => (
+            {blockOptions.map(b => (
               <option key={b} value={b}>{b}</option>
             ))}
           </select>
@@ -176,10 +196,9 @@ export const Step5Camp = ({ initialData, worker, onSave, isReadOnly }) => {
             onChange={(e) => handleChange('bedNumber', e.target.value)}
             disabled={isReadOnly}
           >
-            <option value="Bed 1">Bed 1 (Lower Bunk)</option>
-            <option value="Bed 2">Bed 2 (Upper Bunk)</option>
-            <option value="Bed 3">Bed 3 (Lower Bunk)</option>
-            <option value="Bed 4">Bed 4 (Upper Bunk)</option>
+            {bedOptions.map(b => (
+              <option key={b.value} value={b.value}>{b.label}</option>
+            ))}
           </select>
           {errors.bedNumber && <span className="error-text">{errors.bedNumber}</span>}
         </div>

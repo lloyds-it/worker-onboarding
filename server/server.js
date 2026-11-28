@@ -47,7 +47,9 @@ import {
   dbDeleteContractor,
   dbGetAllLocations,
   dbSaveLocation,
-  dbDeleteLocation
+  dbDeleteLocation,
+  dbGetDropdownMasters,
+  dbSaveDropdownMasters
 } from './fabricDb.js';
 import {
   notifyNextStageUsers,
@@ -1652,6 +1654,34 @@ app.delete('/api/locations/:id', authenticateToken, requireRole(['ADMIN']), asyn
   } catch (err) {
     console.error('[API DELETE /api/locations/:id] Error:', err.message);
     res.status(500).json({ success: false, error: 'Failed to delete location record.' });
+  }
+});
+
+// ============================================================================
+// CONFIGURABLE STAGE DROPDOWN MASTERS ENDPOINTS
+// ============================================================================
+
+app.get('/api/masters/dropdowns', authenticateToken, async (req, res) => {
+  try {
+    const config = await dbGetDropdownMasters();
+    res.json({ success: true, data: config });
+  } catch (err) {
+    console.error('[API GET /api/masters/dropdowns] Error:', err.message);
+    res.status(500).json({ success: false, error: 'Failed to retrieve dropdown masters configuration.' });
+  }
+});
+
+app.put('/api/masters/dropdowns', authenticateToken, requireRole(['ADMIN']), async (req, res) => {
+  try {
+    const payload = req.body || {};
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+      return res.status(400).json({ success: false, error: 'Invalid dropdown masters payload.' });
+    }
+    const saved = await dbSaveDropdownMasters(payload);
+    res.json({ success: true, data: saved });
+  } catch (err) {
+    console.error('[API PUT /api/masters/dropdowns] Error:', err.message);
+    res.status(500).json({ success: false, error: 'Failed to save dropdown masters configuration.' });
   }
 });
 

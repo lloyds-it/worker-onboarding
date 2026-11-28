@@ -33,8 +33,10 @@ export const DepartmentDashboards = ({ initialTab = 'hr' }) => {
   const lockedTab = ROLE_TAB_MAP[currentRole] || initialTab;
 
   const [activeTab, setActiveTab] = useState(isAdmin ? initialTab : lockedTab);
-  const { workers } = useWorkers();
+  const { workers, dropdownMasters } = useWorkers();
   const stats = getDepartmentStats(workers);
+  const activePpeItems = dropdownMasters?.ppeItems?.length ? dropdownMasters.ppeItems : PPE_ITEMS;
+  const activeCamps = dropdownMasters?.camps?.length ? dropdownMasters.camps : CAMPS;
   const effectiveTab = isAdmin ? activeTab : lockedTab;
   const activeSafetyUsers = (users || []).filter(u => u.role === ROLES.SAFETY && u.status !== 'INACTIVE');
 
@@ -351,8 +353,8 @@ export const DepartmentDashboards = ({ initialTab = 'hr' }) => {
             </div>
             <div style={{ padding: '1.25rem' }}>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1rem' }}>
-                {PPE_ITEMS.map(item => {
-                  const issuedCount = stats.safety.ppeTotals[item.id] || 0;
+                {activePpeItems.map(item => {
+                  const issuedCount = workers.filter(w => Array.isArray(w.safety?.ppeIssued) && w.safety.ppeIssued.includes(item.id)).length;
                   return (
                     <div
                       key={item.id}
@@ -487,8 +489,9 @@ export const DepartmentDashboards = ({ initialTab = 'hr' }) => {
       {effectiveTab === 'camp' && (
         <div>
           <div className="dashboard-grid">
-            {CAMPS.map(campName => {
-              const campData = stats.camp[campName] || { capacity: 100, occupied: 0 };
+            {activeCamps.map(campName => {
+              const occupiedCount = workers.filter(w => w.camp?.campName === campName).length;
+              const campData = stats.camp[campName] || { capacity: 120, occupied: occupiedCount };
               const vacant = campData.capacity - campData.occupied;
               const occRate = ((campData.occupied / campData.capacity) * 100).toFixed(1);
 

@@ -96,3 +96,48 @@ export const CONTRACTORS = [
   { name: 'Afcons Infrastructure Projects', license: 'LIC-MH-2024-5519' },
   { name: 'Gondwana Allied Engineering', license: 'LIC-MH-2026-0044' }
 ];
+
+export const DEFAULT_DROPDOWN_MASTERS = {
+  trades: TRADES,
+  idTypes: ID_TYPES,
+  genders: [
+    { value: 'M', label: 'Male (M)' },
+    { value: 'F', label: 'Female (F)' },
+    { value: 'O', label: 'Other (O)' }
+  ],
+  bloodGroups: ['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-', 'Not Done'],
+  visionTests: [
+    { value: 'Normal', label: 'Normal (6/6 or with corrective lenses)' },
+    { value: 'Impaired', label: 'Impaired (Deficient visual acuity)' }
+  ],
+  hearingTests: [
+    { value: 'Normal', label: 'Normal Bilateral Hearing' },
+    { value: 'Impaired', label: 'Impaired / Partial Deafness' }
+  ],
+  vertigoTests: [
+    { value: 'Fit', label: 'Fit (No Acrophobia/Dizziness)' },
+    { value: 'Unfit', label: 'Unfit (Vertigo Symptoms Present)' },
+    { value: 'N/A', label: 'Not Applicable (Ground Trade Only)' }
+  ],
+  safetyTopics: SAFETY_TOPICS,
+  ppeItems: PPE_ITEMS,
+  camps: CAMPS,
+  blocks: BLOCKS,
+  beds: [
+    { value: 'Bed 1', label: 'Bed 1 (Lower Bunk)' },
+    { value: 'Bed 2', label: 'Bed 2 (Upper Bunk)' },
+    { value: 'Bed 3', label: 'Bed 3 (Lower Bunk)' },
+    { value: 'Bed 4', label: 'Bed 4 (Upper Bunk)' }
+  ],
+  contractorDepartments: ['Civil', 'Mechanical', 'Electrical', 'Other']
+};
+
+export const mergeDropdownMasters = (raw) => {
+  const incoming = raw && typeof raw === 'object' ? raw : {};
+  const result = {};
+  Object.keys(DEFAULT_DROPDOWN_MASTERS).forEach((key) => {
+    const val = incoming[key];
+    result[key] = Array.isArray(val) && val.length > 0 ? val : DEFAULT_DROPDOWN_MASTERS[key];
+  });
+  return result;
+};

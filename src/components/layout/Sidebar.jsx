@@ -205,8 +205,8 @@ export const Sidebar = ({
               title={isCollapsed ? "Contractor Master Register" : undefined}
             >
               <Briefcase size={18} />
-              <span>Contractor Master</span>
-              {!isCollapsed && <span className="nav-counter" style={{ backgroundColor: 'var(--brand-primary)', color: '#FFF' }}>NEW</span>}
+              <span>Contractor &amp; Masters</span>
+              {!isCollapsed && <span className="nav-counter" style={{ backgroundColor: 'var(--brand-primary)', color: '#FFF' }}>CONFIG</span>}
             </button>
           </>
         )}

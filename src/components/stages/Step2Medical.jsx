@@ -1,10 +1,40 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Stethoscope, AlertTriangle, CheckCircle2, XCircle, HeartPulse, ShieldAlert, PauseCircle, CalendarClock, History } from 'lucide-react';
 import { validateMedicalStep, calculateBMI, addDaysToIsoDate, formatTimestamp, getMedicalFitnessMeta } from '../../services/validationService';
 import { useAuth } from '../../context/AuthContext';
+import { useWorkers } from '../../context/WorkerContext';
+import { DEFAULT_DROPDOWN_MASTERS } from '../../types/constants';
 
 export const Step2Medical = ({ initialData, onSave, isReadOnly }) => {
   const { currentUser } = useAuth();
+  const { dropdownMasters = {} } = useWorkers();
+
+  const bloodGroupOptions = useMemo(() => {
+    const base = dropdownMasters?.bloodGroups?.length ? dropdownMasters.bloodGroups : DEFAULT_DROPDOWN_MASTERS.bloodGroups;
+    return initialData?.bloodGroup && !base.includes(initialData.bloodGroup) ? [...base, initialData.bloodGroup] : base;
+  }, [dropdownMasters, initialData]);
+
+  const visionOptions = useMemo(() => {
+    const base = dropdownMasters?.visionTests?.length ? dropdownMasters.visionTests : DEFAULT_DROPDOWN_MASTERS.visionTests;
+    return initialData?.visionTest && !base.some(v => v.value === initialData.visionTest)
+      ? [...base, { value: initialData.visionTest, label: initialData.visionTest }]
+      : base;
+  }, [dropdownMasters, initialData]);
+
+  const hearingOptions = useMemo(() => {
+    const base = dropdownMasters?.hearingTests?.length ? dropdownMasters.hearingTests : DEFAULT_DROPDOWN_MASTERS.hearingTests;
+    return initialData?.hearingTest && !base.some(h => h.value === initialData.hearingTest)
+      ? [...base, { value: initialData.hearingTest, label: initialData.hearingTest }]
+      : base;
+  }, [dropdownMasters, initialData]);
+
+  const vertigoOptions = useMemo(() => {
+    const base = dropdownMasters?.vertigoTests?.length ? dropdownMasters.vertigoTests : DEFAULT_DROPDOWN_MASTERS.vertigoTests;
+    return initialData?.vertigoTest && !base.some(v => v.value === initialData.vertigoTest)
+      ? [...base, { value: initialData.vertigoTest, label: initialData.vertigoTest }]
+      : base;
+  }, [dropdownMasters, initialData]);
+
   const loggedInExaminer = currentUser?.name
     ? `${currentUser.name}${currentUser.designation ? ` (${currentUser.designation})` : ''}`
     : '';
@@ -198,7 +228,7 @@ export const Step2Medical = ({ initialData, onSave, isReadOnly }) => {
             onChange={(e) => handleVitalChange('bloodGroup', e.target.value)}
             disabled={isReadOnly}
           >
-            {['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-', 'Not Done'].map(bg => (
+            {bloodGroupOptions.map(bg => (
               <option key={bg} value={bg}>{bg}</option>
             ))}
           </select>
@@ -393,8 +423,9 @@ export const Step2Medical = ({ initialData, onSave, isReadOnly }) => {
             onChange={(e) => handleVitalChange('visionTest', e.target.value)}
             disabled={isReadOnly}
           >
-            <option value="Normal">Normal (6/6 or with corrective lenses)</option>
-            <option value="Impaired">Impaired (Deficient visual acuity)</option>
+            {visionOptions.map(opt => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
           </select>
         </div>
 
@@ -407,8 +438,9 @@ export const Step2Medical = ({ initialData, onSave, isReadOnly }) => {
             onChange={(e) => handleVitalChange('hearingTest', e.target.value)}
             disabled={isReadOnly}
           >
-            <option value="Normal">Normal Bilateral Hearing</option>
-            <option value="Impaired">Impaired / Partial Deafness</option>
+            {hearingOptions.map(opt => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
           </select>
         </div>
 
@@ -421,9 +453,9 @@ export const Step2Medical = ({ initialData, onSave, isReadOnly }) => {
             onChange={(e) => handleVitalChange('vertigoTest', e.target.value)}
             disabled={isReadOnly}
           >
-            <option value="Fit">Fit (No Acrophobia/Dizziness)</option>
-            <option value="Unfit">Unfit (Vertigo Symptoms Present)</option>
-            <option value="N/A">Not Applicable (Ground Trade Only)</option>
+            {vertigoOptions.map(opt => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
           </select>
         </div>
       </div>

@@ -2,12 +2,13 @@ import React, { useState } from 'react';
 import {
   Building2, Plus, Pencil, Trash2, Search, X, CheckCircle2,
   AlertCircle, Phone, Mail, MapPin, FileText, Hash, Briefcase,
-  ChevronDown, ChevronUp, Users, Save, XCircle
+  ChevronDown, ChevronUp, Users, Save, XCircle, SlidersHorizontal
 } from 'lucide-react';
 import { useWorkers } from '../../context/WorkerContext';
+import { DropdownMastersTab } from './DropdownMastersTab';
 
-// ─── Department options ──────────────────────────────────────────────────────
-const DEPARTMENTS = ['Civil', 'Mechanical', 'Electrical', 'Other'];
+// ─── Fallback Department options ─────────────────────────────────────────────
+const DEFAULT_DEPARTMENTS = ['Civil', 'Mechanical', 'Electrical', 'Other'];
 
 const EMPTY_FORM = {
   contractorCode: '',
@@ -32,9 +33,13 @@ const EMPTY_FORM = {
 };
 
 // ─── Add / Edit Modal ────────────────────────────────────────────────────────
-const ContractorModal = ({ contractor, locations = [], onSave, onClose }) => {
-  const [form, setForm] = useState(contractor ? { locationCode: '15', locationName: '', ...contractor } : { ...EMPTY_FORM });
+const ContractorModal = ({ contractor, locations = [], departments = DEFAULT_DEPARTMENTS, onSave, onClose }) => {
+  const [form, setForm] = useState(contractor ? { locationCode: '15', locationName: '', ...contractor } : { ...EMPTY_FORM, department: departments[0] || 'Civil' });
   const [errors, setErrors] = useState({});
+
+  const departmentOptions = (form.department && !departments.includes(form.department))
+    ? [...departments, form.department]
+    : departments;
 
   const activeLocations = locations.filter(l => l && l.locationCode && l.status !== 'INACTIVE');
   const locationOptions = form.locationCode && !activeLocations.some(l => l.locationCode === form.locationCode)
@@ -196,7 +201,7 @@ const ContractorModal = ({ contractor, locations = [], onSave, onClose }) => {
                   value={form.department}
                   onChange={e => set('department', e.target.value)}
                 >
-                  {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
+                  {departmentOptions.map(d => <option key={d} value={d}>{d}</option>)}
                 </select>
               </div>
               <div className="form-group">
@@ -352,8 +357,11 @@ const DetailRow = ({ label, value }) => (
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 export const ContractorMaster = () => {
-  const { contractors = [], saveContractor, deleteContractor, locations = [], saveLocation, deleteLocation } = useWorkers();
-  const [masterTab, setMasterTab] = useState('CONTRACTORS'); // 'CONTRACTORS' | 'LOCATIONS'
+  const { contractors = [], saveContractor, deleteContractor, locations = [], saveLocation, deleteLocation, dropdownMasters } = useWorkers();
+  const DEPARTMENTS = dropdownMasters?.contractorDepartments?.length
+    ? dropdownMasters.contractorDepartments
+    : DEFAULT_DEPARTMENTS;
+  const [masterTab, setMasterTab] = useState('CONTRACTORS'); // 'CONTRACTORS' | 'LOCATIONS' | 'DROPDOWNS'
   const [search, setSearch] = useState('');
   const [deptFilter, setDeptFilter] = useState('ALL');
   const [statusFilter, setStatusFilter] = useState('ALL');
@@ -488,10 +496,10 @@ export const ContractorMaster = () => {
       }}>
         <div>
           <h1 style={{ fontSize: '1.6rem', fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>
-            Contractor &amp; Location Master Register
+            Master Data &amp; Configurable Dropdowns
           </h1>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: '0.2rem' }}>
-            Manage contractor company details, compliance validity, and configurable Location Code / Name dropdown options.
+            Manage contractors, Plant Location codes, and all configurable dropdown options across every onboarding stage.
           </p>
         </div>
         {masterTab === 'CONTRACTORS' && (
@@ -534,9 +542,25 @@ export const ContractorMaster = () => {
           <MapPin size={16} />
           <span>Plant Locations ({locations.length})</span>
         </button>
+        <button
+          id="btn-tab-dropdown-masters"
+          type="button"
+          onClick={() => setMasterTab('DROPDOWNS')}
+          style={{
+            padding: '0.6rem 1.1rem', borderRadius: '8px', border: 'none', cursor: 'pointer',
+            backgroundColor: masterTab === 'DROPDOWNS' ? 'var(--brand-primary)' : 'var(--bg-surface)',
+            color: masterTab === 'DROPDOWNS' ? '#FFF' : 'var(--text-secondary)',
+            fontWeight: 700, fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.45rem'
+          }}
+        >
+          <SlidersHorizontal size={16} />
+          <span>Stage Dropdown Masters</span>
+        </button>
       </div>
 
-      {masterTab === 'LOCATIONS' ? (
+      {masterTab === 'DROPDOWNS' ? (
+        <DropdownMastersTab onNotify={showToast} />
+      ) : masterTab === 'LOCATIONS' ? (
         <div style={{ display: 'grid', gap: '1.25rem' }}>
           <form onSubmit={handleSaveLocation} className="form-card" style={{ marginBottom: 0 }}>
             <div className="form-section-header">
@@ -975,6 +999,7 @@ export const ContractorMaster = () => {
         <ContractorModal
           contractor={editTarget}
           locations={locations}
+          departments={DEPARTMENTS}
           onSave={handleSave}
           onClose={() => { setModalOpen(false); setEditTarget(null); }}
         />

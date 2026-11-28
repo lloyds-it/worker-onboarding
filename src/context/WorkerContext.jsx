@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { getStoredWorkers, saveWorkers, resetToInitialData, clearStoredWorkers } from '../services/storageService';
 import { logAuditEvent } from '../services/auditService';
-import { ROLES, STAGES } from '../types/constants';
+import { ROLES, STAGES, DEFAULT_DROPDOWN_MASTERS, mergeDropdownMasters } from '../types/constants';
 import { generateEmployeeId, isMedicalFitForNextStage } from '../services/validationService';
 import { useAuth } from './AuthContext';
 import {
@@ -20,6 +20,8 @@ import {
   apiGetLocations,
   apiSaveLocation,
   apiDeleteLocation,
+  apiGetDropdownMasters,
+  apiSaveDropdownMasters,
   checkFabricHealth,
   testFabricDiagnostics,
   startFabricAuth,
@@ -29,6 +31,21 @@ import {
 const CONTRACTORS_STORAGE_KEY = 'lloyds_contractors_master_v2';
 const LEGACY_CONTRACTORS_STORAGE_KEY = 'lloyds_contractors_master_v1';
 const LOCATIONS_STORAGE_KEY = 'lloyds_locations_master_v1';
+const DROPDOWN_MASTERS_STORAGE_KEY = 'lloyds_dropdown_masters_v1';
+
+const getStoredDropdownMasters = () => {
+  try {
+    const raw = localStorage.getItem(DROPDOWN_MASTERS_STORAGE_KEY);
+    if (raw) return mergeDropdownMasters(JSON.parse(raw));
+  } catch (e) { }
+  return DEFAULT_DROPDOWN_MASTERS;
+};
+
+const saveStoredDropdownMasters = (cfg) => {
+  try {
+    localStorage.setItem(DROPDOWN_MASTERS_STORAGE_KEY, JSON.stringify(mergeDropdownMasters(cfg)));
+  } catch (e) { }
+};
 
 const DEFAULT_LOCATIONS_LIST = [
   { id: 'LOC-15', locationCode: '15', locationName: 'Hedri Project Site (LMEL)', status: 'ACTIVE' },
@@ -79,6 +96,7 @@ export const WorkerProvider = ({ children }) => {
   const [workers, setWorkers] = useState([]);
   const [contractors, setContractors] = useState([]);
   const [locations, setLocations] = useState(DEFAULT_LOCATIONS_LIST);
+  const [dropdownMasters, setDropdownMasters] = useState(() => getStoredDropdownMasters());
   const [activeWorker, setActiveWorker] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStageFilter, setSelectedStageFilter] = useState('ALL');
@@ -157,6 +175,17 @@ export const WorkerProvider = ({ children }) => {
           }
         } catch (lErr) {
           console.warn('[WorkerContext] Locations sync notice:', lErr.message);
+        }
+
+        try {
+          const remoteDropdowns = await apiGetDropdownMasters();
+          if (remoteDropdowns && typeof remoteDropdowns === 'object') {
+            const merged = mergeDropdownMasters(remoteDropdowns);
+            setDropdownMasters(merged);
+            saveStoredDropdownMasters(merged);
+          }
+        } catch (dErr) {
+          console.warn('[WorkerContext] Dropdown masters sync notice:', dErr.message);
         }
       } catch (err) {
         console.warn('[WorkerContext] Fabric sync notice:', err);
@@ -825,6 +854,16 @@ export const WorkerProvider = ({ children }) => {
     });
   }, []);
 
+  // Save configurable stage dropdown masters
+  const saveDropdownMasters = useCallback(async (nextConfig) => {
+    const merged = mergeDropdownMasters(nextConfig);
+    const saved = await apiSaveDropdownMasters(merged);
+    const resolved = mergeDropdownMasters(saved);
+    setDropdownMasters(resolved);
+    saveStoredDropdownMasters(resolved);
+    return resolved;
+  }, []);
+
   // Clear local browser cache and force live resync from database
   const clearLocalCache = useCallback(async () => {
     clearStoredWorkers();
@@ -832,6 +871,7 @@ export const WorkerProvider = ({ children }) => {
       localStorage.removeItem(CONTRACTORS_STORAGE_KEY);
       localStorage.removeItem(LEGACY_CONTRACTORS_STORAGE_KEY);
       localStorage.removeItem(LOCATIONS_STORAGE_KEY);
+      localStorage.removeItem(DROPDOWN_MASTERS_STORAGE_KEY);
     } catch (e) { }
     showToast('Clearing local browser cache and refreshing from database...', 'info');
     await syncFabricData();
@@ -842,6 +882,7 @@ export const WorkerProvider = ({ children }) => {
     workers,
     contractors,
     locations,
+    dropdownMasters,
     activeWorker,
     setActiveWorker,
     searchQuery,
@@ -862,6 +903,7 @@ export const WorkerProvider = ({ children }) => {
     deleteContractor,
     saveLocation,
     deleteLocation,
+    saveDropdownMasters,
     clearLocalCache,
     registerWorkerHR,
     updateWorkerHR,
@@ -876,6 +918,7 @@ export const WorkerProvider = ({ children }) => {
     workers,
     contractors,
     locations,
+    dropdownMasters,
     activeWorker,
     searchQuery,
     selectedStageFilter,
@@ -889,6 +932,7 @@ export const WorkerProvider = ({ children }) => {
     deleteContractor,
     saveLocation,
     deleteLocation,
+    saveDropdownMasters,
     clearLocalCache,
     updateWorkerPhoto,
     currentRole

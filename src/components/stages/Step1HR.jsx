@@ -6,7 +6,26 @@ import { useWorkers } from '../../context/WorkerContext';
 import { WorkerPhotoUpload } from '../common/WorkerPhotoUpload';
 
 export const Step1HR = ({ initialData, onSave, isReadOnly }) => {
-  const { workers = [], contractors = [], locations = [] } = useWorkers();
+  const { workers = [], contractors = [], locations = [], dropdownMasters = {} } = useWorkers();
+
+  const idTypeOptions = useMemo(() => {
+    const base = Array.isArray(dropdownMasters?.idTypes) && dropdownMasters.idTypes.length > 0 ? dropdownMasters.idTypes : ID_TYPES;
+    return initialData?.idProofType && !base.includes(initialData.idProofType) ? [...base, initialData.idProofType] : base;
+  }, [dropdownMasters, initialData]);
+
+  const tradeOptions = useMemo(() => {
+    const base = Array.isArray(dropdownMasters?.trades) && dropdownMasters.trades.length > 0 ? dropdownMasters.trades : TRADES;
+    return initialData?.trade && !base.includes(initialData.trade) ? [...base, initialData.trade] : base;
+  }, [dropdownMasters, initialData]);
+
+  const genderOptions = useMemo(() => {
+    const base = Array.isArray(dropdownMasters?.genders) && dropdownMasters.genders.length > 0
+      ? dropdownMasters.genders
+      : [{ value: 'M', label: 'Male (M)' }, { value: 'F', label: 'Female (F)' }, { value: 'O', label: 'Other (O)' }];
+    return initialData?.gender && !base.some(g => g.value === initialData.gender)
+      ? [...base, { value: initialData.gender, label: initialData.gender }]
+      : base;
+  }, [dropdownMasters, initialData]);
 
   const availableLocations = useMemo(() => {
     const activeLocs = (locations || []).filter(l => l && l.locationCode && l.status !== 'INACTIVE');
@@ -74,16 +93,16 @@ export const Step1HR = ({ initialData, onSave, isReadOnly }) => {
       fatherHusbandName: data?.fatherHusbandName || '',
       dob: data?.dob || '',
       age: data?.age || (data?.dob ? calculateAge(data.dob) : ''),
-      gender: data?.gender || 'M',
+      gender: data?.gender || genderOptions[0]?.value || 'M',
       mobileNumber: mob,
-      idProofType: data?.idProofType || ID_TYPES[0],
+      idProofType: data?.idProofType || idTypeOptions[0] || ID_TYPES[0],
       idProofRef: data?.idProofRef || '',
       contractorName: data?.contractorName || initialContractor?.companyName || '',
       contractorCode: code,
       locationCode: loc,
       locationName: locName,
       contractorLicense: data?.contractorLicense || initialContractor?.licenseNo || '',
-      trade: data?.trade || TRADES[0],
+      trade: data?.trade || tradeOptions[0] || TRADES[0],
       photo: data?.photo || '',
       address: data?.address || '',
       workingLocation: data?.workingLocation || locName || 'LLOYDS METALS AND ENERGY LIMITED HEDRI',
@@ -402,9 +421,9 @@ export const Step1HR = ({ initialData, onSave, isReadOnly }) => {
             onChange={(e) => handleChange('gender', e.target.value)}
             disabled={isReadOnly}
           >
-            <option value="M">Male (M)</option>
-            <option value="F">Female (F)</option>
-            <option value="O">Other (O)</option>
+            {genderOptions.map(g => (
+              <option key={g.value} value={g.value}>{g.label}</option>
+            ))}
           </select>
         </div>
 
@@ -438,7 +457,7 @@ export const Step1HR = ({ initialData, onSave, isReadOnly }) => {
             onChange={(e) => handleChange('idProofType', e.target.value)}
             disabled={isReadOnly}
           >
-            {ID_TYPES.map(type => (
+            {idTypeOptions.map(type => (
               <option key={type} value={type}>{type}</option>
             ))}
           </select>
@@ -546,7 +565,7 @@ export const Step1HR = ({ initialData, onSave, isReadOnly }) => {
             onChange={(e) => handleChange('trade', e.target.value)}
             disabled={isReadOnly}
           >
-            {TRADES.map(trade => (
+            {tradeOptions.map(trade => (
               <option key={trade} value={trade}>{trade}</option>
             ))}
           </select>

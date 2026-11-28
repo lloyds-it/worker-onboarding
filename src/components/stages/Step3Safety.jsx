@@ -1,10 +1,21 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { HardHat, ShieldCheck, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { SAFETY_TOPICS, PPE_ITEMS } from '../../types/constants';
 import { useAuth } from '../../context/AuthContext';
+import { useWorkers } from '../../context/WorkerContext';
 
 export const Step3Safety = ({ initialData, onSave, isReadOnly }) => {
   const { currentUser } = useAuth();
+  const { dropdownMasters = {} } = useWorkers();
+
+  const safetyTopicOptions = useMemo(() => (
+    dropdownMasters?.safetyTopics?.length ? dropdownMasters.safetyTopics : SAFETY_TOPICS
+  ), [dropdownMasters]);
+
+  const ppeItemOptions = useMemo(() => (
+    dropdownMasters?.ppeItems?.length ? dropdownMasters.ppeItems : PPE_ITEMS
+  ), [dropdownMasters]);
+
   const defaultOfficerName = currentUser?.name
     ? `${currentUser.name} (${currentUser.designation || 'EHS Safety'})`
     : '';
@@ -12,12 +23,13 @@ export const Step3Safety = ({ initialData, onSave, isReadOnly }) => {
   const resolveInitialTopics = (data) => (
     (data?.briefingDone || (Array.isArray(data?.topicsCovered) && data.topicsCovered.length > 0))
       ? data.topicsCovered
-      : SAFETY_TOPICS
+      : safetyTopicOptions
   );
+  // PPE checkboxes must NEVER be auto-checked on a new briefing; default strictly to []
   const resolveInitialPpe = (data) => (
-    (data?.briefingDone || (Array.isArray(data?.ppeIssued) && data.ppeIssued.length > 0))
+    (data?.briefingDone && Array.isArray(data?.ppeIssued))
       ? data.ppeIssued
-      : ['helmet', 'jacket', 'shoes', 'gloves', 'earplugs']
+      : []
   );
 
   const [topicsCovered, setTopicsCovered] = useState(() => resolveInitialTopics(initialData));
@@ -133,12 +145,12 @@ export const Step3Safety = ({ initialData, onSave, isReadOnly }) => {
             Safety Induction Topics Covered in Briefing
           </h4>
           <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-            {topicsCovered.length} of {SAFETY_TOPICS.length} topics confirmed
+            {topicsCovered.length} of {safetyTopicOptions.length} topics confirmed
           </span>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 260px), 1fr))', gap: '0.5rem' }}>
-          {SAFETY_TOPICS.map((topic, idx) => {
+          {safetyTopicOptions.map((topic, idx) => {
             const isChecked = topicsCovered.includes(topic);
             return (
               <label
@@ -188,7 +200,7 @@ export const Step3Safety = ({ initialData, onSave, isReadOnly }) => {
                   style={{ padding: '0.2rem 0.55rem', fontSize: '0.72rem' }}
                   onClick={() => {
                     isDirtyRef.current = true;
-                    setPpeIssued(PPE_ITEMS.map(item => item.id));
+                    setPpeIssued(ppeItemOptions.map(item => item.id));
                   }}
                 >
                   Select All PPE
@@ -210,7 +222,7 @@ export const Step3Safety = ({ initialData, onSave, isReadOnly }) => {
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '0.5rem' }}>
-          {PPE_ITEMS.map((item) => {
+          {ppeItemOptions.map((item) => {
             const isChecked = ppeIssued.includes(item.id);
             return (
               <label

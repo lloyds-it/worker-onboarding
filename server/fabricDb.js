@@ -89,6 +89,7 @@ const WORKERS_STORE_PATH = path.join(process.cwd(), 'server', 'data', 'workers_s
 const AUDIT_STORE_PATH = path.join(process.cwd(), 'server', 'data', 'audit_store.json');
 const CONTRACTORS_STORE_PATH = path.join(process.cwd(), 'server', 'data', 'contractors_store.json');
 const LOCATIONS_STORE_PATH = path.join(process.cwd(), 'server', 'data', 'locations_store.json');
+const DROPDOWN_MASTERS_STORE_PATH = path.join(process.cwd(), 'server', 'data', 'dropdown_masters.json');
 
 const DEFAULT_LOCATIONS = [
   { id: 'LOC-15', locationCode: '15', locationName: 'Hedri Project Site (LMEL)', status: 'ACTIVE', createdAt: '2026-11-28T05:00:00.000Z' },
@@ -143,6 +144,15 @@ let fallbackAuditLogs = loadJsonStore(AUDIT_STORE_PATH, []);
 fallbackWorkersCache = loadJsonStore(WORKERS_STORE_PATH, fallbackWorkersCache);
 let fallbackContractorsCache = loadJsonStore(CONTRACTORS_STORE_PATH, []);
 let fallbackLocationsCache = loadJsonStore(LOCATIONS_STORE_PATH, DEFAULT_LOCATIONS);
+let fallbackDropdownMastersCache = (() => {
+  try {
+    if (fs.existsSync(DROPDOWN_MASTERS_STORE_PATH)) {
+      const parsed = JSON.parse(fs.readFileSync(DROPDOWN_MASTERS_STORE_PATH, 'utf8'));
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return parsed;
+    }
+  } catch (e) { }
+  return null;
+})();
 
 const upsertFallbackWorker = (workerId, updatedWorker, isPendingSync = false) => {
   const cleanRecord = { ...updatedWorker };
@@ -198,7 +208,8 @@ const SCHEMA_STATEMENTS = [
   `IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'ContractorsMaster' AND COLUMN_NAME = 'contractorCode') BEGIN ALTER TABLE dbo.ContractorsMaster ADD contractorCode VARCHAR(50) NULL; END;`,
   `IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'ContractorsMaster' AND COLUMN_NAME = 'locationCode') BEGIN ALTER TABLE dbo.ContractorsMaster ADD locationCode VARCHAR(20) NULL; END;`,
   `IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'ContractorsMaster' AND COLUMN_NAME = 'locationName') BEGIN ALTER TABLE dbo.ContractorsMaster ADD locationName VARCHAR(200) NULL; END;`,
-  `IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'LocationsMaster' AND schema_id = SCHEMA_ID('dbo')) BEGIN CREATE TABLE dbo.LocationsMaster (id VARCHAR(50) NOT NULL, locationCode VARCHAR(20) NOT NULL, locationName VARCHAR(200) NOT NULL, status VARCHAR(30) NOT NULL, createdAt VARCHAR(50) NULL); ALTER TABLE dbo.LocationsMaster ADD CONSTRAINT PK_LocationsMaster PRIMARY KEY NONCLUSTERED (id) NOT ENFORCED; END;`
+  `IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'LocationsMaster' AND schema_id = SCHEMA_ID('dbo')) BEGIN CREATE TABLE dbo.LocationsMaster (id VARCHAR(50) NOT NULL, locationCode VARCHAR(20) NOT NULL, locationName VARCHAR(200) NOT NULL, status VARCHAR(30) NOT NULL, createdAt VARCHAR(50) NULL); ALTER TABLE dbo.LocationsMaster ADD CONSTRAINT PK_LocationsMaster PRIMARY KEY NONCLUSTERED (id) NOT ENFORCED; END;`,
+  `IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'DropdownMastersConfig' AND schema_id = SCHEMA_ID('dbo')) BEGIN CREATE TABLE dbo.DropdownMastersConfig (masterKey VARCHAR(80) NOT NULL, configJson VARCHAR(MAX) NOT NULL, updatedAt VARCHAR(50) NULL); ALTER TABLE dbo.DropdownMastersConfig ADD CONSTRAINT PK_DropdownMastersConfig PRIMARY KEY NONCLUSTERED (masterKey) NOT ENFORCED; END;`
 ];
 
 const ensureFabricSchema = async (targetPool) => {
@@ -1796,4 +1807,63 @@ export const dbDeleteLocation = async (id) => {
   fallbackLocationsCache = fallbackLocationsCache.filter(l => l.id !== id);
   saveJsonStore(LOCATIONS_STORE_PATH, fallbackLocationsCache);
   return { deleted: true, id };
+};
+
+// ============================================================================
+// CONFIGURABLE STAGE DROPDOWN MASTERS PERSISTENCE
+// ============================================================================
+
+export const dbGetDropdownMasters = async () => {
+  await connectToFabric();
+  if (pool && pool.connected) {
+    try {
+      const result = await pool
+        .request()
+        .input('masterKey', sql.VarChar(80), 'STAGE_DROPDOWN_MASTERS')
+        .query('SELECT configJson FROM dbo.DropdownMastersConfig WHERE masterKey = @masterKey;');
+      const rawJson = result?.recordset?.[0]?.configJson;
+      if (rawJson) {
+        const parsed = JSON.parse(rawJson);
+        if (parsed && typeof parsed === 'object') {
+          fallbackDropdownMastersCache = parsed;
+          saveJsonStore(DROPDOWN_MASTERS_STORE_PATH, parsed);
+          return parsed;
+        }
+      }
+    } catch (err) {
+      console.error('[Microsoft Fabric] Query error in dbGetDropdownMasters, using local store:', err.message);
+    }
+  }
+  return fallbackDropdownMastersCache || null;
+};
+
+export const dbSaveDropdownMasters = async (config) => {
+  const now = new Date().toISOString();
+  const payload = config && typeof config === 'object' ? config : {};
+  const jsonStr = JSON.stringify(payload);
+
+  await runFabricWriteWithRetry('Save Dropdown Masters', async (targetPool) => {
+    const request = new sql.Request(targetPool);
+    await request
+      .input('masterKey', sql.VarChar(80), 'STAGE_DROPDOWN_MASTERS')
+      .input('configJson', sql.VarChar(sql.MAX), jsonStr)
+      .input('updatedAt', sql.VarChar(50), now)
+      .query(`
+        IF EXISTS (SELECT 1 FROM dbo.DropdownMastersConfig WHERE masterKey = @masterKey)
+        BEGIN
+          UPDATE dbo.DropdownMastersConfig
+          SET configJson = @configJson, updatedAt = @updatedAt
+          WHERE masterKey = @masterKey;
+        END
+        ELSE
+        BEGIN
+          INSERT INTO dbo.DropdownMastersConfig (masterKey, configJson, updatedAt)
+          VALUES (@masterKey, @configJson, @updatedAt);
+        END
+      `);
+  });
+
+  fallbackDropdownMastersCache = payload;
+  saveJsonStore(DROPDOWN_MASTERS_STORE_PATH, payload);
+  return payload;
 };

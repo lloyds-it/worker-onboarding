@@ -572,16 +572,16 @@ export const AdminDashboard = ({ onNavigateToDept, onNavigateToReports, onNaviga
                 <div style={{ padding: '0.5rem', borderRadius: '8px', backgroundColor: 'var(--brand-primary)', color: '#FFF' }}>
                   <Briefcase size={18} />
                 </div>
-                <h4 style={{ fontWeight: 700, fontSize: '0.95rem' }}>Contractor Master</h4>
+                <h4 style={{ fontWeight: 700, fontSize: '0.95rem' }}>Contractor &amp; Stage Masters</h4>
               </div>
               <ArrowUpRight size={18} color="var(--text-muted)" />
             </div>
             <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '1rem' }}>
-              Manage contractor/agency company details, compliance codes, PF/ESIC, GST, and validity.
+              Manage contractors, plant location codes, and configurable dropdown options for every onboarding stage.
             </p>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', borderTop: '1px solid var(--border-light)', paddingTop: '0.5rem' }}>
-              <span style={{ color: 'var(--text-muted)' }}>Registered:</span>
-              <span style={{ fontWeight: 700, color: 'var(--brand-primary)' }}>Manage All Contractors →</span>
+              <span style={{ color: 'var(--text-muted)' }}>Configurable:</span>
+              <span style={{ fontWeight: 700, color: 'var(--brand-primary)' }}>Manage All Masters →</span>
             </div>
           </div>
         )}

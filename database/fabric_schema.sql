@@ -219,3 +219,14 @@ BEGIN
     );
     ALTER TABLE dbo.LocationsMaster ADD CONSTRAINT PK_LocationsMaster PRIMARY KEY NONCLUSTERED (id) NOT ENFORCED;
 END;
+
+-- 11. Create Configurable Stage Dropdown Masters Table
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'DropdownMastersConfig' AND schema_id = SCHEMA_ID('dbo'))
+BEGIN
+    CREATE TABLE dbo.DropdownMastersConfig (
+        masterKey VARCHAR(80) NOT NULL,
+        configJson VARCHAR(MAX) NOT NULL,
+        updatedAt VARCHAR(50) NULL
+    );
+    ALTER TABLE dbo.DropdownMastersConfig ADD CONSTRAINT PK_DropdownMastersConfig PRIMARY KEY NONCLUSTERED (masterKey) NOT ENFORCED;
+END;
