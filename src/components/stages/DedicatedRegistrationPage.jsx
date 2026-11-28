@@ -6,8 +6,8 @@ import { useWorkers } from '../../context/WorkerContext';
 export const DedicatedRegistrationPage = ({ onBack }) => {
   const { registerWorkerHR } = useWorkers();
 
-  const handleSave = (hrData) => {
-    registerWorkerHR(hrData);
+  const handleSave = async (hrData) => {
+    await registerWorkerHR(hrData);
     onBack();
   };
 

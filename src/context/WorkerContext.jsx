@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { getStoredWorkers, saveWorkers, resetToInitialData, clearStoredWorkers } from '../services/storageService';
 import { logAuditEvent } from '../services/auditService';
 import { ROLES, STAGES } from '../types/constants';
@@ -66,23 +66,33 @@ export const WorkerProvider = ({ children }) => {
     }
   });
   const [isSyncing, setIsSyncing] = useState(false);
+  const lastMutationAtRef = useRef(0);
+  const syncInFlightRef = useRef(false);
 
   // Background sync worker data with backend
-  const syncFabricData = useCallback(async (silent = false) => {
+  const syncFabricData = useCallback(async (silent = false, force = false) => {
     if (!isAuthenticated) {
       setWorkers([]);
       setContractors([]);
       setActiveWorker(null);
       return;
     }
+    if (syncInFlightRef.current) return;
+    if (silent && !force && Date.now() - lastMutationAtRef.current < 4000) {
+      return;
+    }
 
-    setIsSyncing(true);
+    syncInFlightRef.current = true;
+    const fetchStartedAt = Date.now();
+    if (!silent) {
+      setIsSyncing(true);
+    }
     try {
       const health = await checkFabricHealth();
       setFabricStatus(health);
 
       const remoteWorkers = await apiGetWorkers();
-      if (Array.isArray(remoteWorkers)) {
+      if (Array.isArray(remoteWorkers) && (force || lastMutationAtRef.current <= fetchStartedAt)) {
         setWorkers(remoteWorkers);
         saveWorkers(remoteWorkers);
         setActiveWorker(prev => {
@@ -104,33 +114,58 @@ export const WorkerProvider = ({ children }) => {
     } catch (err) {
       console.warn('[WorkerContext] Fabric sync notice:', err);
     } finally {
-      setIsSyncing(false);
+      syncInFlightRef.current = false;
+      if (!silent) {
+        setIsSyncing(false);
+      }
     }
   }, [isAuthenticated]);
 
-  // Initial load from storage and live backend sync on login or session restore
+  // Initial load from storage, live backend sync on login, and periodic/focus auto-refresh
   useEffect(() => {
-    if (isAuthenticated) {
-      // 1. Instant local load for zero-delay initial rendering
-      const loaded = getStoredWorkers();
-      if (loaded.length > 0) {
-        setWorkers(loaded);
-        setActiveWorker(loaded[0]);
-      }
-
-      const loadedContractors = getStoredContractors();
-      if (loadedContractors.length > 0) {
-        setContractors(loadedContractors);
-      }
-
-      // 2. Fetch fresh live data from database/Fabric
-      syncFabricData();
-    } else {
+    if (!isAuthenticated) {
       // Clear in-memory worker & contractor rosters when logged out
       setWorkers([]);
       setContractors([]);
       setActiveWorker(null);
+      return undefined;
     }
+
+    // 1. Instant local load for zero-delay initial rendering
+    const loaded = getStoredWorkers();
+    if (loaded.length > 0) {
+      setWorkers(loaded);
+      setActiveWorker(loaded[0]);
+    }
+
+    const loadedContractors = getStoredContractors();
+    if (loadedContractors.length > 0) {
+      setContractors(loadedContractors);
+    }
+
+    // 2. Fetch fresh live data from database/Fabric
+    syncFabricData();
+
+    // 3. Auto-refresh periodically and on tab focus so departments see new stage submissions automatically
+    const pollInterval = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        syncFabricData(true);
+      }
+    }, 15000);
+
+    const handleVisibilityOrFocus = () => {
+      if (document.visibilityState === 'visible') {
+        syncFabricData(true);
+      }
+    };
+    window.addEventListener('focus', handleVisibilityOrFocus);
+    document.addEventListener('visibilitychange', handleVisibilityOrFocus);
+
+    return () => {
+      clearInterval(pollInterval);
+      window.removeEventListener('focus', handleVisibilityOrFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
+    };
   }, [isAuthenticated, syncFabricData]);
 
   const refreshFabricStatus = useCallback(async () => {
@@ -170,12 +205,25 @@ export const WorkerProvider = ({ children }) => {
 
   // Helper to persist worker mutations
   const commitWorkers = (updatedList) => {
+    lastMutationAtRef.current = Date.now();
     setWorkers(updatedList);
     saveWorkers(updatedList);
   };
 
+  // Await backend save, surface notification feedback, and refresh live roster immediately
+  const persistStageMutation = async (apiPromise, warningLabel) => {
+    try {
+      const res = await apiPromise;
+      handleEmailFeedback(res?._emailNotification);
+      lastMutationAtRef.current = Date.now();
+      await syncFabricData(true, true);
+    } catch (err) {
+      console.warn(`[Fabric] ${warningLabel} sync warning:`, err);
+    }
+  };
+
   // Step 1: HR Registration
-  const registerWorkerHR = (hrData) => {
+  const registerWorkerHR = async (hrData) => {
     if (currentRole !== ROLES.HR && currentRole !== ROLES.ADMIN) {
       showToast('Unauthorized: Only HR Operations can register new candidates.', 'danger');
       return null;
@@ -232,11 +280,6 @@ export const WorkerProvider = ({ children }) => {
     commitWorkers(updated);
     setActiveWorker(newWorker);
 
-    // Sync to Microsoft Fabric & trigger Medical notification email in background
-    apiRegisterWorker(newWorker)
-      .then(res => handleEmailFeedback(res?._emailNotification))
-      .catch(err => console.warn('[Fabric] Registration sync warning:', err));
-
     const auditEntry = {
       role: currentRole,
       action: 'HR_WORKER_REGISTERED',
@@ -248,11 +291,14 @@ export const WorkerProvider = ({ children }) => {
     apiLogAudit(auditEntry);
 
     showToast(`Worker ${cleanHrData.fullName} (${employeeId}) registered and routed to Medical Team.`, 'success');
+
+    // Sync to Microsoft Fabric, show Medical email feedback, and refresh live list
+    await persistStageMutation(apiRegisterWorker(newWorker), 'Registration');
     return newWorker;
   };
 
   // Step 1: Update Existing Worker HR Profile
-  const updateWorkerHR = (workerId, hrData) => {
+  const updateWorkerHR = async (workerId, hrData) => {
     if (currentRole !== ROLES.HR && currentRole !== ROLES.ADMIN) {
       showToast('Unauthorized: Only HR Operations can update HR candidate profiles.', 'danger');
       return;
@@ -279,11 +325,6 @@ export const WorkerProvider = ({ children }) => {
     const updatedTarget = updated.find(w => w.id === workerId);
     setActiveWorker(updatedTarget);
 
-    if (updatedTarget) {
-      apiRegisterWorker({ ...updatedTarget, _isUpdate: true })
-        .catch(err => console.warn('[Fabric] HR update sync warning:', err));
-    }
-
     const auditEntry = {
       role: currentRole,
       action: 'HR_WORKER_UPDATED',
@@ -295,10 +336,14 @@ export const WorkerProvider = ({ children }) => {
     apiLogAudit(auditEntry);
 
     showToast(`Worker ${cleanHrData.fullName || 'profile'} updated successfully.`, 'success');
+
+    if (updatedTarget) {
+      await persistStageMutation(apiRegisterWorker({ ...updatedTarget, _isUpdate: true }), 'HR update');
+    }
   };
 
   // Step 2: Medical Examination
-  const updateWorkerMedical = (workerId, medicalData) => {
+  const updateWorkerMedical = async (workerId, medicalData) => {
     if (currentRole !== ROLES.MEDICAL && currentRole !== ROLES.ADMIN) {
       showToast('Unauthorized: Only Medical Health Officers can record medical examinations.', 'danger');
       return;
@@ -335,13 +380,6 @@ export const WorkerProvider = ({ children }) => {
     const updatedTarget = updated.find(w => w.id === workerId);
     setActiveWorker(updatedTarget);
 
-    // Sync to Microsoft Fabric in background
-    if (updatedTarget) {
-      apiUpdateMedical(workerId, medicalData, updatedTarget)
-        .then(res => handleEmailFeedback(res?._emailNotification))
-        .catch(err => console.warn('[Fabric] Medical sync warning:', err));
-    }
-
     const auditEntry = {
       role: currentRole,
       action: isFit
@@ -367,10 +405,14 @@ export const WorkerProvider = ({ children }) => {
     } else {
       showToast('Worker marked UNFIT. Profile halted and flagged with medical remark.', 'danger');
     }
+
+    if (updatedTarget) {
+      await persistStageMutation(apiUpdateMedical(workerId, medicalData, updatedTarget), 'Medical');
+    }
   };
 
   // Step 3: Safety Briefing & PPE
-  const updateWorkerSafety = (workerId, safetyData) => {
+  const updateWorkerSafety = async (workerId, safetyData) => {
     if (currentRole !== ROLES.SAFETY && currentRole !== ROLES.ADMIN) {
       showToast('Unauthorized: Only EHS Safety Officers can record safety inductions.', 'danger');
       return;
@@ -404,13 +446,6 @@ export const WorkerProvider = ({ children }) => {
     const updatedTarget = updated.find(w => w.id === workerId);
     setActiveWorker(updatedTarget);
 
-    // Sync to Microsoft Fabric in background
-    if (updatedTarget) {
-      apiUpdateSafety(workerId, safetyData, updatedTarget)
-        .then(res => handleEmailFeedback(res?._emailNotification))
-        .catch(err => console.warn('[Fabric] Safety sync warning:', err));
-    }
-
     const auditEntry = {
       role: currentRole,
       action: 'SAFETY_INDUCTION_COMPLETED',
@@ -422,10 +457,14 @@ export const WorkerProvider = ({ children }) => {
     apiLogAudit(auditEntry);
 
     showToast('Safety briefing & PPE issuance logged. Worker routed to IT Enrollment.', 'success');
+
+    if (updatedTarget) {
+      await persistStageMutation(apiUpdateSafety(workerId, safetyData, updatedTarget), 'Safety');
+    }
   };
 
   // Step 4: IT Biometrics & Undertaking
-  const updateWorkerIT = (workerId, itData) => {
+  const updateWorkerIT = async (workerId, itData) => {
     if (currentRole !== ROLES.IT && currentRole !== ROLES.ADMIN) {
       showToast('Unauthorized: Only IT Specialists can record biometric registrations.', 'danger');
       return;
@@ -460,13 +499,6 @@ export const WorkerProvider = ({ children }) => {
     const updatedTarget = updated.find(w => w.id === workerId);
     setActiveWorker(updatedTarget);
 
-    // Sync to Microsoft Fabric in background
-    if (updatedTarget) {
-      apiUpdateIT(workerId, itData, updatedTarget)
-        .then(res => handleEmailFeedback(res?._emailNotification))
-        .catch(err => console.warn('[Fabric] IT sync warning:', err));
-    }
-
     const auditEntry = {
       role: currentRole,
       action: 'IT_BIOMETRICS_REGISTERED',
@@ -478,10 +510,14 @@ export const WorkerProvider = ({ children }) => {
     apiLogAudit(auditEntry);
 
     showToast(`IT Enrollment complete. Worker ID ${updatedTarget.assignedWorkerId} assigned. Routed to Camp Team.`, 'success');
+
+    if (updatedTarget) {
+      await persistStageMutation(apiUpdateIT(workerId, itData, updatedTarget), 'IT');
+    }
   };
 
   // Step 5: Camp Housing & Final Onboarding
-  const updateWorkerCamp = (workerId, campData) => {
+  const updateWorkerCamp = async (workerId, campData) => {
     if (currentRole !== ROLES.CAMP && currentRole !== ROLES.ADMIN) {
       showToast('Unauthorized: Only Camp Management can record housing allocations.', 'danger');
       return;
@@ -509,13 +545,6 @@ export const WorkerProvider = ({ children }) => {
     const updatedTarget = updated.find(w => w.id === workerId);
     setActiveWorker(updatedTarget);
 
-    // Sync to Microsoft Fabric in background
-    if (updatedTarget) {
-      apiUpdateCamp(workerId, campData, updatedTarget)
-        .then(res => handleEmailFeedback(res?._emailNotification))
-        .catch(err => console.warn('[Fabric] Camp sync warning:', err));
-    }
-
     const auditEntry = {
       role: currentRole,
       action: 'CAMP_BED_ALLOCATED_COMPLETED',
@@ -527,6 +556,10 @@ export const WorkerProvider = ({ children }) => {
     apiLogAudit(auditEntry);
 
     showToast('Housing allocated! Worker onboarding complete and Gate Pass is ACTIVE.', 'success');
+
+    if (updatedTarget) {
+      await persistStageMutation(apiUpdateCamp(workerId, campData, updatedTarget), 'Camp');
+    }
   };
 
   // Admin Override

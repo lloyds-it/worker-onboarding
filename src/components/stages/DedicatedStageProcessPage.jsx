@@ -58,7 +58,7 @@ export const DedicatedStageProcessPage = ({ worker: propWorker, onSelectWorker, 
       : (worker.stage === STAGES.COMPLETED ? STAGES.CAMP : (worker.stage || STAGES.HR));
   });
 
-  // Keep stage tab updated when candidate changes
+  // Keep stage tab updated when candidate or stage changes
   useEffect(() => {
     if (currentRole !== ROLES.ADMIN && roleStageMap[currentRole]) {
       setSelectedStageTab(roleStageMap[currentRole]);
@@ -71,7 +71,14 @@ export const DedicatedStageProcessPage = ({ worker: propWorker, onSelectWorker, 
           : (worker.stage === STAGES.COMPLETED ? STAGES.CAMP : (worker.stage || STAGES.HR))
       );
     }
-  }, [worker?.id, currentRole, roleStageMap]);
+  }, [worker?.id, worker?.stage, currentRole, roleStageMap]);
+
+  const handleStageSave = async (savePromise, shouldReturnToQueue = currentRole !== ROLES.ADMIN) => {
+    await savePromise;
+    if (shouldReturnToQueue) {
+      onBack();
+    }
+  };
 
   // Fallback: If no workers exist in the system at all
   if (!worker) {
@@ -406,9 +413,7 @@ export const DedicatedStageProcessPage = ({ worker: propWorker, onSelectWorker, 
             <Step1HR
               key={worker.id}
               initialData={worker.hr ? { ...worker.hr, assignedWorkerId: worker.assignedWorkerId } : null}
-              onSave={(hrData) => {
-                if (updateWorkerHR) updateWorkerHR(worker.id, hrData);
-              }}
+              onSave={(hrData) => handleStageSave(updateWorkerHR?.(worker.id, hrData))}
               isReadOnly={!canEditStage(STAGES.HR)}
             />
           )}
@@ -418,9 +423,7 @@ export const DedicatedStageProcessPage = ({ worker: propWorker, onSelectWorker, 
             <Step2Medical
               key={worker.id}
               initialData={worker.medical}
-              onSave={(data) => {
-                updateWorkerMedical(worker.id, data);
-              }}
+              onSave={(data) => handleStageSave(updateWorkerMedical(worker.id, data))}
               isReadOnly={!canEditStage(STAGES.MEDICAL)}
             />
           )}
@@ -430,9 +433,7 @@ export const DedicatedStageProcessPage = ({ worker: propWorker, onSelectWorker, 
             <Step3Safety
               key={worker.id}
               initialData={worker.safety}
-              onSave={(data) => {
-                updateWorkerSafety(worker.id, data);
-              }}
+              onSave={(data) => handleStageSave(updateWorkerSafety(worker.id, data))}
               isReadOnly={!canEditStage(STAGES.SAFETY)}
             />
           )}
@@ -443,9 +444,7 @@ export const DedicatedStageProcessPage = ({ worker: propWorker, onSelectWorker, 
               key={worker.id}
               initialData={worker.it}
               worker={worker}
-              onSave={(data) => {
-                updateWorkerIT(worker.id, data);
-              }}
+              onSave={(data) => handleStageSave(updateWorkerIT(worker.id, data))}
               isReadOnly={!canEditStage(STAGES.IT)}
             />
           )}
@@ -456,9 +455,7 @@ export const DedicatedStageProcessPage = ({ worker: propWorker, onSelectWorker, 
               key={worker.id}
               initialData={worker.camp}
               worker={worker}
-              onSave={(data) => {
-                updateWorkerCamp(worker.id, data);
-              }}
+              onSave={(data) => handleStageSave(updateWorkerCamp(worker.id, data), true)}
               isReadOnly={!canEditStage(STAGES.CAMP)}
             />
           )}
