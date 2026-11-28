@@ -26,6 +26,7 @@ export const Step4IT = ({ initialData, worker, onSave, isReadOnly }) => {
     initialData?.itAdminSignature || loggedInIT
   );
   const [error, setError] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const isDirtyRef = useRef(false);
   const lastInitialJsonRef = useRef(JSON.stringify(initialData || null));
 
@@ -49,9 +50,9 @@ export const Step4IT = ({ initialData, worker, onSave, isReadOnly }) => {
     }
   }, [loggedInIT, initialData]);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (isReadOnly) return;
+    if (isReadOnly || isSubmitting) return;
 
     if (!faceBiometricRegistered) {
       setError('Face biometric capture is mandatory for site turnstile punch system.');
@@ -62,15 +63,20 @@ export const Step4IT = ({ initialData, worker, onSave, isReadOnly }) => {
       return;
     }
 
+    setIsSubmitting(true);
     isDirtyRef.current = false;
-    onSave({
-      faceBiometricRegistered,
-      cwmsRegistered,
-      campusMasterUploaded,
-      undertakingAccepted: true,
-      itAdminSignature,
-      itDate: new Date().toISOString().slice(0, 10)
-    });
+    try {
+      await onSave({
+        faceBiometricRegistered,
+        cwmsRegistered,
+        campusMasterUploaded,
+        undertakingAccepted: true,
+        itAdminSignature,
+        itDate: new Date().toISOString().slice(0, 10)
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -231,8 +237,8 @@ export const Step4IT = ({ initialData, worker, onSave, isReadOnly }) => {
 
       {!isReadOnly && (
         <div style={{ marginTop: '2rem', display: 'flex', justifyContent: 'flex-end' }}>
-          <button id="btn-save-step4" type="submit" className="btn btn-primary">
-            <span>Issue Worker ID & Route to Camp Accommodation</span>
+          <button id="btn-save-step4" type="submit" disabled={isSubmitting} className="btn btn-primary">
+            <span>{isSubmitting ? 'Saving IT Enrollment...' : 'Issue Worker ID & Route to Camp Accommodation'}</span>
             <CheckCircle2 size={16} />
           </button>
         </div>

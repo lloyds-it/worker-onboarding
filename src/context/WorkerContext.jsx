@@ -96,6 +96,7 @@ export const WorkerProvider = ({ children }) => {
   const [isSyncing, setIsSyncing] = useState(false);
   const lastMutationAtRef = useRef(0);
   const syncInFlightRef = useRef(false);
+  const syncPromiseRef = useRef(null);
 
   // Background sync worker data with backend
   const syncFabricData = useCallback(async (silent = false, force = false) => {
@@ -105,58 +106,72 @@ export const WorkerProvider = ({ children }) => {
       setActiveWorker(null);
       return;
     }
-    if (syncInFlightRef.current) return;
+    if (syncInFlightRef.current) {
+      if (!force) return;
+      if (syncPromiseRef.current) {
+        try {
+          await syncPromiseRef.current;
+        } catch (e) { }
+      }
+    }
     if (silent && !force && Date.now() - lastMutationAtRef.current < 4000) {
       return;
     }
 
     syncInFlightRef.current = true;
-    const fetchStartedAt = Date.now();
-    if (!silent) {
-      setIsSyncing(true);
-    }
-    try {
-      const health = await checkFabricHealth();
-      setFabricStatus(health);
-
-      const remoteWorkers = await apiGetWorkers();
-      if (Array.isArray(remoteWorkers) && (force || lastMutationAtRef.current <= fetchStartedAt)) {
-        setWorkers(remoteWorkers);
-        saveWorkers(remoteWorkers);
-        setActiveWorker(prev => {
-          if (!prev) return remoteWorkers[0] || null;
-          const match = remoteWorkers.find(w => w.id === prev.id);
-          return match || remoteWorkers[0] || null;
-        });
-      }
-
-      try {
-        const remoteContractors = await apiGetContractors();
-        if (Array.isArray(remoteContractors)) {
-          setContractors(remoteContractors);
-          saveStoredContractors(remoteContractors);
-        }
-      } catch (cErr) {
-        console.warn('[WorkerContext] Contractors sync notice:', cErr.message);
-      }
-
-      try {
-        const remoteLocations = await apiGetLocations();
-        if (Array.isArray(remoteLocations) && remoteLocations.length > 0) {
-          setLocations(remoteLocations);
-          saveStoredLocations(remoteLocations);
-        }
-      } catch (lErr) {
-        console.warn('[WorkerContext] Locations sync notice:', lErr.message);
-      }
-    } catch (err) {
-      console.warn('[WorkerContext] Fabric sync notice:', err);
-    } finally {
-      syncInFlightRef.current = false;
+    const runSync = async () => {
+      const fetchStartedAt = Date.now();
       if (!silent) {
-        setIsSyncing(false);
+        setIsSyncing(true);
       }
-    }
+      try {
+        const health = await checkFabricHealth();
+        setFabricStatus(health);
+
+        const remoteWorkers = await apiGetWorkers({ allowCacheFallback: !force });
+        if (Array.isArray(remoteWorkers) && (force || lastMutationAtRef.current <= fetchStartedAt)) {
+          setWorkers(remoteWorkers);
+          saveWorkers(remoteWorkers);
+          setActiveWorker(prev => {
+            if (!prev) return remoteWorkers[0] || null;
+            const match = remoteWorkers.find(w => w.id === prev.id);
+            return match || remoteWorkers[0] || null;
+          });
+        }
+
+        try {
+          const remoteContractors = await apiGetContractors();
+          if (Array.isArray(remoteContractors)) {
+            setContractors(remoteContractors);
+            saveStoredContractors(remoteContractors);
+          }
+        } catch (cErr) {
+          console.warn('[WorkerContext] Contractors sync notice:', cErr.message);
+        }
+
+        try {
+          const remoteLocations = await apiGetLocations();
+          if (Array.isArray(remoteLocations) && remoteLocations.length > 0) {
+            setLocations(remoteLocations);
+            saveStoredLocations(remoteLocations);
+          }
+        } catch (lErr) {
+          console.warn('[WorkerContext] Locations sync notice:', lErr.message);
+        }
+      } catch (err) {
+        console.warn('[WorkerContext] Fabric sync notice:', err);
+      } finally {
+        syncInFlightRef.current = false;
+        syncPromiseRef.current = null;
+        if (!silent) {
+          setIsSyncing(false);
+        }
+      }
+    };
+
+    const p = runSync();
+    syncPromiseRef.current = p;
+    await p;
   }, [isAuthenticated]);
 
   // Initial load from storage, live backend sync on login, and periodic/focus auto-refresh
@@ -261,17 +276,32 @@ export const WorkerProvider = ({ children }) => {
   };
 
   // Await backend save, surface notification feedback, and refresh live roster immediately
-  const persistStageMutation = async (apiPromise, warningLabel) => {
+  const persistStageMutation = async (apiPromise, warningLabel, localWorkerId = null) => {
     try {
-      const res = await apiPromise;
-      handleEmailFeedback(res?._emailNotification);
+      const savedWorker = await apiPromise;
+      handleEmailFeedback(savedWorker?._emailNotification);
       lastMutationAtRef.current = Date.now();
+
+      if (savedWorker && savedWorker.id) {
+        setWorkers(prev => {
+          const targetId = localWorkerId || savedWorker.id;
+          const replaced = prev.map(w => (w.id === targetId || w.id === savedWorker.id ? savedWorker : w));
+          const exists = replaced.some(w => w.id === savedWorker.id);
+          const next = exists ? replaced : [savedWorker, ...replaced];
+          saveWorkers(next);
+          return next;
+        });
+        setActiveWorker(savedWorker);
+      }
+
       await syncFabricData(true, true);
-      return { ok: true };
+      return { ok: true, data: savedWorker };
     } catch (err) {
       console.warn(`[Fabric] ${warningLabel} sync error:`, err);
       showToast(err?.message || `${warningLabel} could not be saved to server.`, 'danger');
-      await syncFabricData(true, true);
+      try {
+        await syncFabricData(true, true);
+      } catch (e) { }
       return { ok: false, error: err?.message };
     }
   };
@@ -335,8 +365,8 @@ export const WorkerProvider = ({ children }) => {
     showToast(`Worker ${cleanHrData.fullName} (${employeeId}) registered and routed to Medical Team.`, 'success');
 
     // Sync to Microsoft Fabric, show Medical email feedback, and refresh live list
-    const saveRes = await persistStageMutation(apiRegisterWorker(newWorker), 'Registration');
-    return saveRes?.ok === false ? null : newWorker;
+    const saveRes = await persistStageMutation(apiRegisterWorker(newWorker), 'Registration', newWorker.id);
+    return saveRes?.ok === false ? null : (saveRes?.data || newWorker);
   };
 
   // Step 1: Update Existing Worker HR Profile
@@ -649,7 +679,7 @@ export const WorkerProvider = ({ children }) => {
   };
 
   // Admin Override
-  const adminOverrideWorker = (workerId, newStage, reason) => {
+  const adminOverrideWorker = async (workerId, newStage, reason) => {
     const now = new Date().toISOString();
     const updated = workers.map(w => {
       if (w.id !== workerId) return w;
@@ -667,7 +697,6 @@ export const WorkerProvider = ({ children }) => {
     setActiveWorker(updatedTarget);
 
     const resolvedStatus = newStage === STAGES.FLAGGED ? 'FLAGGED' : (newStage === STAGES.COMPLETED ? 'COMPLETED' : 'IN_PROGRESS');
-    apiOverrideWorker(workerId, newStage, resolvedStatus).catch(err => console.warn('[Fabric] Override sync warning:', err));
 
     const auditEntry = {
       role: 'ADMIN_OVERRIDE',
@@ -680,6 +709,7 @@ export const WorkerProvider = ({ children }) => {
     apiLogAudit(auditEntry);
 
     showToast(`Admin override applied: Worker transitioned to stage ${newStage}.`, 'info');
+    return await persistStageMutation(apiOverrideWorker(workerId, newStage, resolvedStatus), 'Override', workerId);
   };
 
   const resetAllData = () => {

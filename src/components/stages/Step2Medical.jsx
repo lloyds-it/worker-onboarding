@@ -38,6 +38,7 @@ export const Step2Medical = ({ initialData, onSave, isReadOnly }) => {
 
   const [formData, setFormData] = useState(() => buildInitialForm(initialData, loggedInExaminer));
   const [errors, setErrors] = useState({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const isDirtyRef = useRef(false);
   const lastInitialJsonRef = useRef(JSON.stringify(initialData || null));
   const formRef = useRef(null);
@@ -123,9 +124,9 @@ export const Step2Medical = ({ initialData, onSave, isReadOnly }) => {
 
   const prevRemarksIsDefaultFit = (text) => text === 'Fit for heavy industrial plant work.';
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (isReadOnly) return;
+    if (isReadOnly || isSubmitting) return;
 
     const validation = validateMedicalStep(formData);
     if (!validation.isValid) {
@@ -133,8 +134,13 @@ export const Step2Medical = ({ initialData, onSave, isReadOnly }) => {
       return;
     }
 
+    setIsSubmitting(true);
     isDirtyRef.current = false;
-    onSave(formData);
+    try {
+      await onSave(formData);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -625,6 +631,7 @@ export const Step2Medical = ({ initialData, onSave, isReadOnly }) => {
           <button
             id="btn-save-step2"
             type="submit"
+            disabled={isSubmitting}
             className="btn btn-primary"
             style={{
               backgroundColor: formData.fitnessStatus === 'UNFIT'

@@ -40,7 +40,7 @@ export const Sidebar = ({
 }) => {
   const { currentRole, logout } = useAuth();
   const { theme, toggleTheme, isDark } = useTheme();
-  const { workers, resetAllData } = useWorkers();
+  const { workers, refreshWorkers, isSyncing } = useWorkers();
 
   const activeCount = workers.length;
   const completedCount = workers.filter(w => w.stage === STAGES.COMPLETED).length;
@@ -440,10 +440,11 @@ export const Sidebar = ({
             )}
           </button>
 
-          {/* Reset & Logout Buttons */}
+          {/* Sync & Logout Buttons */}
           <div style={{ display: 'flex', gap: '0.5rem', flexDirection: isCollapsed ? 'column' : 'row' }}>
             <button
-              onClick={resetAllData}
+              onClick={() => refreshWorkers && refreshWorkers(false, true)}
+              disabled={isSyncing}
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -456,10 +457,10 @@ export const Sidebar = ({
                 borderRadius: '6px',
                 border: '1px solid rgba(255,255,255,0.1)'
               }}
-              title="Reload initial verified demo workers"
+              title="Synchronize live worker records from database"
             >
-              <RefreshCw size={13} />
-              {!isCollapsed && <span>Reset</span>}
+              <RefreshCw size={13} style={{ animation: isSyncing ? 'spin 1s linear infinite' : 'none' }} />
+              {!isCollapsed && <span>{isSyncing ? 'Syncing...' : 'Sync DB'}</span>}
             </button>
 
             <button

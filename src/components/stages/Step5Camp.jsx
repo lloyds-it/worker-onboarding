@@ -22,6 +22,7 @@ export const Step5Camp = ({ initialData, worker, onSave, isReadOnly }) => {
 
   const [formData, setFormData] = useState(() => buildInitialCamp(initialData, loggedInCampOfficer));
   const [errors, setErrors] = useState({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const isDirtyRef = useRef(false);
   const lastInitialJsonRef = useRef(JSON.stringify(initialData || null));
 
@@ -51,9 +52,9 @@ export const Step5Camp = ({ initialData, worker, onSave, isReadOnly }) => {
     }
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (isReadOnly) return;
+    if (isReadOnly || isSubmitting) return;
 
     const errs = {};
     if (!formData.campName) errs.campName = 'Camp selection is required.';
@@ -64,14 +65,19 @@ export const Step5Camp = ({ initialData, worker, onSave, isReadOnly }) => {
       return;
     }
 
+    setIsSubmitting(true);
     isDirtyRef.current = false;
-    onSave({
-      ...formData,
-      blockNumber: formData.blockNumber || BLOCKS[0],
-      bedNumber: formData.bedNumber || 'Bed 1',
-      contractorSupervisor: formData.contractorSupervisor || '',
-      gatePassActive: true
-    });
+    try {
+      await onSave({
+        ...formData,
+        blockNumber: formData.blockNumber || BLOCKS[0],
+        bedNumber: formData.bedNumber || 'Bed 1',
+        contractorSupervisor: formData.contractorSupervisor || '',
+        gatePassActive: true
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -248,8 +254,8 @@ export const Step5Camp = ({ initialData, worker, onSave, isReadOnly }) => {
 
       {!isReadOnly && (
         <div style={{ marginTop: '2rem', display: 'flex', justifyContent: 'flex-end' }}>
-          <button id="btn-save-step5" type="submit" className="btn btn-primary">
-            <span>Allocate Housing & Activate Gate Pass</span>
+          <button id="btn-save-step5" type="submit" disabled={isSubmitting} className="btn btn-primary">
+            <span>{isSubmitting ? 'Saving Allocation...' : 'Allocate Housing & Activate Gate Pass'}</span>
             <CheckCircle2 size={16} />
           </button>
         </div>

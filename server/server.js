@@ -38,6 +38,8 @@ import {
   dbUpdateIT,
   dbUpdateCamp,
   dbOverrideWorkerStage,
+  reconcileWorkersInFabric,
+  flushPendingSyncToFabric,
   dbLogAudit,
   dbGetAuditLogs,
   dbGetAllContractors,
@@ -1267,6 +1269,23 @@ app.get('/api/workers', authenticateToken, async (req, res) => {
   } catch (err) {
     console.error('[API /api/workers] Error:', err.message);
     res.status(500).json({ success: false, error: 'Failed to retrieve worker roster from database.' });
+  }
+});
+
+// POST Reconcile & Repair Missing / Out-of-Sync Worker Stage Records in Database
+app.post('/api/workers/reconcile', authenticateToken, async (req, res) => {
+  try {
+    const pendingFlushed = await flushPendingSyncToFabric();
+    const report = await reconcileWorkersInFabric();
+    const workers = await dbGetAllWorkers();
+    res.json({
+      success: true,
+      report: { ...report, pendingFlushed, totalWorkers: workers.length },
+      data: workers
+    });
+  } catch (err) {
+    console.error('[API POST /api/workers/reconcile] Error:', err.message);
+    res.status(500).json({ success: false, error: 'Database reconciliation failed.' });
   }
 });
 

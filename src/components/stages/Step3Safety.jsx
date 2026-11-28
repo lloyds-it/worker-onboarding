@@ -30,6 +30,7 @@ export const Step3Safety = ({ initialData, onSave, isReadOnly }) => {
   );
   const [ppeNotes, setPpeNotes] = useState(initialData?.ppeNotes || '');
   const [error, setError] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const isDirtyRef = useRef(false);
   const lastInitialJsonRef = useRef(JSON.stringify(initialData || null));
 
@@ -66,9 +67,9 @@ export const Step3Safety = ({ initialData, onSave, isReadOnly }) => {
     setPpeIssued(prev => (prev.includes(itemId) ? prev.filter(id => id !== itemId) : [...prev, itemId]));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (isReadOnly) return;
+    if (isReadOnly || isSubmitting) return;
 
     if (!safetyOfficerName?.trim()) {
       setError('EHS Safety Officer Name is required.');
@@ -81,16 +82,21 @@ export const Step3Safety = ({ initialData, onSave, isReadOnly }) => {
     }
 
     setError(null);
+    setIsSubmitting(true);
     isDirtyRef.current = false;
 
-    onSave({
-      briefingDone: true,
-      topicsCovered,
-      ppeIssued,
-      ppeNotes,
-      safetyOfficerName,
-      safetyDate
-    });
+    try {
+      await onSave({
+        briefingDone: true,
+        topicsCovered,
+        ppeIssued,
+        ppeNotes,
+        safetyOfficerName,
+        safetyDate
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -287,8 +293,8 @@ export const Step3Safety = ({ initialData, onSave, isReadOnly }) => {
 
       {!isReadOnly && (
         <div style={{ marginTop: '2rem', display: 'flex', justifyContent: 'flex-end' }}>
-          <button id="btn-save-step3" type="submit" className="btn btn-primary">
-            <span>Certify Safety Induction & Route to IT</span>
+          <button id="btn-save-step3" type="submit" disabled={isSubmitting} className="btn btn-primary">
+            <span>{isSubmitting ? 'Saving Safety Induction...' : 'Certify Safety Induction & Route to IT'}</span>
             <CheckCircle2 size={16} />
           </button>
         </div>

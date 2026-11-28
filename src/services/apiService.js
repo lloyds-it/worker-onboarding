@@ -406,11 +406,13 @@ export const checkAuthStatus = async () => {
 /**
  * Get all workers (Fabric live or fallback - Authorized)
  */
-export const apiGetWorkers = async () => {
+export const apiGetWorkers = async (options = {}) => {
+  const { allowCacheFallback = true } = options;
   try {
     const res = await fetch(`${API_BASE}/workers`, {
-      headers: getAuthHeaders(),
-      signal: AbortSignal.timeout(6000)
+      headers: getAuthHeaders({ 'Cache-Control': 'no-cache' }),
+      cache: 'no-store',
+      signal: AbortSignal.timeout(15000)
     });
     if (res.ok) {
       const json = await res.json();
@@ -419,8 +421,14 @@ export const apiGetWorkers = async () => {
         saveWorkers(json.data);
         return json.data;
       }
+    } else if (!allowCacheFallback) {
+      const errJson = await res.json().catch(() => ({}));
+      throw new Error(errJson.error || `Failed to refresh workers (HTTP ${res.status})`);
     }
   } catch (err) {
+    if (!allowCacheFallback) {
+      throw err;
+    }
     console.warn('[API] Could not fetch remote workers, falling back to local cache:', err);
   }
 
@@ -464,8 +472,7 @@ export const apiRegisterWorker = async (newWorker) => {
     return await parseWriteResponse(res, 'Failed to save worker HR registration.');
   } catch (err) {
     if (err?.name === 'AbortError' || err instanceof TypeError) {
-      console.warn('[API] Could not reach backend, saved locally:', err.message);
-      return newWorker;
+      throw new Error('Server connection timed out or unreachable while saving registration. Please retry.');
     }
     throw err;
   }
@@ -475,21 +482,13 @@ export const apiRegisterWorker = async (newWorker) => {
  * Update Worker Photograph (Direct to Fabric SQL - Authorized)
  */
 export const apiUpdateWorkerPhoto = async (workerId, photoUrl) => {
-  try {
-    const res = await fetch(`${API_BASE}/workers/${workerId}/photo`, {
-      method: 'PATCH',
-      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ photo: photoUrl }),
-      signal: AbortSignal.timeout(WRITE_TIMEOUT_MS)
-    });
-    if (res.ok) {
-      const json = await res.json();
-      return json.data;
-    }
-  } catch (err) {
-    console.warn('[API] Photo update saved locally:', err.message);
-  }
-  return { success: true, workerId, photo: photoUrl };
+  const res = await fetch(`${API_BASE}/workers/${workerId}/photo`, {
+    method: 'PATCH',
+    headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ photo: photoUrl }),
+    signal: AbortSignal.timeout(WRITE_TIMEOUT_MS)
+  });
+  return await parseWriteResponse(res, 'Failed to save candidate photograph.');
 };
 
 /**
@@ -506,8 +505,7 @@ export const apiUpdateMedical = async (workerId, medicalData, updatedWorker) => 
     return await parseWriteResponse(res, 'Failed to save medical examination.');
   } catch (err) {
     if (err?.name === 'AbortError' || err instanceof TypeError) {
-      console.warn('[API] Medical update saved locally:', err.message);
-      return updatedWorker;
+      throw new Error('Server connection timed out or unreachable while saving medical examination. Please retry.');
     }
     throw err;
   }
@@ -527,8 +525,7 @@ export const apiUpdateSafety = async (workerId, safetyData, updatedWorker) => {
     return await parseWriteResponse(res, 'Failed to save EHS safety induction.');
   } catch (err) {
     if (err?.name === 'AbortError' || err instanceof TypeError) {
-      console.warn('[API] Safety update saved locally:', err.message);
-      return updatedWorker;
+      throw new Error('Server connection timed out or unreachable while saving safety induction. Please retry.');
     }
     throw err;
   }
@@ -548,8 +545,7 @@ export const apiUpdateIT = async (workerId, itData, updatedWorker) => {
     return await parseWriteResponse(res, 'Failed to save IT biometric enrollment.');
   } catch (err) {
     if (err?.name === 'AbortError' || err instanceof TypeError) {
-      console.warn('[API] IT update saved locally:', err.message);
-      return updatedWorker;
+      throw new Error('Server connection timed out or unreachable while saving IT biometrics. Please retry.');
     }
     throw err;
   }
@@ -569,8 +565,7 @@ export const apiUpdateCamp = async (workerId, campData, updatedWorker) => {
     return await parseWriteResponse(res, 'Failed to save camp allocation.');
   } catch (err) {
     if (err?.name === 'AbortError' || err instanceof TypeError) {
-      console.warn('[API] Camp update saved locally:', err.message);
-      return updatedWorker;
+      throw new Error('Server connection timed out or unreachable while saving camp allocation. Please retry.');
     }
     throw err;
   }

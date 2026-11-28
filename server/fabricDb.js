@@ -81,7 +81,9 @@ let pool = null;
 let liveAccessToken = null;
 let tokenExpiresAt = 0;
 let lastFabricFailureAt = 0;
-const FABRIC_RETRY_COOLDOWN_MS = 60000;
+let connectInFlightPromise = null;
+let reconciliationDone = false;
+const FABRIC_RETRY_COOLDOWN_MS = 15000;
 
 const WORKERS_STORE_PATH = path.join(process.cwd(), 'server', 'data', 'workers_store.json');
 const AUDIT_STORE_PATH = path.join(process.cwd(), 'server', 'data', 'audit_store.json');
@@ -165,6 +167,12 @@ const clipStr = (val, maxLen) => {
 };
 
 const SCHEMA_STATEMENTS = [
+  `IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'WorkersMaster' AND schema_id = SCHEMA_ID('dbo')) BEGIN CREATE TABLE dbo.WorkersMaster (id VARCHAR(50) NOT NULL, assignedWorkerId VARCHAR(50) NULL, stage INT NOT NULL, status VARCHAR(50) NOT NULL, fullName VARCHAR(200) NOT NULL, contractorName VARCHAR(200) NULL, trade VARCHAR(100) NULL, mobileNumber VARCHAR(20) NULL, createdAt VARCHAR(50) NULL, updatedAt VARCHAR(50) NULL, completedAt VARCHAR(50) NULL); ALTER TABLE dbo.WorkersMaster ADD CONSTRAINT PK_WorkersMaster PRIMARY KEY NONCLUSTERED (id) NOT ENFORCED; END;`,
+  `IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'WorkerHRData' AND schema_id = SCHEMA_ID('dbo')) BEGIN CREATE TABLE dbo.WorkerHRData (workerId VARCHAR(50) NOT NULL, fullName VARCHAR(200) NOT NULL, fatherHusbandName VARCHAR(200) NULL, dob VARCHAR(50) NULL, age INT NULL, gender VARCHAR(10) NULL, mobileNumber VARCHAR(20) NULL, idProofType VARCHAR(100) NULL, idProofRef VARCHAR(100) NULL, contractorName VARCHAR(200) NULL, contractorCode VARCHAR(50) NULL, locationCode VARCHAR(20) NULL, locationName VARCHAR(200) NULL, contractorLicense VARCHAR(100) NULL, trade VARCHAR(100) NULL, address VARCHAR(500) NULL, workingLocation VARCHAR(250) NULL, activity VARCHAR(200) NULL, emergencyPerson VARCHAR(200) NULL, emergencyRelationship VARCHAR(100) NULL, emergencyMobile VARCHAR(20) NULL, photo VARCHAR(MAX) NULL, registeredAt VARCHAR(50) NULL); ALTER TABLE dbo.WorkerHRData ADD CONSTRAINT PK_WorkerHRData PRIMARY KEY NONCLUSTERED (workerId) NOT ENFORCED; END;`,
+  `IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'WorkerMedicalVitals' AND schema_id = SCHEMA_ID('dbo')) BEGIN CREATE TABLE dbo.WorkerMedicalVitals (workerId VARCHAR(50) NOT NULL, bloodGroup VARCHAR(20) NULL, heightCm INT NULL, weightKg INT NULL, bmi VARCHAR(20) NULL, bmiCategory VARCHAR(50) NULL, bpSystolic INT NULL, bpDiastolic INT NULL, spo2 INT NULL, pulseRate INT NULL, respirationRate INT NULL, rbs INT NULL, alcoholTest VARCHAR(20) NULL, visionTest VARCHAR(50) NULL, hearingTest VARCHAR(50) NULL, vertigoTest VARCHAR(50) NULL, existingIllness VARCHAR(500) NULL, fitnessStatus VARCHAR(50) NULL, examinerName VARCHAR(200) NULL, remarks VARCHAR(1000) NULL, followUpDays INT NULL, followUpDate VARCHAR(50) NULL, followUpNotified BIT NULL, medicalHistoryJson VARCHAR(MAX) NULL, examinedAt VARCHAR(50) NULL); ALTER TABLE dbo.WorkerMedicalVitals ADD CONSTRAINT PK_WorkerMedicalVitals PRIMARY KEY NONCLUSTERED (workerId) NOT ENFORCED; END;`,
+  `IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'WorkerSafetyInduction' AND schema_id = SCHEMA_ID('dbo')) BEGIN CREATE TABLE dbo.WorkerSafetyInduction (workerId VARCHAR(50) NOT NULL, briefingDone BIT NULL, topicsCovered VARCHAR(2000) NULL, ppeIssued VARCHAR(2000) NULL, ppeNotes VARCHAR(500) NULL, safetyOfficerName VARCHAR(200) NULL, safetyDate VARCHAR(50) NULL, inductedAt VARCHAR(50) NULL); ALTER TABLE dbo.WorkerSafetyInduction ADD CONSTRAINT PK_WorkerSafetyInduction PRIMARY KEY NONCLUSTERED (workerId) NOT ENFORCED; END;`,
+  `IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'WorkerITBiometrics' AND schema_id = SCHEMA_ID('dbo')) BEGIN CREATE TABLE dbo.WorkerITBiometrics (workerId VARCHAR(50) NOT NULL, assignedWorkerId VARCHAR(50) NULL, faceBiometricRegistered BIT NULL, cwmsRegistered BIT NULL, campusMasterUploaded BIT NULL, undertakingAccepted BIT NULL, itAdminSignature VARCHAR(200) NULL, itDate VARCHAR(50) NULL, enrolledAt VARCHAR(50) NULL); ALTER TABLE dbo.WorkerITBiometrics ADD CONSTRAINT PK_WorkerITBiometrics PRIMARY KEY NONCLUSTERED (workerId) NOT ENFORCED; END;`,
+  `IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'WorkerCampAllocation' AND schema_id = SCHEMA_ID('dbo')) BEGIN CREATE TABLE dbo.WorkerCampAllocation (workerId VARCHAR(50) NOT NULL, campName VARCHAR(100) NULL, blockNo VARCHAR(50) NULL, roomNo VARCHAR(50) NULL, bedNo VARCHAR(50) NULL, gatePassActive BIT NULL, allocatedBy VARCHAR(200) NULL, allocationDate VARCHAR(50) NULL, contractorSupervisor VARCHAR(200) NULL, supervisorMobile VARCHAR(30) NULL, allocatedAt VARCHAR(50) NULL); ALTER TABLE dbo.WorkerCampAllocation ADD CONSTRAINT PK_WorkerCampAllocation PRIMARY KEY NONCLUSTERED (workerId) NOT ENFORCED; END;`,
   `IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'WorkersMaster' AND COLUMN_NAME = 'completedAt') BEGIN ALTER TABLE dbo.WorkersMaster ADD completedAt VARCHAR(50) NULL; END;`,
   `IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'WorkerHRData' AND COLUMN_NAME = 'photo') BEGIN ALTER TABLE dbo.WorkerHRData ADD photo VARCHAR(MAX) NULL; END;`,
   `IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'WorkerHRData' AND COLUMN_NAME = 'contractorCode') BEGIN ALTER TABLE dbo.WorkerHRData ADD contractorCode VARCHAR(50) NULL; END;`,
@@ -173,14 +181,19 @@ const SCHEMA_STATEMENTS = [
   `IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'WorkerHRData' AND COLUMN_NAME = 'address') BEGIN ALTER TABLE dbo.WorkerHRData ADD address VARCHAR(500) NULL; END;`,
   `IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'WorkerHRData' AND COLUMN_NAME = 'workingLocation') BEGIN ALTER TABLE dbo.WorkerHRData ADD workingLocation VARCHAR(250) NULL; END;`,
   `IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'WorkerHRData' AND COLUMN_NAME = 'activity') BEGIN ALTER TABLE dbo.WorkerHRData ADD activity VARCHAR(200) NULL; END;`,
+  `IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'WorkerHRData' AND COLUMN_NAME = 'registeredAt') BEGIN ALTER TABLE dbo.WorkerHRData ADD registeredAt VARCHAR(50) NULL; END;`,
   `IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'WorkerCampAllocation' AND COLUMN_NAME = 'contractorSupervisor') BEGIN ALTER TABLE dbo.WorkerCampAllocation ADD contractorSupervisor VARCHAR(200) NULL; END;`,
   `IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'WorkerCampAllocation' AND COLUMN_NAME = 'supervisorMobile') BEGIN ALTER TABLE dbo.WorkerCampAllocation ADD supervisorMobile VARCHAR(30) NULL; END;`,
+  `IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'WorkerCampAllocation' AND COLUMN_NAME = 'allocatedAt') BEGIN ALTER TABLE dbo.WorkerCampAllocation ADD allocatedAt VARCHAR(50) NULL; END;`,
   `IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'WorkerMedicalVitals' AND COLUMN_NAME = 'followUpDays') BEGIN ALTER TABLE dbo.WorkerMedicalVitals ADD followUpDays INT NULL; END;`,
   `IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'WorkerMedicalVitals' AND COLUMN_NAME = 'followUpDate') BEGIN ALTER TABLE dbo.WorkerMedicalVitals ADD followUpDate VARCHAR(50) NULL; END;`,
   `IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'WorkerMedicalVitals' AND COLUMN_NAME = 'followUpNotified') BEGIN ALTER TABLE dbo.WorkerMedicalVitals ADD followUpNotified BIT NULL; END;`,
   `IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'WorkerMedicalVitals' AND COLUMN_NAME = 'medicalHistoryJson') BEGIN ALTER TABLE dbo.WorkerMedicalVitals ADD medicalHistoryJson VARCHAR(MAX) NULL; END;`,
+  `IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'WorkerMedicalVitals' AND COLUMN_NAME = 'examinedAt') BEGIN ALTER TABLE dbo.WorkerMedicalVitals ADD examinedAt VARCHAR(50) NULL; END;`,
   `IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'WorkerSafetyInduction' AND COLUMN_NAME = 'ppeNotes') BEGIN ALTER TABLE dbo.WorkerSafetyInduction ADD ppeNotes VARCHAR(500) NULL; END;`,
-  `ALTER TABLE dbo.WorkerMedicalVitals ALTER COLUMN bloodGroup VARCHAR(20) NULL;`,
+  `IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'WorkerSafetyInduction' AND COLUMN_NAME = 'inductedAt') BEGIN ALTER TABLE dbo.WorkerSafetyInduction ADD inductedAt VARCHAR(50) NULL; END;`,
+  `IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'WorkerITBiometrics' AND COLUMN_NAME = 'enrolledAt') BEGIN ALTER TABLE dbo.WorkerITBiometrics ADD enrolledAt VARCHAR(50) NULL; END;`,
+  `IF EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'WorkerMedicalVitals' AND COLUMN_NAME = 'bloodGroup' AND CHARACTER_MAXIMUM_LENGTH IS NOT NULL AND CHARACTER_MAXIMUM_LENGTH < 20) BEGIN ALTER TABLE dbo.WorkerMedicalVitals ALTER COLUMN bloodGroup VARCHAR(20) NULL; END;`,
   `IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'ContractorsMaster' AND schema_id = SCHEMA_ID('dbo')) BEGIN CREATE TABLE dbo.ContractorsMaster (id VARCHAR(50) NOT NULL, contractorCode VARCHAR(50) NULL, locationCode VARCHAR(20) NULL, locationName VARCHAR(200) NULL, companyName VARCHAR(200) NOT NULL, licenseNo VARCHAR(100) NULL, department VARCHAR(100) NULL, contactPerson VARCHAR(200) NULL, contactMobile VARCHAR(30) NULL, email VARCHAR(200) NULL, address VARCHAR(500) NULL, registrationNo VARCHAR(100) NULL, labourLicenseNo VARCHAR(100) NULL, pfCode VARCHAR(100) NULL, esicCode VARCHAR(100) NULL, gstNo VARCHAR(50) NULL, panNo VARCHAR(50) NULL, validFrom VARCHAR(50) NULL, validUpto VARCHAR(50) NULL, status VARCHAR(30) NOT NULL, createdAt VARCHAR(50) NULL); ALTER TABLE dbo.ContractorsMaster ADD CONSTRAINT PK_ContractorsMaster PRIMARY KEY NONCLUSTERED (id) NOT ENFORCED; END;`,
   `IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'ContractorsMaster' AND COLUMN_NAME = 'contractorCode') BEGIN ALTER TABLE dbo.ContractorsMaster ADD contractorCode VARCHAR(50) NULL; END;`,
   `IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'ContractorsMaster' AND COLUMN_NAME = 'locationCode') BEGIN ALTER TABLE dbo.ContractorsMaster ADD locationCode VARCHAR(20) NULL; END;`,
@@ -196,6 +209,233 @@ const ensureFabricSchema = async (targetPool) => {
     } catch (err) {
       console.warn('[Microsoft Fabric] Schema sync notice:', err.message);
     }
+  }
+};
+
+const toTimeMs = (iso) => {
+  if (!iso) return 0;
+  const ms = new Date(iso).getTime();
+  return Number.isNaN(ms) ? 0 : ms;
+};
+
+/**
+ * Resolve true pipeline stage & status from stage completion state and timestamps
+ * so workers never get stranded in an earlier stage when child stage records exist.
+ */
+export const resolveEffectiveStageAndStatus = (worker) => {
+  if (!worker) return { stage: 2, status: 'IN_PROGRESS', completedAt: null };
+  const rawStage = worker.stage;
+  const masterUpdatedAtMs = toTimeMs(worker.updatedAt);
+  const medAtMs = toTimeMs(worker.medical?.examinedAt);
+  const safAtMs = toTimeMs(worker.safety?.inductedAt);
+  const itAtMs = toTimeMs(worker.it?.enrolledAt);
+  const campAtMs = toTimeMs(worker.camp?.allocatedAt || worker.completedAt);
+
+  if (worker.camp?.campName || worker.camp?.gatePassActive) {
+    if (rawStage === null || rawStage === undefined || (rawStage < 6 && (rawStage !== -1 || campAtMs >= masterUpdatedAtMs))) {
+      return {
+        stage: 6,
+        status: 'COMPLETED',
+        completedAt: worker.completedAt || worker.camp.allocatedAt || worker.updatedAt || new Date().toISOString()
+      };
+    }
+  }
+
+  if (worker.it?.faceBiometricRegistered || worker.it?.itAdminSignature) {
+    if (rawStage === null || rawStage === undefined || (rawStage < 5 && (rawStage !== -1 || itAtMs >= masterUpdatedAtMs))) {
+      return {
+        stage: 5,
+        status: 'IN_PROGRESS',
+        completedAt: null
+      };
+    }
+  }
+
+  if (worker.safety?.briefingDone || worker.safety?.safetyOfficerName) {
+    if (rawStage === null || rawStage === undefined || (rawStage < 4 && (rawStage !== -1 || safAtMs >= masterUpdatedAtMs))) {
+      return {
+        stage: 4,
+        status: 'IN_PROGRESS',
+        completedAt: null
+      };
+    }
+  }
+
+  const fitStatus = worker.medical?.fitnessStatus;
+  if (fitStatus) {
+    if (fitStatus === 'FIT' || fitStatus === 'FIT_WITH_PRECAUTIONS' || fitStatus === 'FIT_WITH_FOLLOW_UP') {
+      if (rawStage === null || rawStage === undefined || (rawStage < 3 && (rawStage !== -1 || medAtMs >= masterUpdatedAtMs))) {
+        return {
+          stage: 3,
+          status: 'IN_PROGRESS',
+          completedAt: null
+        };
+      }
+    } else if (fitStatus === 'HOLD') {
+      if (rawStage === null || rawStage === undefined || rawStage < 2) {
+        return {
+          stage: 2,
+          status: 'HOLD',
+          completedAt: null
+        };
+      }
+    } else if (fitStatus === 'UNFIT') {
+      if (rawStage === null || rawStage === undefined || rawStage === 1 || rawStage === 2 || medAtMs >= masterUpdatedAtMs) {
+        return {
+          stage: -1,
+          status: 'FLAGGED',
+          completedAt: null
+        };
+      }
+    }
+  }
+
+  if (rawStage === null || rawStage === undefined || rawStage === 0 || rawStage === 1) {
+    return {
+      stage: 2,
+      status: worker.status || 'IN_PROGRESS',
+      completedAt: null
+    };
+  }
+
+  return {
+    stage: rawStage,
+    status: worker.status || (rawStage === 6 ? 'COMPLETED' : (rawStage === -1 ? 'FLAGGED' : 'IN_PROGRESS')),
+    completedAt: rawStage === 6 ? (worker.completedAt || worker.camp?.allocatedAt || worker.updatedAt || null) : null
+  };
+};
+
+/**
+ * Audit & repair Fabric tables so orphan child records and out-of-sync WorkersMaster.stage rows
+ * immediately appear in the exact stage they belong to.
+ */
+export const reconcileWorkersInFabric = async (targetPool = pool) => {
+  if (!targetPool || !targetPool.connected) {
+    return { ok: false, reason: 'Fabric pool not connected', orphansInserted: 0, stagesRepaired: 0, pendingFlushed: 0 };
+  }
+
+  const now = new Date().toISOString();
+  let orphansInserted = 0;
+  let stagesRepaired = 0;
+
+  try {
+    // 1. Backfill missing WorkersMaster rows from any child table
+    const orphanRes = await targetPool.request().input('now', sql.VarChar(50), now).query(`
+      INSERT INTO dbo.WorkersMaster (id, assignedWorkerId, stage, status, fullName, contractorName, trade, mobileNumber, createdAt, updatedAt)
+      SELECT DISTINCT
+        src.workerId,
+        COALESCE(it.assignedWorkerId, ''),
+        CASE
+          WHEN c.campName IS NOT NULL AND LTRIM(RTRIM(c.campName)) <> '' THEN 6
+          WHEN it.faceBiometricRegistered = 1 OR (it.itAdminSignature IS NOT NULL AND LTRIM(RTRIM(it.itAdminSignature)) <> '') THEN 5
+          WHEN s.briefingDone = 1 OR (s.safetyOfficerName IS NOT NULL AND LTRIM(RTRIM(s.safetyOfficerName)) <> '') THEN 4
+          WHEN m.fitnessStatus IN ('FIT', 'FIT_WITH_PRECAUTIONS', 'FIT_WITH_FOLLOW_UP') THEN 3
+          WHEN m.fitnessStatus = 'UNFIT' THEN -1
+          ELSE 2
+        END,
+        CASE
+          WHEN c.campName IS NOT NULL AND LTRIM(RTRIM(c.campName)) <> '' THEN 'COMPLETED'
+          WHEN m.fitnessStatus = 'UNFIT' THEN 'FLAGGED'
+          WHEN m.fitnessStatus = 'HOLD' THEN 'HOLD'
+          ELSE 'IN_PROGRESS'
+        END,
+        COALESCE(NULLIF(LTRIM(RTRIM(hr.fullName)), ''), 'Unnamed Candidate'),
+        COALESCE(hr.contractorName, ''),
+        COALESCE(hr.trade, ''),
+        COALESCE(hr.mobileNumber, ''),
+        COALESCE(hr.registeredAt, m.examinedAt, s.inductedAt, it.enrolledAt, c.allocatedAt, @now),
+        @now
+      FROM (
+        SELECT workerId FROM dbo.WorkerHRData
+        UNION
+        SELECT workerId FROM dbo.WorkerMedicalVitals
+        UNION
+        SELECT workerId FROM dbo.WorkerSafetyInduction
+        UNION
+        SELECT workerId FROM dbo.WorkerITBiometrics
+        UNION
+        SELECT workerId FROM dbo.WorkerCampAllocation
+      ) src
+      LEFT JOIN dbo.WorkersMaster w ON w.id = src.workerId
+      LEFT JOIN dbo.WorkerHRData hr ON hr.workerId = src.workerId
+      LEFT JOIN dbo.WorkerMedicalVitals m ON m.workerId = src.workerId
+      LEFT JOIN dbo.WorkerSafetyInduction s ON s.workerId = src.workerId
+      LEFT JOIN dbo.WorkerITBiometrics it ON it.workerId = src.workerId
+      LEFT JOIN dbo.WorkerCampAllocation c ON c.workerId = src.workerId
+      WHERE w.id IS NULL AND src.workerId IS NOT NULL;
+      SELECT @@ROWCOUNT AS insertedCount;
+    `);
+    orphansInserted = orphanRes?.recordset?.[0]?.insertedCount || 0;
+
+    // 2. Backfill missing WorkerHRData rows for any WorkersMaster row
+    await targetPool.request().input('now', sql.VarChar(50), now).query(`
+      INSERT INTO dbo.WorkerHRData (workerId, fullName, contractorName, trade, mobileNumber, registeredAt)
+      SELECT w.id, COALESCE(NULLIF(LTRIM(RTRIM(w.fullName)), ''), 'Unnamed Candidate'), COALESCE(w.contractorName, ''), COALESCE(w.trade, ''), COALESCE(w.mobileNumber, ''), COALESCE(w.createdAt, @now)
+      FROM dbo.WorkersMaster w
+      LEFT JOIN dbo.WorkerHRData hr ON w.id = hr.workerId
+      WHERE hr.workerId IS NULL;
+    `);
+
+    // 3. Reconcile stage / status / completedAt for any out-of-sync WorkersMaster rows
+    const mismatchRes = await targetPool.request().query(`
+      SELECT
+        w.id, w.assignedWorkerId, w.stage, w.status, w.updatedAt, w.completedAt,
+        m.fitnessStatus, m.examinedAt,
+        s.briefingDone, s.safetyOfficerName, s.inductedAt,
+        it.assignedWorkerId AS itAssignedId, it.faceBiometricRegistered, it.itAdminSignature, it.enrolledAt,
+        c.campName, c.gatePassActive, c.allocatedAt
+      FROM dbo.WorkersMaster w
+      LEFT JOIN dbo.WorkerMedicalVitals m ON w.id = m.workerId
+      LEFT JOIN dbo.WorkerSafetyInduction s ON w.id = s.workerId
+      LEFT JOIN dbo.WorkerITBiometrics it ON w.id = it.workerId
+      LEFT JOIN dbo.WorkerCampAllocation c ON w.id = c.workerId
+    `);
+
+    for (const row of mismatchRes.recordset || []) {
+      const candidate = {
+        stage: row.stage,
+        status: row.status,
+        updatedAt: row.updatedAt,
+        completedAt: row.completedAt,
+        medical: row.fitnessStatus ? { fitnessStatus: row.fitnessStatus, examinedAt: row.examinedAt } : null,
+        safety: (row.briefingDone !== null || row.safetyOfficerName) ? { briefingDone: !!row.briefingDone, safetyOfficerName: row.safetyOfficerName, inductedAt: row.inductedAt } : null,
+        it: (row.faceBiometricRegistered !== null || row.itAdminSignature) ? { faceBiometricRegistered: !!row.faceBiometricRegistered, itAdminSignature: row.itAdminSignature, enrolledAt: row.enrolledAt } : null,
+        camp: (row.campName || row.gatePassActive) ? { campName: row.campName, gatePassActive: !!row.gatePassActive, allocatedAt: row.allocatedAt } : null
+      };
+      const resolved = resolveEffectiveStageAndStatus(candidate);
+      const nextAssignedId = row.assignedWorkerId || row.itAssignedId || '';
+      const needsStageFix = resolved.stage !== row.stage || resolved.status !== row.status;
+      const needsCompletedFix = resolved.stage === 6 && !row.completedAt && resolved.completedAt;
+      const needsIdFix = !row.assignedWorkerId && nextAssignedId;
+
+      if (needsStageFix || needsCompletedFix || needsIdFix) {
+        await targetPool.request()
+          .input('id', sql.VarChar(50), row.id)
+          .input('stage', sql.Int, resolved.stage)
+          .input('status', sql.VarChar(50), resolved.status)
+          .input('completedAt', sql.VarChar(50), resolved.completedAt || null)
+          .input('assignedWorkerId', sql.VarChar(50), nextAssignedId)
+          .input('updatedAt', sql.VarChar(50), now)
+          .query(`
+            UPDATE dbo.WorkersMaster
+            SET stage = @stage,
+                status = @status,
+                completedAt = COALESCE(@completedAt, completedAt),
+                assignedWorkerId = COALESCE(NULLIF(assignedWorkerId, ''), @assignedWorkerId),
+                updatedAt = COALESCE(NULLIF(updatedAt, ''), @updatedAt)
+            WHERE id = @id;
+          `);
+        stagesRepaired += 1;
+      }
+    }
+
+    if (orphansInserted > 0 || stagesRepaired > 0) {
+      console.log(`[Microsoft Fabric] Database reconciliation fixed ${orphansInserted} orphan worker(s) and ${stagesRepaired} stage mismatch(es).`);
+    }
+    return { ok: true, orphansInserted, stagesRepaired, pendingFlushed: 0 };
+  } catch (err) {
+    console.warn('[Microsoft Fabric] Reconciliation notice:', err.message);
+    return { ok: false, error: err.message, orphansInserted, stagesRepaired, pendingFlushed: 0 };
   }
 };
 
@@ -232,13 +472,13 @@ const getSqlConfig = (token = null) => {
       encrypt: true,
       trustServerCertificate: false,
       enableArithAbort: true,
-      connectTimeout: 8000,
-      requestTimeout: 10000
+      connectTimeout: 15000,
+      requestTimeout: 30000
     },
     pool: {
       max: 10,
       min: 0,
-      idleTimeoutMillis: 30000
+      idleTimeoutMillis: 120000
     }
   };
 
@@ -349,8 +589,12 @@ export const connectWithToken = async (token) => {
     });
     await pool.connect();
 
-    // Auto-verify columns and master tables independently
+    // Auto-verify columns, master tables, and orphan/stage reconciliation
     await ensureFabricSchema(pool);
+    if (!reconciliationDone) {
+      reconciliationDone = true;
+      await reconcileWorkersInFabric(pool);
+    }
 
     connectionStatus = {
       isConnected: true,
@@ -438,68 +682,100 @@ export const getAuthStatus = () => activeAuthSession;
  * Connect to Fabric using current config
  */
 export const connectToFabric = async (force = false) => {
+  if (pool && pool.connected && !force) {
+    return pool;
+  }
+  if (connectInFlightPromise) {
+    return await connectInFlightPromise;
+  }
   if (!force && lastFabricFailureAt && Date.now() - lastFabricFailureAt < FABRIC_RETRY_COOLDOWN_MS) {
     return null;
   }
 
-  // Reuse valid cached token (with 5 min safety buffer)
-  if (liveAccessToken && Date.now() < tokenExpiresAt - 300000) {
-    if (pool && pool.connected) {
-      return pool;
-    }
-    const reconnected = await connectWithToken(liveAccessToken);
-    if (!reconnected) lastFabricFailureAt = Date.now();
-    return reconnected;
-  }
-
-  // 1. Primary: Acquire Azure Entra ID token directly via HTTPS (IPv4 forced)
-  if (process.env.AZURE_CLIENT_ID && process.env.AZURE_CLIENT_SECRET && process.env.AZURE_TENANT_ID) {
-    try {
-      console.log('[Microsoft Fabric] Authenticating via Service Principal Client ID:', process.env.AZURE_CLIENT_ID);
-      const tokenResult = await acquireDirectToken(
-        process.env.AZURE_TENANT_ID,
-        process.env.AZURE_CLIENT_ID,
-        process.env.AZURE_CLIENT_SECRET
-      );
-      if (tokenResult && tokenResult.token) {
-        liveAccessToken = tokenResult.token;
-        tokenExpiresAt = Date.now() + (tokenResult.expiresIn * 1000);
-        console.log('[Microsoft Fabric] Acquired Entra ID Token via Direct OAuth2 (IPv4)!');
-        const connectedPool = await connectWithToken(tokenResult.token);
-        if (!connectedPool) {
-          lastFabricFailureAt = Date.now();
-        } else {
-          lastFabricFailureAt = 0;
-        }
-        return connectedPool;
+  connectInFlightPromise = (async () => {
+    // Reuse valid cached token (with 5 min safety buffer)
+    if (liveAccessToken && Date.now() < tokenExpiresAt - 300000) {
+      if (pool && pool.connected) {
+        return pool;
       }
-    } catch (directErr) {
-      console.warn('[Microsoft Fabric] Direct OAuth2 token notice:', directErr.message);
+      const reconnected = await connectWithToken(liveAccessToken);
+      if (!reconnected) lastFabricFailureAt = Date.now();
+      return reconnected;
+    }
 
-      // Fallback to @azure/identity ClientSecretCredential if direct HTTPS had unexpected issue
+    // 1. Primary: Acquire Azure Entra ID token directly via HTTPS (IPv4 forced)
+    if (process.env.AZURE_CLIENT_ID && process.env.AZURE_CLIENT_SECRET && process.env.AZURE_TENANT_ID) {
       try {
-        const credential = new ClientSecretCredential(
+        console.log('[Microsoft Fabric] Authenticating via Service Principal Client ID:', process.env.AZURE_CLIENT_ID);
+        const tokenResult = await acquireDirectToken(
           process.env.AZURE_TENANT_ID,
           process.env.AZURE_CLIENT_ID,
           process.env.AZURE_CLIENT_SECRET
         );
-        const tokenResp = await credential.getToken('https://database.windows.net/.default');
-        if (tokenResp && tokenResp.token) {
-          liveAccessToken = tokenResp.token;
-          tokenExpiresAt = tokenResp.expiresOnTimestamp || (Date.now() + 3600000);
-          console.log('[Microsoft Fabric] Acquired Entra ID Token via ClientSecretCredential!');
-          return await connectWithToken(tokenResp.token);
+        if (tokenResult && tokenResult.token) {
+          liveAccessToken = tokenResult.token;
+          tokenExpiresAt = Date.now() + (tokenResult.expiresIn * 1000);
+          console.log('[Microsoft Fabric] Acquired Entra ID Token via Direct OAuth2 (IPv4)!');
+          const connectedPool = await connectWithToken(tokenResult.token);
+          if (!connectedPool) {
+            lastFabricFailureAt = Date.now();
+          } else {
+            lastFabricFailureAt = 0;
+          }
+          return connectedPool;
         }
-      } catch (spErr) {
-        console.warn('[Microsoft Fabric] Service Principal fallback notice:', spErr.message);
+      } catch (directErr) {
+        console.warn('[Microsoft Fabric] Direct OAuth2 token notice:', directErr.message);
+
+        // Fallback to @azure/identity ClientSecretCredential if direct HTTPS had unexpected issue
+        try {
+          const credential = new ClientSecretCredential(
+            process.env.AZURE_TENANT_ID,
+            process.env.AZURE_CLIENT_ID,
+            process.env.AZURE_CLIENT_SECRET
+          );
+          const tokenResp = await credential.getToken('https://database.windows.net/.default');
+          if (tokenResp && tokenResp.token) {
+            liveAccessToken = tokenResp.token;
+            tokenExpiresAt = tokenResp.expiresOnTimestamp || (Date.now() + 3600000);
+            console.log('[Microsoft Fabric] Acquired Entra ID Token via ClientSecretCredential!');
+            return await connectWithToken(tokenResp.token);
+          }
+        } catch (spErr) {
+          console.warn('[Microsoft Fabric] Service Principal fallback notice:', spErr.message);
+        }
       }
     }
-  }
 
-  // 2. Secondary: Connect using bridge if available
-  try {
-    const pyResult = await runPyBridge('test');
-    if (pyResult && pyResult.connected) {
+    // 2. Secondary: Connect using bridge if available
+    try {
+      const pyResult = await runPyBridge('test');
+      if (pyResult && pyResult.connected) {
+        connectionStatus = {
+          isConnected: true,
+          server: FABRIC_SERVER,
+          database: FABRIC_DATABASE,
+          lastChecked: new Date().toISOString(),
+          error: null,
+          mode: 'FABRIC_ONLINE'
+        };
+        console.log(`[Microsoft Fabric] Connected successfully to live database via Python bridge!`);
+        return { connected: true };
+      }
+    } catch (pyErr) {
+      // continue to direct SQL
+    }
+
+    try {
+      const config = getSqlConfig();
+      pool = new sql.ConnectionPool(config);
+      await pool.connect();
+      await ensureFabricSchema(pool);
+      if (!reconciliationDone) {
+        reconciliationDone = true;
+        await reconcileWorkersInFabric(pool);
+      }
+
       connectionStatus = {
         isConnected: true,
         server: FABRIC_SERVER,
@@ -508,41 +784,27 @@ export const connectToFabric = async (force = false) => {
         error: null,
         mode: 'FABRIC_ONLINE'
       };
-      console.log(`[Microsoft Fabric] Connected successfully to live database via Python bridge!`);
-      return { connected: true };
+      console.log(`[Microsoft Fabric] Connected successfully to ${FABRIC_SERVER} / ${FABRIC_DATABASE}`);
+      return pool;
+    } catch (err) {
+      lastFabricFailureAt = Date.now();
+      connectionStatus = {
+        isConnected: false,
+        server: FABRIC_SERVER,
+        database: FABRIC_DATABASE,
+        lastChecked: new Date().toISOString(),
+        error: err.message,
+        mode: 'FALLBACK_MODE'
+      };
+      console.warn(`[Microsoft Fabric] Notice: Could not connect to Fabric live database (${err.message}). Activating Hybrid Local Fallback mode.`);
+      return null;
     }
-  } catch (pyErr) {
-    // continue to direct SQL
-  }
+  })();
 
   try {
-    const config = getSqlConfig();
-    pool = new sql.ConnectionPool(config);
-    await pool.connect();
-    await ensureFabricSchema(pool);
-
-    connectionStatus = {
-      isConnected: true,
-      server: FABRIC_SERVER,
-      database: FABRIC_DATABASE,
-      lastChecked: new Date().toISOString(),
-      error: null,
-      mode: 'FABRIC_ONLINE'
-    };
-    console.log(`[Microsoft Fabric] Connected successfully to ${FABRIC_SERVER} / ${FABRIC_DATABASE}`);
-    return pool;
-  } catch (err) {
-    lastFabricFailureAt = Date.now();
-    connectionStatus = {
-      isConnected: false,
-      server: FABRIC_SERVER,
-      database: FABRIC_DATABASE,
-      lastChecked: new Date().toISOString(),
-      error: err.message,
-      mode: 'FALLBACK_MODE'
-    };
-    console.warn(`[Microsoft Fabric] Notice: Could not connect to Fabric live database (${err.message}). Activating Hybrid Local Fallback mode.`);
-    return null;
+    return await connectInFlightPromise;
+  } finally {
+    connectInFlightPromise = null;
   }
 };
 
@@ -640,33 +902,78 @@ export const testFabricConnection = async () => {
 };
 
 /**
+ * Flush any local fallback records marked _fabricPendingSync into Fabric SQL once online
+ */
+export const flushPendingSyncToFabric = async () => {
+  const pending = (fallbackWorkersCache || []).filter(w => w && w._fabricPendingSync);
+  if (!pending.length) return 0;
+  await connectToFabric();
+  if (!pool || !pool.connected) return 0;
+
+  let flushed = 0;
+  for (const w of pending) {
+    try {
+      await dbRegisterWorkerHR(w);
+      if (w.medical?.fitnessStatus || w.medical?.examinerName) {
+        await dbUpdateMedical(w.id, w.medical, w);
+      }
+      if (w.safety?.briefingDone || w.safety?.safetyOfficerName) {
+        await dbUpdateSafety(w.id, w.safety, w);
+      }
+      if (w.it?.faceBiometricRegistered || w.it?.itAdminSignature) {
+        await dbUpdateIT(w.id, w.it, w);
+      }
+      if (w.camp?.campName) {
+        await dbUpdateCamp(w.id, w.camp, w);
+      }
+      flushed += 1;
+    } catch (err) {
+      console.warn(`[Microsoft Fabric] Pending sync flush error for ${w.id}:`, err.message);
+    }
+  }
+  return flushed;
+};
+
+/**
  * Retrieve all workers (Live Fabric or Fallback)
  */
 export const dbGetAllWorkers = async () => {
-  // 1. Trigger non-blocking background reconnect if disconnected so API responses never stall
   if (!pool || !pool.connected) {
-    connectToFabric().catch(() => {});
+    await connectToFabric();
   }
 
   if (pool && pool.connected) {
+    await flushPendingSyncToFabric().catch(() => {});
+
+    const query = `
+      SELECT 
+        w.id, w.assignedWorkerId, w.stage, w.status, w.fullName, w.contractorName, w.trade, w.mobileNumber, w.createdAt, w.updatedAt, w.completedAt,
+        hr.fatherHusbandName, hr.dob, hr.age, hr.gender, hr.idProofType, hr.idProofRef, hr.contractorCode, hr.locationCode, hr.locationName, hr.contractorLicense, hr.address, hr.workingLocation, hr.activity, hr.emergencyPerson, hr.emergencyRelationship, hr.emergencyMobile, hr.photo, hr.registeredAt,
+        m.bloodGroup, m.heightCm, m.weightKg, m.bmi, m.bmiCategory, m.bpSystolic, m.bpDiastolic, m.spo2, m.pulseRate, m.respirationRate, m.rbs, m.alcoholTest, m.visionTest, m.hearingTest, m.vertigoTest, m.existingIllness, m.fitnessStatus, m.examinerName, m.remarks AS medicalRemarks, m.examinedAt, m.followUpDays, m.followUpDate, m.followUpNotified, m.medicalHistoryJson,
+        s.briefingDone, s.topicsCovered, s.ppeIssued, s.ppeNotes, s.safetyOfficerName, s.safetyDate, s.inductedAt,
+        it.faceBiometricRegistered, it.cwmsRegistered, it.campusMasterUploaded, it.undertakingAccepted, it.itAdminSignature, it.itDate, it.enrolledAt,
+        c.campName, c.blockNo, c.roomNo, c.bedNo, c.gatePassActive, c.allocatedBy, c.allocationDate, c.allocatedAt, c.contractorSupervisor, c.supervisorMobile
+      FROM dbo.WorkersMaster w
+      LEFT JOIN dbo.WorkerHRData hr ON w.id = hr.workerId
+      LEFT JOIN dbo.WorkerMedicalVitals m ON w.id = m.workerId
+      LEFT JOIN dbo.WorkerSafetyInduction s ON w.id = s.workerId
+      LEFT JOIN dbo.WorkerITBiometrics it ON w.id = it.workerId
+      LEFT JOIN dbo.WorkerCampAllocation c ON w.id = c.workerId
+      ORDER BY w.createdAt DESC
+    `;
+
     try {
-      const query = `
-        SELECT 
-          w.id, w.assignedWorkerId, w.stage, w.status, w.fullName, w.contractorName, w.trade, w.mobileNumber, w.createdAt, w.updatedAt, w.completedAt,
-          hr.fatherHusbandName, hr.dob, hr.age, hr.gender, hr.idProofType, hr.idProofRef, hr.contractorCode, hr.locationCode, hr.locationName, hr.contractorLicense, hr.address, hr.workingLocation, hr.activity, hr.emergencyPerson, hr.emergencyRelationship, hr.emergencyMobile, hr.photo, hr.registeredAt,
-          m.bloodGroup, m.heightCm, m.weightKg, m.bmi, m.bmiCategory, m.bpSystolic, m.bpDiastolic, m.spo2, m.pulseRate, m.respirationRate, m.rbs, m.alcoholTest, m.visionTest, m.hearingTest, m.vertigoTest, m.existingIllness, m.fitnessStatus, m.examinerName, m.remarks AS medicalRemarks, m.examinedAt, m.followUpDays, m.followUpDate, m.followUpNotified, m.medicalHistoryJson,
-          s.briefingDone, s.topicsCovered, s.ppeIssued, s.ppeNotes, s.safetyOfficerName, s.safetyDate, s.inductedAt,
-          it.faceBiometricRegistered, it.cwmsRegistered, it.campusMasterUploaded, it.undertakingAccepted, it.itAdminSignature, it.itDate, it.enrolledAt,
-          c.campName, c.blockNo, c.roomNo, c.bedNo, c.gatePassActive, c.allocatedBy, c.allocationDate, c.allocatedAt, c.contractorSupervisor, c.supervisorMobile
-        FROM dbo.WorkersMaster w
-        LEFT JOIN dbo.WorkerHRData hr ON w.id = hr.workerId
-        LEFT JOIN dbo.WorkerMedicalVitals m ON w.id = m.workerId
-        LEFT JOIN dbo.WorkerSafetyInduction s ON w.id = s.workerId
-        LEFT JOIN dbo.WorkerITBiometrics it ON w.id = it.workerId
-        LEFT JOIN dbo.WorkerCampAllocation c ON w.id = c.workerId
-        ORDER BY w.createdAt DESC
-      `;
-      const result = await pool.request().query(query);
+      let result;
+      try {
+        result = await pool.request().query(query);
+      } catch (qErr) {
+        if (String(qErr.message || '').includes('Invalid column') || String(qErr.message || '').includes('Invalid object')) {
+          await ensureFabricSchema(pool);
+          result = await pool.request().query(query);
+        } else {
+          throw qErr;
+        }
+      }
 
       const records = result.recordset.map(row => {
         let parsedMedicalHistory = [];
@@ -677,7 +984,7 @@ export const dbGetAllWorkers = async () => {
           }
         } catch (e) { }
 
-        return {
+        const mapped = {
           id: row.id,
           assignedWorkerId: row.assignedWorkerId || '',
           stage: row.stage,
@@ -693,7 +1000,7 @@ export const dbGetAllWorkers = async () => {
             campAt: row.allocatedAt || null
           },
           hr: {
-            fullName: row.fullName,
+            fullName: row.fullName || 'Unnamed Candidate',
             fatherHusbandName: row.fatherHusbandName || '',
             dob: row.dob || '',
             age: row.age,
@@ -773,6 +1080,14 @@ export const dbGetAllWorkers = async () => {
             allocatedAt: row.allocatedAt || null
           } : null
         };
+
+        const resolved = resolveEffectiveStageAndStatus(mapped);
+        return {
+          ...mapped,
+          stage: resolved.stage,
+          status: resolved.status,
+          completedAt: resolved.completedAt
+        };
       });
 
       // Preserve any locally-saved pending-sync records so Fabric reads never wipe unsynced worker submissions
@@ -781,7 +1096,8 @@ export const dbGetAllWorkers = async () => {
       pendingLocal.forEach(p => {
         const existing = mergedById.get(p.id);
         if (!existing || new Date(p.updatedAt || 0).getTime() >= new Date(existing.updatedAt || 0).getTime()) {
-          mergedById.set(p.id, p);
+          const resolved = resolveEffectiveStageAndStatus(p);
+          mergedById.set(p.id, { ...p, ...resolved });
         }
       });
       const finalRecords = Array.from(mergedById.values()).sort(
@@ -796,7 +1112,7 @@ export const dbGetAllWorkers = async () => {
     }
   }
 
-  return fallbackWorkersCache;
+  return (fallbackWorkersCache || []).map(w => ({ ...w, ...resolveEffectiveStageAndStatus(w) }));
 };
 
 /**
@@ -872,29 +1188,29 @@ export const dbRegisterWorkerHR = async (newWorker) => {
  * Update Worker Photograph (Direct live update to Fabric SQL)
  */
 export const dbUpdateWorkerPhoto = async (workerId, photoUrl) => {
-  if (pool && pool.connected) {
-    try {
-      const request = new sql.Request(pool);
-      await request
-        .input('workerId', sql.VarChar(50), workerId)
-        .input('photo', sql.VarChar(sql.MAX), photoUrl || '')
-        .query(`
-          UPDATE dbo.WorkerHRData
-          SET photo = @photo
-          WHERE workerId = @workerId;
-        `);
-      console.log(`[Microsoft Fabric] Worker ${workerId} photo updated in live Fabric database.`);
-    } catch (err) {
-      console.error('[Microsoft Fabric] Photo update failed:', err.message);
-    }
-  }
+  const fabricSaved = await runFabricWriteWithRetry(`Update Photo ${workerId}`, async (targetPool) => {
+    const request = new sql.Request(targetPool);
+    await request
+      .input('workerId', sql.VarChar(50), clipStr(workerId, 50))
+      .input('photo', sql.VarChar(sql.MAX), photoUrl || '')
+      .query(`
+        UPDATE dbo.WorkerHRData
+        SET photo = @photo
+        WHERE workerId = @workerId;
+      `);
+    console.log(`[Microsoft Fabric] Worker ${workerId} photo updated in live Fabric database.`);
+  });
 
   fallbackWorkersCache = fallbackWorkersCache.map(w => {
     if (w.id === workerId) {
-      return {
+      const next = {
         ...w,
+        updatedAt: new Date().toISOString(),
         hr: { ...w.hr, photo: photoUrl }
       };
+      if (!fabricSaved) next._fabricPendingSync = true;
+      else delete next._fabricPendingSync;
+      return next;
     }
     return w;
   });
@@ -938,6 +1254,12 @@ export const dbUpdateMedical = async (workerId, medicalData, updatedWorker) => {
       .input('medicalHistoryJson', sql.VarChar(sql.MAX), historyJson)
       .input('stage', sql.Int, updatedWorker.stage)
       .input('status', sql.VarChar(50), clipStr(updatedWorker.status, 50))
+      .input('assignedWorkerId', sql.VarChar(50), clipStr(updatedWorker.assignedWorkerId, 50))
+      .input('fullName', sql.VarChar(200), clipStr(updatedWorker.hr?.fullName || 'Unnamed Candidate', 200))
+      .input('contractorName', sql.VarChar(200), clipStr(updatedWorker.hr?.contractorName, 200))
+      .input('trade', sql.VarChar(100), clipStr(updatedWorker.hr?.trade, 100))
+      .input('mobileNumber', sql.VarChar(20), clipStr(updatedWorker.hr?.mobileNumber, 20))
+      .input('createdAt', sql.VarChar(50), clipStr(updatedWorker.createdAt || now, 50))
       .input('updatedAt', sql.VarChar(50), medicalData.examinedAt || now)
       .query(`
         IF NOT EXISTS (SELECT 1 FROM dbo.WorkerMedicalVitals WHERE workerId = @workerId)
@@ -952,7 +1274,15 @@ export const dbUpdateMedical = async (workerId, medicalData, updatedWorker) => {
           WHERE workerId = @workerId;
         END;
 
-        UPDATE dbo.WorkersMaster SET stage = @stage, status = @status, updatedAt = @updatedAt WHERE id = @workerId;
+        IF NOT EXISTS (SELECT 1 FROM dbo.WorkersMaster WHERE id = @workerId)
+        BEGIN
+          INSERT INTO dbo.WorkersMaster (id, assignedWorkerId, stage, status, fullName, contractorName, trade, mobileNumber, createdAt, updatedAt)
+          VALUES (@workerId, @assignedWorkerId, @stage, @status, @fullName, @contractorName, @trade, @mobileNumber, @createdAt, @updatedAt);
+        END
+        ELSE
+        BEGIN
+          UPDATE dbo.WorkersMaster SET stage = @stage, status = @status, updatedAt = @updatedAt WHERE id = @workerId;
+        END;
       `);
     console.log(`[Microsoft Fabric] Medical update saved for ${workerId}`);
   });
@@ -980,7 +1310,14 @@ export const dbUpdateSafety = async (workerId, safetyData, updatedWorker) => {
       .input('ppeNotes', sql.VarChar(500), clipStr(safetyData.ppeNotes, 500))
       .input('safetyOfficerName', sql.VarChar(200), clipStr(safetyData.safetyOfficerName, 200))
       .input('safetyDate', sql.VarChar(50), clipStr(safetyData.safetyDate || now.slice(0, 10), 50))
-      .input('stage', sql.Int, updatedWorker.stage)
+      .input('stage', sql.Int, Number(updatedWorker.stage) || 4)
+      .input('status', sql.VarChar(50), clipStr(updatedWorker.status || 'IN_PROGRESS', 50))
+      .input('assignedWorkerId', sql.VarChar(50), clipStr(updatedWorker.assignedWorkerId, 50))
+      .input('fullName', sql.VarChar(200), clipStr(updatedWorker.hr?.fullName || 'Unnamed Candidate', 200))
+      .input('contractorName', sql.VarChar(200), clipStr(updatedWorker.hr?.contractorName, 200))
+      .input('trade', sql.VarChar(100), clipStr(updatedWorker.hr?.trade, 100))
+      .input('mobileNumber', sql.VarChar(20), clipStr(updatedWorker.hr?.mobileNumber, 20))
+      .input('createdAt', sql.VarChar(50), clipStr(updatedWorker.createdAt || now, 50))
       .input('updatedAt', sql.VarChar(50), safetyData.inductedAt || now)
       .query(`
         IF NOT EXISTS (SELECT 1 FROM dbo.WorkerSafetyInduction WHERE workerId = @workerId)
@@ -995,7 +1332,15 @@ export const dbUpdateSafety = async (workerId, safetyData, updatedWorker) => {
           WHERE workerId = @workerId;
         END;
 
-        UPDATE dbo.WorkersMaster SET stage = @stage, updatedAt = @updatedAt WHERE id = @workerId;
+        IF NOT EXISTS (SELECT 1 FROM dbo.WorkersMaster WHERE id = @workerId)
+        BEGIN
+          INSERT INTO dbo.WorkersMaster (id, assignedWorkerId, stage, status, fullName, contractorName, trade, mobileNumber, createdAt, updatedAt)
+          VALUES (@workerId, @assignedWorkerId, @stage, @status, @fullName, @contractorName, @trade, @mobileNumber, @createdAt, @updatedAt);
+        END
+        ELSE
+        BEGIN
+          UPDATE dbo.WorkersMaster SET stage = @stage, status = @status, updatedAt = @updatedAt WHERE id = @workerId;
+        END;
       `);
     console.log(`[Microsoft Fabric] Safety induction saved for ${workerId}`);
   });
@@ -1021,8 +1366,14 @@ export const dbUpdateIT = async (workerId, itData, updatedWorker) => {
       .input('undertakingAccepted', sql.Bit, itData.undertakingAccepted ? 1 : 0)
       .input('itAdminSignature', sql.VarChar(200), clipStr(itData.itAdminSignature, 200))
       .input('itDate', sql.VarChar(50), clipStr(itData.itDate || now.slice(0, 10), 50))
-      .input('stage', sql.Int, updatedWorker.stage)
-      .input('updatedAt', sql.VarChar(50), now)
+      .input('stage', sql.Int, Number(updatedWorker.stage) || 5)
+      .input('status', sql.VarChar(50), clipStr(updatedWorker.status || 'IN_PROGRESS', 50))
+      .input('fullName', sql.VarChar(200), clipStr(updatedWorker.hr?.fullName || 'Unnamed Candidate', 200))
+      .input('contractorName', sql.VarChar(200), clipStr(updatedWorker.hr?.contractorName, 200))
+      .input('trade', sql.VarChar(100), clipStr(updatedWorker.hr?.trade, 100))
+      .input('mobileNumber', sql.VarChar(20), clipStr(updatedWorker.hr?.mobileNumber, 20))
+      .input('createdAt', sql.VarChar(50), clipStr(updatedWorker.createdAt || now, 50))
+      .input('updatedAt', sql.VarChar(50), itData.enrolledAt || now)
       .query(`
         IF NOT EXISTS (SELECT 1 FROM dbo.WorkerITBiometrics WHERE workerId = @workerId)
         BEGIN
@@ -1036,7 +1387,15 @@ export const dbUpdateIT = async (workerId, itData, updatedWorker) => {
           WHERE workerId = @workerId;
         END;
 
-        UPDATE dbo.WorkersMaster SET assignedWorkerId = @assignedWorkerId, stage = @stage, updatedAt = @updatedAt WHERE id = @workerId;
+        IF NOT EXISTS (SELECT 1 FROM dbo.WorkersMaster WHERE id = @workerId)
+        BEGIN
+          INSERT INTO dbo.WorkersMaster (id, assignedWorkerId, stage, status, fullName, contractorName, trade, mobileNumber, createdAt, updatedAt)
+          VALUES (@workerId, @assignedWorkerId, @stage, @status, @fullName, @contractorName, @trade, @mobileNumber, @createdAt, @updatedAt);
+        END
+        ELSE
+        BEGIN
+          UPDATE dbo.WorkersMaster SET assignedWorkerId = @assignedWorkerId, stage = @stage, status = @status, updatedAt = @updatedAt WHERE id = @workerId;
+        END;
       `);
     console.log(`[Microsoft Fabric] IT Biometrics saved for ${workerId}`);
   });
@@ -1067,7 +1426,13 @@ export const dbUpdateCamp = async (workerId, campData, updatedWorker) => {
       .input('contractorSupervisor', sql.VarChar(200), clipStr(campData.contractorSupervisor, 200))
       .input('supervisorMobile', sql.VarChar(30), clipStr(campData.supervisorMobile, 30))
       .input('stage', sql.Int, persistedWorker.stage)
-      .input('status', sql.VarChar(50), clipStr(persistedWorker.status, 50))
+      .input('status', sql.VarChar(50), clipStr(persistedWorker.status || 'COMPLETED', 50))
+      .input('assignedWorkerId', sql.VarChar(50), clipStr(persistedWorker.assignedWorkerId, 50))
+      .input('fullName', sql.VarChar(200), clipStr(persistedWorker.hr?.fullName || 'Unnamed Candidate', 200))
+      .input('contractorName', sql.VarChar(200), clipStr(persistedWorker.hr?.contractorName, 200))
+      .input('trade', sql.VarChar(100), clipStr(persistedWorker.hr?.trade, 100))
+      .input('mobileNumber', sql.VarChar(20), clipStr(persistedWorker.hr?.mobileNumber, 20))
+      .input('createdAt', sql.VarChar(50), clipStr(persistedWorker.createdAt || now, 50))
       .input('updatedAt', sql.VarChar(50), now)
       .input('completedAt', sql.VarChar(50), completedAt)
       .query(`
@@ -1083,7 +1448,15 @@ export const dbUpdateCamp = async (workerId, campData, updatedWorker) => {
           WHERE workerId = @workerId;
         END;
 
-        UPDATE dbo.WorkersMaster SET stage = @stage, status = @status, updatedAt = @updatedAt, completedAt = @completedAt WHERE id = @workerId;
+        IF NOT EXISTS (SELECT 1 FROM dbo.WorkersMaster WHERE id = @workerId)
+        BEGIN
+          INSERT INTO dbo.WorkersMaster (id, assignedWorkerId, stage, status, fullName, contractorName, trade, mobileNumber, createdAt, updatedAt, completedAt)
+          VALUES (@workerId, @assignedWorkerId, @stage, @status, @fullName, @contractorName, @trade, @mobileNumber, @createdAt, @updatedAt, @completedAt);
+        END
+        ELSE
+        BEGIN
+          UPDATE dbo.WorkersMaster SET stage = @stage, status = @status, updatedAt = @updatedAt, completedAt = @completedAt WHERE id = @workerId;
+        END;
       `);
     console.log(`[Microsoft Fabric] Camp allocation saved for ${workerId}`);
   });
@@ -1101,30 +1474,28 @@ export const dbOverrideWorkerStage = async (workerId, newStage, newStatus = null
   const resolvedStatus = newStatus || (newStage === -1 ? 'FLAGGED' : (newStage === 6 ? 'COMPLETED' : 'IN_PROGRESS'));
   const completedAt = newStage === 6 ? now : null;
 
-  if (pool && pool.connected) {
-    try {
-      const request = new sql.Request(pool);
-      await request
-        .input('workerId', sql.VarChar(50), workerId)
-        .input('stage', sql.Int, newStage)
-        .input('status', sql.VarChar(50), resolvedStatus)
-        .input('updatedAt', sql.VarChar(50), now)
-        .input('completedAt', sql.VarChar(50), completedAt)
-        .query(`
-          UPDATE dbo.WorkersMaster
-          SET stage = @stage, status = @status, updatedAt = @updatedAt, completedAt = @completedAt
-          WHERE id = @workerId;
-        `);
-      console.log(`[Microsoft Fabric] Admin stage override saved for ${workerId} -> Stage ${newStage}`);
-    } catch (err) {
-      console.error('[Microsoft Fabric] Stage override error:', err.message);
-    }
-  }
+  const fabricSaved = await runFabricWriteWithRetry(`Stage Override ${workerId}`, async (targetPool) => {
+    const request = new sql.Request(targetPool);
+    await request
+      .input('workerId', sql.VarChar(50), clipStr(workerId, 50))
+      .input('stage', sql.Int, newStage)
+      .input('status', sql.VarChar(50), clipStr(resolvedStatus, 50))
+      .input('updatedAt', sql.VarChar(50), now)
+      .input('completedAt', sql.VarChar(50), completedAt)
+      .query(`
+        UPDATE dbo.WorkersMaster
+        SET stage = @stage, status = @status, updatedAt = @updatedAt, completedAt = @completedAt
+        WHERE id = @workerId;
+      `);
+    console.log(`[Microsoft Fabric] Admin stage override saved for ${workerId} -> Stage ${newStage}`);
+  });
 
   let updatedRecord = null;
   fallbackWorkersCache = fallbackWorkersCache.map(w => {
     if (w.id === workerId) {
       updatedRecord = { ...w, stage: newStage, status: resolvedStatus, updatedAt: now, completedAt };
+      if (!fabricSaved) updatedRecord._fabricPendingSync = true;
+      else delete updatedRecord._fabricPendingSync;
       return updatedRecord;
     }
     return w;
