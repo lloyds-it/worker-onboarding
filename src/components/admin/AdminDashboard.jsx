@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   ShieldCheck, 
   Users, 
@@ -15,16 +15,28 @@ import {
   Building2,
   UserCog,
   CreditCard,
-  Briefcase
+  Briefcase,
+  Calendar
 } from 'lucide-react';
 import { useWorkers } from '../../context/WorkerContext';
-import { getDepartmentStats } from '../../services/reportService';
+import { getDepartmentStats, filterWorkersByDateRange } from '../../services/reportService';
 import { STAGES } from '../../types/constants';
 
 export const AdminDashboard = ({ onNavigateToDept, onNavigateToReports, onNavigateToAudit, onNavigateToUsers, onNavigateToIdCard, onNavigateToContractors }) => {
   const { workers } = useWorkers();
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
 
-  const stats = getDepartmentStats(workers);
+  const applyDatePreset = (daysBack) => {
+    const end = new Date();
+    const start = new Date();
+    start.setDate(end.getDate() - daysBack);
+    setFromDate(start.toISOString().slice(0, 10));
+    setToDate(end.toISOString().slice(0, 10));
+  };
+
+  const filteredWorkers = filterWorkersByDateRange(workers, fromDate, toDate);
+  const stats = getDepartmentStats(filteredWorkers);
 
   const completedRate = stats.total > 0 
     ? ((stats.pipeline.completedCount / stats.total) * 100).toFixed(1) 
@@ -107,6 +119,76 @@ export const AdminDashboard = ({ onNavigateToDept, onNavigateToReports, onNaviga
         </div>
       </div>
 
+      {/* Date Filter Bar for Date-Wise Registration Analytics */}
+      <div style={{
+        display: 'flex',
+        flexWrap: 'wrap',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: '0.85rem',
+        padding: '0.9rem 1.25rem',
+        marginBottom: '1.25rem',
+        backgroundColor: 'var(--bg-surface)',
+        border: '1px solid var(--border-light)',
+        borderRadius: 'var(--radius-lg)',
+        boxShadow: 'var(--shadow-xs)'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
+          <Calendar size={18} color="var(--brand-primary)" />
+          <div>
+            <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+              Registration Date Filter
+            </div>
+            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+              {fromDate || toDate
+                ? `Showing ${filteredWorkers.length} of ${workers.length} workers (${fromDate || '...'} to ${toDate || '...'})`
+                : `Showing all ${workers.length} registrations across all dates`}
+            </div>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.5rem' }}>
+          <button type="button" className="btn btn-secondary" style={{ padding: '0.35rem 0.65rem', fontSize: '0.75rem' }} onClick={() => applyDatePreset(0)}>
+            Today
+          </button>
+          <button type="button" className="btn btn-secondary" style={{ padding: '0.35rem 0.65rem', fontSize: '0.75rem' }} onClick={() => applyDatePreset(6)}>
+            Last 7 Days
+          </button>
+          <button type="button" className="btn btn-secondary" style={{ padding: '0.35rem 0.65rem', fontSize: '0.75rem' }} onClick={() => applyDatePreset(29)}>
+            Last 30 Days
+          </button>
+          <input
+            id="admin-filter-from-date"
+            type="date"
+            className="form-control"
+            style={{ width: 'auto', padding: '0.32rem 0.55rem', fontSize: '0.78rem' }}
+            value={fromDate}
+            onChange={(e) => setFromDate(e.target.value)}
+            aria-label="Filter registrations from date"
+          />
+          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>to</span>
+          <input
+            id="admin-filter-to-date"
+            type="date"
+            className="form-control"
+            style={{ width: 'auto', padding: '0.32rem 0.55rem', fontSize: '0.78rem' }}
+            value={toDate}
+            onChange={(e) => setToDate(e.target.value)}
+            aria-label="Filter registrations to date"
+          />
+          {(fromDate || toDate) && (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              style={{ padding: '0.35rem 0.65rem', fontSize: '0.75rem' }}
+              onClick={() => { setFromDate(''); setToDate(''); }}
+            >
+              Reset
+            </button>
+          )}
+        </div>
+      </div>
+
       {/* KPI Cards Grid */}
       <div className="dashboard-grid">
         <div className="stat-card">
@@ -114,8 +196,12 @@ export const AdminDashboard = ({ onNavigateToDept, onNavigateToReports, onNaviga
             <h3>Total Registered</h3>
             <div className="stat-value">{stats.total}</div>
             <div className="stat-sub">
-              <span style={{ color: 'var(--info-solid)', fontWeight: 700 }}>100%</span>
-              <span>across all contractors</span>
+              <span style={{ color: 'var(--info-solid)', fontWeight: 700 }}>
+                Avg {stats.timing.full.label}
+              </span>
+              <span>
+                full registration ({stats.timing.full.count} completed)
+              </span>
             </div>
           </div>
           <div className="stat-icon" style={{ backgroundColor: 'var(--info-bg)', color: 'var(--info-solid)' }}>
@@ -166,7 +252,127 @@ export const AdminDashboard = ({ onNavigateToDept, onNavigateToReports, onNaviga
         </div>
       </div>
 
+      {/* Stage-Wise Average Submission Time & Date-Wise Registrations */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))',
+        gap: '1.25rem',
+        marginBottom: '2rem'
+      }}>
+        {/* Stage-Wise Average Time Taken to Submit */}
+        <div style={{
+          backgroundColor: 'var(--bg-surface)',
+          border: '1px solid var(--border-light)',
+          borderRadius: 'var(--radius-lg)',
+          padding: '1.25rem',
+          boxShadow: 'var(--shadow-xs)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Clock size={18} color="var(--brand-primary)" />
+              <h3 style={{ fontSize: '0.98rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                Stage-Wise Average Submission Time
+              </h3>
+            </div>
+            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+              Full Avg: {stats.timing.full.label}
+            </span>
+          </div>
 
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+            {[
+              { label: 'Step 2: Medical Exam', stat: stats.timing.stages.medical, color: '#0369A1', bg: '#F0F9FF' },
+              { label: 'Step 3: EHS Safety', stat: stats.timing.stages.safety, color: '#B45309', bg: '#FFFBEB' },
+              { label: 'Step 4: IT Biometrics', stat: stats.timing.stages.it, color: '#6D28D9', bg: '#F5F3FF' },
+              { label: 'Step 5: Camp Allocation', stat: stats.timing.stages.camp, color: '#047857', bg: '#ECFDF5' }
+            ].map(item => (
+              <div
+                key={item.label}
+                style={{
+                  padding: '0.8rem',
+                  borderRadius: 'var(--radius-md)',
+                  backgroundColor: item.bg,
+                  border: '1px solid var(--border-light)'
+                }}
+              >
+                <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>
+                  {item.label}
+                </div>
+                <div style={{ fontSize: '1.2rem', fontWeight: 800, color: item.color }}>
+                  {item.stat.label}
+                </div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
+                  Across {item.stat.count} submission{item.stat.count === 1 ? '' : 's'}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Date-Wise Registrations Breakdown */}
+        <div style={{
+          backgroundColor: 'var(--bg-surface)',
+          border: '1px solid var(--border-light)',
+          borderRadius: 'var(--radius-lg)',
+          padding: '1.25rem',
+          boxShadow: 'var(--shadow-xs)',
+          display: 'flex',
+          flexDirection: 'column'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Calendar size={18} color="var(--info-solid)" />
+              <h3 style={{ fontSize: '0.98rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                Date-Wise Registrations
+              </h3>
+            </div>
+            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+              {stats.hr.dateWiseRegistrations.length} day{stats.hr.dateWiseRegistrations.length === 1 ? '' : 's'}
+            </span>
+          </div>
+
+          <div style={{ maxHeight: '215px', overflowY: 'auto' }}>
+            {stats.hr.dateWiseRegistrations.length === 0 ? (
+              <div style={{ padding: '1.5rem', textAlign: 'center', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                No registrations found in the selected date range.
+              </div>
+            ) : (
+              <table className="data-table" style={{ fontSize: '0.78rem' }}>
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Registered</th>
+                    <th>Completed</th>
+                    <th>In Progress</th>
+                    <th>Unfit</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {stats.hr.dateWiseRegistrations.map(row => (
+                    <tr
+                      key={row.date}
+                      style={{ cursor: row.date !== 'Unknown' ? 'pointer' : 'default' }}
+                      onClick={() => {
+                        if (row.date !== 'Unknown') {
+                          setFromDate(row.date);
+                          setToDate(row.date);
+                        }
+                      }}
+                      title={row.date !== 'Unknown' ? `Click to filter dashboard to ${row.date}` : undefined}
+                    >
+                      <td style={{ fontWeight: 700, fontFamily: 'var(--font-family-mono)' }}>{row.date}</td>
+                      <td style={{ fontWeight: 700 }}>{row.total}</td>
+                      <td style={{ color: 'var(--success-solid)', fontWeight: 700 }}>{row.completed}</td>
+                      <td style={{ color: 'var(--warning-solid)', fontWeight: 600 }}>{row.inProgress}</td>
+                      <td style={{ color: 'var(--danger-solid)', fontWeight: 600 }}>{row.flagged}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+      </div>
 
       {/* Department Cards Quick Jump */}
       <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '1rem' }}>

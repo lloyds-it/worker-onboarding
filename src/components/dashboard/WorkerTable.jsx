@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   FileText,
   ExternalLink,
@@ -15,22 +15,55 @@ import {
   UserCheck,
   CreditCard,
   Camera,
-  Phone
+  Phone,
+  Search,
+  RotateCcw,
+  QrCode,
+  X
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useWorkers } from '../../context/WorkerContext';
 import { STAGES, STAGE_META, ROLES } from '../../types/constants';
 import { formatTimestamp, formatDuration, getMedicalFitnessMeta } from '../../services/validationService';
+import { WorkerQrCode } from '../common/WorkerQrCode';
 
 export const WorkerTable = ({ onOpenProcessModal, onViewInductionDoc, onGenerateIdCard, onOpenAdminOverride }) => {
   const { currentRole } = useAuth();
-  const { workers, searchQuery, selectedStageFilter } = useWorkers();
+  const { workers, searchQuery, setSearchQuery, selectedStageFilter } = useWorkers();
+  const [stageQueueTab, setStageQueueTab] = useState('ALL');
+  const [searchInput, setSearchInput] = useState(searchQuery || '');
+  const [qrModalWorker, setQrModalWorker] = useState(null);
 
-  // 1. Strict Department Data Scoping (Each department only sees workers assigned to them)
+  useEffect(() => {
+    setSearchInput(searchQuery || '');
+  }, [searchQuery]);
+
+  // Helper to identify whether the logged-in department has completed its own stage for a worker
+  const isStageCompletedForRole = (w, role) => {
+    if (role === ROLES.HR) return w.stage !== STAGES.HR;
+    if (role === ROLES.MEDICAL) return Boolean(w.medical?.fitnessStatus);
+    if (role === ROLES.SAFETY) return Boolean(w.safety?.briefingDone);
+    if (role === ROLES.IT) return Boolean(w.it?.faceBiometricRegistered || w.it?.itAdminSignature);
+    if (role === ROLES.CAMP) return w.stage === STAGES.COMPLETED || Boolean(w.camp?.campName);
+    return w.stage === STAGES.COMPLETED;
+  };
+
+  // Helper to determine if current department has an active pending action on this worker
+  const canProcessWorker = (worker) => {
+    if (currentRole === ROLES.ADMIN) return worker.stage !== STAGES.COMPLETED;
+    if (currentRole === ROLES.HR) return worker.stage === STAGES.HR;
+    if (currentRole === ROLES.MEDICAL) return worker.stage === STAGES.MEDICAL;
+    if (currentRole === ROLES.SAFETY) return worker.stage === STAGES.SAFETY;
+    if (currentRole === ROLES.IT) return worker.stage === STAGES.IT;
+    if (currentRole === ROLES.CAMP) return worker.stage === STAGES.CAMP;
+    return false;
+  };
+
+  // 1. Strict Department Data Scoping (Each department sees pending + completed workers they handled)
   const scopedWorkers = workers.filter(w => {
     if (currentRole === ROLES.ADMIN) return true; // Admin sees all
     if (currentRole === ROLES.HR) {
-      // HR sees workers in HR intake or all workers they registered
+      // HR sees workers in HR intake and all workers they registered
       return true;
     }
     if (currentRole === ROLES.MEDICAL) {
@@ -38,38 +71,54 @@ export const WorkerTable = ({ onOpenProcessModal, onViewInductionDoc, onGenerate
       return w.stage === STAGES.MEDICAL || w.stage === STAGES.FLAGGED || Boolean(w.medical?.fitnessStatus);
     }
     if (currentRole === ROLES.SAFETY) {
-      // Safety only sees workers certified FIT by Medical and currently in Safety or briefed
+      // Safety sees workers certified FIT by Medical and currently in Safety or briefed
       return w.stage === STAGES.SAFETY || Boolean(w.safety?.briefingDone);
     }
     if (currentRole === ROLES.IT) {
-      // IT only sees workers who passed Safety and need IT biometrics or are enrolled
-      return w.stage === STAGES.IT || Boolean(w.it?.faceBiometricRegistered);
+      // IT sees workers who passed Safety and need IT biometrics or are enrolled
+      return w.stage === STAGES.IT || Boolean(w.it?.faceBiometricRegistered || w.it?.itAdminSignature);
     }
     if (currentRole === ROLES.CAMP) {
-      // Camp only sees workers who completed IT and need housing, or completed workers
+      // Camp sees workers who completed IT and need housing, or completed workers
       return w.stage === STAGES.CAMP || w.stage === STAGES.COMPLETED || Boolean(w.camp?.campName);
     }
     return false;
   });
 
-  // 2. Filter by search query and stage filter
+  const pendingCount = scopedWorkers.filter(w => canProcessWorker(w)).length;
+  const completedByStageCount = scopedWorkers.filter(w => isStageCompletedForRole(w, currentRole)).length;
+
+  // 2. Filter by queue tab / Admin stage filter and search query (Name, Emp ID, Aadhaar, Contractor, Trade, Mobile)
   const filteredWorkers = scopedWorkers.filter(w => {
-    if (selectedStageFilter !== 'ALL') {
-      if (w.stage !== selectedStageFilter) return false;
+    if (currentRole === ROLES.ADMIN) {
+      if (selectedStageFilter !== 'ALL' && w.stage !== selectedStageFilter) return false;
+    } else {
+      if (stageQueueTab === 'PENDING' && !canProcessWorker(w)) return false;
+      if (stageQueueTab === 'COMPLETED' && !isStageCompletedForRole(w, currentRole)) return false;
     }
 
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
+    const activeQuery = (searchQuery || searchInput).trim();
+    if (activeQuery) {
+      const q = activeQuery.toLowerCase();
+      const qCompact = q.replace(/\s+/g, '');
       const matchName = w.hr?.fullName?.toLowerCase().includes(q);
-      const matchId = w.assignedWorkerId?.toLowerCase().includes(q) || w.id.toLowerCase().includes(q);
+      const matchId = w.assignedWorkerId?.toLowerCase().includes(q) || w.id?.toLowerCase().includes(q);
+      const matchAadhaar = qCompact
+        ? String(w.hr?.idProofRef || '').toLowerCase().replace(/\s+/g, '').includes(qCompact)
+        : false;
       const matchContractor = w.hr?.contractorName?.toLowerCase().includes(q);
       const matchTrade = w.hr?.trade?.toLowerCase().includes(q);
       const matchMobile = w.hr?.mobileNumber?.includes(q);
-      return matchName || matchId || matchContractor || matchTrade || matchMobile;
+      return matchName || matchId || matchAadhaar || matchContractor || matchTrade || matchMobile;
     }
 
     return true;
   });
+
+  const handleStageSearchSubmit = (e) => {
+    e.preventDefault();
+    setSearchQuery(searchInput);
+  };
 
   const getStageBadge = (stage) => {
     const meta = STAGE_META[stage] || { label: 'Unknown', color: 'info' };
@@ -81,17 +130,6 @@ export const WorkerTable = ({ onOpenProcessModal, onViewInductionDoc, onGenerate
         {meta.label}
       </span>
     );
-  };
-
-  // Helper to determine if current department can process this worker
-  const canProcessWorker = (worker) => {
-    if (currentRole === ROLES.ADMIN) return worker.stage !== STAGES.COMPLETED;
-    if (currentRole === ROLES.HR) return worker.stage === STAGES.HR;
-    if (currentRole === ROLES.MEDICAL) return worker.stage === STAGES.MEDICAL;
-    if (currentRole === ROLES.SAFETY) return worker.stage === STAGES.SAFETY;
-    if (currentRole === ROLES.IT) return worker.stage === STAGES.IT;
-    if (currentRole === ROLES.CAMP) return worker.stage === STAGES.CAMP;
-    return false;
   };
 
   const getActionLabel = () => {
@@ -110,10 +148,158 @@ export const WorkerTable = ({ onOpenProcessModal, onViewInductionDoc, onGenerate
             {currentRole === ROLES.ADMIN ? 'Workforce Master Register' : `${STAGE_META[currentRole === ROLES.HR ? 1 : (currentRole === ROLES.MEDICAL ? 2 : (currentRole === ROLES.SAFETY ? 3 : (currentRole === ROLES.IT ? 4 : 5)))]?.label || 'Department'} Queue`}
           </h2>
           <p>
-            Showing {filteredWorkers.length} assigned candidate record{filteredWorkers.length === 1 ? '' : 's'} (Scoped strictly to your department)
+            Showing {filteredWorkers.length} candidate record{filteredWorkers.length === 1 ? '' : 's'} ({pendingCount} pending, {completedByStageCount} completed by your stage)
           </p>
         </div>
+
+        {/* Dedicated Search Bar + Button (Search by Name, Employee ID, or Aadhaar Card) */}
+        <form
+          onSubmit={handleStageSearchSubmit}
+          style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.5rem' }}
+        >
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+            <Search
+              size={15}
+              style={{ position: 'absolute', left: '0.7rem', color: 'var(--text-muted)', pointerEvents: 'none' }}
+            />
+            <input
+              id="stage-worker-search-input"
+              type="text"
+              className="form-control"
+              style={{ paddingLeft: '2.1rem', paddingRight: '0.75rem', width: '275px', fontSize: '0.82rem' }}
+              placeholder="Name, Employee ID, or Aadhaar..."
+              value={searchInput}
+              onChange={(e) => {
+                setSearchInput(e.target.value);
+                setSearchQuery(e.target.value);
+              }}
+            />
+          </div>
+          <button
+            id="btn-stage-worker-search"
+            type="submit"
+            className="btn btn-primary"
+            style={{ padding: '0.45rem 0.85rem', fontSize: '0.8rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+          >
+            <Search size={14} />
+            <span>Search</span>
+          </button>
+          {(searchInput || searchQuery) && (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              style={{ padding: '0.45rem 0.7rem', fontSize: '0.78rem' }}
+              onClick={() => {
+                setSearchInput('');
+                setSearchQuery('');
+              }}
+            >
+              Clear
+            </button>
+          )}
+        </form>
       </div>
+
+      {/* Stage Queue Tabs: Pending vs Completed Lists */}
+      {currentRole !== ROLES.ADMIN && (
+        <div style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          alignItems: 'center',
+          gap: '0.5rem',
+          padding: '0.65rem 1.25rem',
+          borderBottom: '1px solid var(--border-light)',
+          backgroundColor: 'var(--bg-subtle, #F8FAFC)'
+        }}>
+          {[
+            { id: 'ALL', label: `All Records (${scopedWorkers.length})` },
+            { id: 'PENDING', label: `Pending Action (${pendingCount})` },
+            { id: 'COMPLETED', label: `Completed (${completedByStageCount})` }
+          ].map(tab => {
+            const active = stageQueueTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                id={`btn-queue-tab-${tab.id.toLowerCase()}`}
+                onClick={() => setStageQueueTab(tab.id)}
+                style={{
+                  padding: '0.38rem 0.85rem',
+                  borderRadius: '999px',
+                  fontSize: '0.78rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  border: active ? '1.5px solid var(--brand-primary)' : '1px solid var(--border-medium)',
+                  backgroundColor: active ? 'var(--brand-primary)' : '#FFFFFF',
+                  color: active ? '#FFFFFF' : 'var(--text-secondary)'
+                }}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
+          {currentRole === ROLES.MEDICAL && (
+            <span style={{ marginLeft: 'auto', fontSize: '0.74rem', color: 'var(--info-text)', fontWeight: 600 }}>
+              Tip: Select &ldquo;Re-Perform Test&rdquo; on any completed worker to log a follow-up exam (all prior records stay archived).
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* QR Code Preview Modal */}
+      {qrModalWorker && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.55)',
+            zIndex: 1200,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '1rem'
+          }}
+          onClick={() => setQrModalWorker(null)}
+        >
+          <div
+            style={{
+              backgroundColor: '#FFFFFF',
+              borderRadius: 'var(--radius-lg)',
+              padding: '1.5rem',
+              maxWidth: '360px',
+              width: '100%',
+              boxShadow: 'var(--shadow-lg)',
+              position: 'relative',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '0.75rem'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => setQrModalWorker(null)}
+              aria-label="Close QR Modal"
+              style={{
+                position: 'absolute',
+                top: '0.75rem',
+                right: '0.75rem',
+                border: 'none',
+                background: 'transparent',
+                cursor: 'pointer',
+                color: 'var(--text-muted)'
+              }}
+            >
+              <X size={18} />
+            </button>
+            <h3 style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+              Worker Onboarding QR Code
+            </h3>
+            <WorkerQrCode worker={qrModalWorker} size={190} showActions={true} />
+          </div>
+        </div>
+      )}
 
       <div className="data-table-wrapper">
         <table className="data-table">
@@ -329,9 +515,14 @@ export const WorkerTable = ({ onOpenProcessModal, onViewInductionDoc, onGenerate
                     {currentRole === ROLES.SAFETY && (
                       <>
                         <td>
-                          <span className="badge badge-success">
-                            FIT FOR GENERAL WORK
-                          </span>
+                          {(() => {
+                            const fm = getMedicalFitnessMeta(worker.medical?.fitnessStatus);
+                            return (
+                              <span className={`badge badge-${fm.badge}`}>
+                                {fm.shortLabel}
+                              </span>
+                            );
+                          })()}
                         </td>
                         <td>
                           <span className={`badge badge-${worker.safety?.briefingDone ? 'success' : 'warning'}`}>
@@ -422,7 +613,7 @@ export const WorkerTable = ({ onOpenProcessModal, onViewInductionDoc, onGenerate
 
                     {/* ACTION COLUMN */}
                     <td style={{ textAlign: 'right' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.5rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.45rem', flexWrap: 'wrap' }}>
                         {/* Process Button strictly if authorized to process this stage */}
                         {canProcess && (
                           <button
@@ -437,16 +628,58 @@ export const WorkerTable = ({ onOpenProcessModal, onViewInductionDoc, onGenerate
                           </button>
                         )}
 
-                        {/* If Medical and worker is flagged UNFIT, allow viewing or re-examining */}
-                        {isFlagged && currentRole === ROLES.MEDICAL && (
+                        {/* Medical Role: Re-Perform Medical Test on any completed or flagged worker */}
+                        {currentRole === ROLES.MEDICAL && !canProcess && (
                           <button
+                            id={`btn-reperform-medical-${worker.id}`}
                             className="btn btn-secondary"
-                            style={{ padding: '0.35rem 0.65rem', fontSize: '0.75rem', borderColor: 'var(--danger-border)', color: 'var(--danger-text)' }}
+                            style={{
+                              padding: '0.35rem 0.7rem',
+                              fontSize: '0.76rem',
+                              borderColor: isFlagged ? 'var(--danger-border)' : 'var(--info-border)',
+                              color: isFlagged ? 'var(--danger-text)' : 'var(--info-text)',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.3rem'
+                            }}
                             onClick={() => onOpenProcessModal(worker)}
+                            title="Re-perform medical tests (previous and new records are both archived)"
                           >
-                            Review Medical Unfit
+                            <RotateCcw size={13} />
+                            <span>{isFlagged ? 'Re-Test Unfit' : 'Re-Perform Test'}</span>
                           </button>
                         )}
+
+                        {/* Non-Medical Roles: Inspect Completed Stage Record */}
+                        {currentRole !== ROLES.ADMIN && currentRole !== ROLES.MEDICAL && !canProcess && isStageCompletedForRole(worker, currentRole) && (
+                          <button
+                            id={`btn-view-completed-${worker.id}`}
+                            className="btn btn-secondary"
+                            style={{
+                              padding: '0.35rem 0.65rem',
+                              fontSize: '0.75rem',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.3rem'
+                            }}
+                            onClick={() => onOpenProcessModal(worker)}
+                            title="View completed stage details"
+                          >
+                            <CheckCircle2 size={13} color="var(--success-solid)" />
+                            <span>View Record</span>
+                          </button>
+                        )}
+
+                        {/* Quick QR Code View Button */}
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          style={{ padding: '0.35rem 0.5rem' }}
+                          onClick={() => setQrModalWorker(worker)}
+                          title="View / Download Worker QR Code"
+                        >
+                          <QrCode size={14} />
+                        </button>
 
                         {/* If other department and worker is FLAGGED UNFIT, display clear status badge */}
                         {isFlagged && currentRole !== ROLES.ADMIN && currentRole !== ROLES.MEDICAL && (

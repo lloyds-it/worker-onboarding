@@ -82,7 +82,12 @@ const STAGE_EMAIL_META = {
   STEP_2_TO_SAFETY: {
     completedLabel: 'Step 2: Medical Fitness Examination',
     nextLabel: 'Step 3: EHS Safety Induction & PPE Issuance',
-    actionSummary: 'Candidate has been medically cleared (FIT / FIT WITH PRECAUTIONS) and routed to your EHS Safety Induction queue.'
+    actionSummary: 'Candidate has been medically cleared and routed to your EHS Safety Induction queue.'
+  },
+  MEDICAL_FOLLOWUP_DUE: {
+    completedLabel: 'Medical Follow-Up Period Completed',
+    nextLabel: 'Medical Follow-Up Re-Examination Due',
+    actionSummary: 'The scheduled medical follow-up period for this worker has completed. Please conduct the follow-up clinical review and update medical records.'
   },
   STEP_2_HOLD_ALERT: {
     completedLabel: 'Step 2: Medical Fitness Examination (HOLD)',
@@ -273,6 +278,19 @@ export const notifyNextStageUsers = async ({
       nextRoles: roles,
       emptyRecipientsError: `No active user accounts found for role(s): ${roles.join(', ')}`
     }
+  });
+};
+
+export const sendMedicalFollowUpEmail = async ({ worker, accounts = [] }) => {
+  const days = worker?.medical?.followUpDays || 'scheduled';
+  const dueDate = worker?.medical?.followUpDate || new Date().toISOString().slice(0, 10);
+  return notifyNextStageUsers({
+    transitionKey: 'MEDICAL_FOLLOWUP_DUE',
+    nextRoles: ['MEDICAL', 'HR', 'ADMIN'],
+    worker,
+    accounts,
+    actor: { name: 'Automated Medical Scheduler', role: 'SYSTEM' },
+    extraDetails: `Follow-up period of ${days} day(s) completed on ${dueDate}. Original Remarks: ${worker?.medical?.remarks || '—'}`
   });
 };
 

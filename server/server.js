@@ -51,6 +51,7 @@ import {
   notifyNextStageUsers,
   sendAccountCreatedEmail,
   sendPasswordResetEmail,
+  sendMedicalFollowUpEmail,
   getEmailLogs,
   getSmtpStatus,
   sendTestEmail
@@ -1373,15 +1374,18 @@ app.patch('/api/workers/:id/medical', authenticateToken, requireRole(['ADMIN', '
 
     const updated = await dbUpdateMedical(id, medical, worker);
     syncAccountsWithStore();
-    const isFit = medical.fitnessStatus === 'FIT' || medical.fitnessStatus === 'FIT_WITH_PRECAUTIONS';
+    const isFit = medical.fitnessStatus === 'FIT' || medical.fitnessStatus === 'FIT_WITH_PRECAUTIONS' || medical.fitnessStatus === 'FIT_WITH_FOLLOW_UP';
     const isHold = medical.fitnessStatus === 'HOLD';
+    const followUpNote = medical.fitnessStatus === 'FIT_WITH_FOLLOW_UP' && medical.followUpDate
+      ? ` | Follow-Up: ${medical.followUpDays} day(s) (Due ${medical.followUpDate})`
+      : '';
     const emailNotification = await notifyNextStageUsers({
       transitionKey: isFit ? 'STEP_2_TO_SAFETY' : (isHold ? 'STEP_2_HOLD_ALERT' : 'STEP_2_UNFIT_ALERT'),
       nextRoles: isFit ? ['SAFETY'] : ['ADMIN', 'HR'],
       worker: updated,
       accounts: SYSTEM_ACCOUNTS,
       actor: req.user,
-      extraDetails: `Fitness: ${medical.fitnessStatus || 'N/A'} | Examiner: ${medical.examinerName || req.user?.name || 'Medical Officer'} | Remarks: ${medical.remarks || '—'}`
+      extraDetails: `Fitness: ${medical.fitnessStatus || 'N/A'}${followUpNote} | Examiner: ${medical.examinerName || req.user?.name || 'Medical Officer'} | Remarks: ${medical.remarks || '—'}`
     });
     res.json({ success: true, data: updated, emailNotification });
   } catch (err) {
@@ -1676,6 +1680,38 @@ app.use((err, req, res, next) => {
   });
 });
 
+// Background Scheduler: Notify Medical/HR/Admin when FIT_WITH_FOLLOW_UP relative date completes
+const processDueMedicalFollowUps = async () => {
+  try {
+    syncAccountsWithStore();
+    const workers = await dbGetAllWorkers();
+    const today = new Date().toISOString().slice(0, 10);
+    for (const w of workers) {
+      if (
+        w?.medical?.fitnessStatus === 'FIT_WITH_FOLLOW_UP' &&
+        w?.medical?.followUpDate &&
+        !w?.medical?.followUpNotified &&
+        String(w.medical.followUpDate) <= today
+      ) {
+        const mailRes = await sendMedicalFollowUpEmail({ worker: w, accounts: SYSTEM_ACCOUNTS });
+        const updatedMedical = {
+          ...w.medical,
+          followUpNotified: true,
+          followUpNotifiedAt: new Date().toISOString()
+        };
+        const updatedWorker = {
+          ...w,
+          medical: updatedMedical
+        };
+        await dbUpdateMedical(w.id, updatedMedical, updatedWorker);
+        console.log(`[Medical Follow-Up] Notification processed for ${w.id} (${w.hr?.fullName}) — status: ${mailRes?.status}`);
+      }
+    }
+  } catch (err) {
+    console.warn('[Medical Follow-Up Scheduler] Notice:', err.message);
+  }
+};
+
 // Initialize Fabric and Start Server immediately
 const startServer = () => {
   const localIp = getLocalNetworkIp();
@@ -1693,6 +1729,8 @@ const startServer = () => {
     connectToFabric().catch(err => {
       console.warn('[Server] Initial Fabric connection attempt:', err.message);
     });
+    setTimeout(() => { processDueMedicalFollowUps(); }, 15000);
+    setInterval(() => { processDueMedicalFollowUps(); }, 15 * 60 * 1000);
   });
 };
 

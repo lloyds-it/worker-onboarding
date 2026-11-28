@@ -28,6 +28,7 @@ export const Step3Safety = ({ initialData, onSave, isReadOnly }) => {
   const [safetyDate, setSafetyDate] = useState(
     initialData?.safetyDate || new Date().toISOString().slice(0, 10)
   );
+  const [ppeNotes, setPpeNotes] = useState(initialData?.ppeNotes || '');
   const [error, setError] = useState(null);
   const isDirtyRef = useRef(false);
   const lastInitialJsonRef = useRef(JSON.stringify(initialData || null));
@@ -42,6 +43,7 @@ export const Step3Safety = ({ initialData, onSave, isReadOnly }) => {
       setPpeIssued(resolveInitialPpe(initialData));
       setSafetyOfficerName(initialData.safetyOfficerName || defaultOfficerName);
       setSafetyDate(initialData.safetyDate || new Date().toISOString().slice(0, 10));
+      setPpeNotes(initialData.ppeNotes || '');
       setError(null);
     }
   }, [initialData, defaultOfficerName]);
@@ -85,6 +87,7 @@ export const Step3Safety = ({ initialData, onSave, isReadOnly }) => {
       briefingDone: true,
       topicsCovered,
       ppeIssued,
+      ppeNotes,
       safetyOfficerName,
       safetyDate
     });
@@ -163,13 +166,41 @@ export const Step3Safety = ({ initialData, onSave, isReadOnly }) => {
 
       {/* PPE Items Issued */}
       <div style={{ marginBottom: '1.5rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
           <h4 style={{ fontSize: '0.875rem', fontWeight: 700, color: 'var(--text-primary)' }}>
             Mandatory PPE Issued to Worker (Physical Verification)
           </h4>
-          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-            {ppeIssued.length} PPE items dispatched
-          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+              {ppeIssued.length} PPE items dispatched
+            </span>
+            {!isReadOnly && (
+              <>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  style={{ padding: '0.2rem 0.55rem', fontSize: '0.72rem' }}
+                  onClick={() => {
+                    isDirtyRef.current = true;
+                    setPpeIssued(PPE_ITEMS.map(item => item.id));
+                  }}
+                >
+                  Select All PPE
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  style={{ padding: '0.2rem 0.55rem', fontSize: '0.72rem' }}
+                  onClick={() => {
+                    isDirtyRef.current = true;
+                    setPpeIssued([]);
+                  }}
+                >
+                  Clear All
+                </button>
+              </>
+            )}
+          </div>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '0.5rem' }}>
@@ -202,6 +233,22 @@ export const Step3Safety = ({ initialData, onSave, isReadOnly }) => {
               </label>
             );
           })}
+        </div>
+
+        <div className="form-group" style={{ marginTop: '0.85rem' }}>
+          <label htmlFor="safety-ppe-notes">Additional / Site-Specific PPE Details or Remarks</label>
+          <input
+            id="safety-ppe-notes"
+            type="text"
+            className="form-input"
+            placeholder="e.g. Welding Apron, Arc Flash Shield, Respirator Cartridge..."
+            value={ppeNotes}
+            onChange={(e) => {
+              isDirtyRef.current = true;
+              setPpeNotes(e.target.value);
+            }}
+            disabled={isReadOnly}
+          />
         </div>
       </div>
 

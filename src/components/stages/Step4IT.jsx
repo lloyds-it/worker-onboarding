@@ -1,9 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Fingerprint, CheckCircle2, ShieldCheck, UserCheck } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { useWorkers } from '../../context/WorkerContext';
+import { WorkerPhotoUpload } from '../common/WorkerPhotoUpload';
 
 export const Step4IT = ({ initialData, worker, onSave, isReadOnly }) => {
   const { currentUser } = useAuth();
+  const { updateWorkerPhoto } = useWorkers();
   const loggedInIT = currentUser?.name
     ? `${currentUser.name}${currentUser.designation ? ` (${currentUser.designation})` : ''}`
     : '';
@@ -194,6 +197,20 @@ export const Step4IT = ({ initialData, worker, onSave, isReadOnly }) => {
             </label>
           </div>
         </div>
+      </div>
+
+      {/* Biometric Photograph Upload / Overwrite HR Photo */}
+      <div style={{ marginBottom: '1.25rem' }}>
+        <WorkerPhotoUpload
+          photo={worker?.hr?.photo || ''}
+          onChange={(photoDataUrl) => {
+            if (worker?.id && updateWorkerPhoto) {
+              updateWorkerPhoto(worker.id, photoDataUrl);
+            }
+          }}
+          isReadOnly={isReadOnly}
+          label="Biometric / Gate Pass Portrait Photograph (Upload here overwrites HR photo)"
+        />
       </div>
 
       {/* IT Admin Sign */}

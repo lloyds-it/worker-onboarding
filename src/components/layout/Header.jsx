@@ -126,7 +126,7 @@ export const Header = ({ isSidebarCollapsed = false, onToggleSidebarCollapse, on
             <input
               id="worker-quick-search"
               type="text"
-              placeholder="Search workers by name, ID, contractor..."
+              placeholder="Search by name, Emp ID, Aadhaar, contractor..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />

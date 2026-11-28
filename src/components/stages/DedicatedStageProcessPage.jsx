@@ -22,6 +22,7 @@ import { Step2Medical } from './Step2Medical';
 import { Step3Safety } from './Step3Safety';
 import { Step4IT } from './Step4IT';
 import { Step5Camp } from './Step5Camp';
+import { WorkerQrCode } from '../common/WorkerQrCode';
 
 export const DedicatedStageProcessPage = ({ worker: propWorker, onSelectWorker, onBack }) => {
   const { currentRole, canEditStage } = useAuth();
@@ -328,6 +329,19 @@ export const DedicatedStageProcessPage = ({ worker: propWorker, onSelectWorker, 
                 </div>
               )}
             </div>
+          </div>
+
+          {/* Worker Verification QR Code */}
+          <div style={{
+            marginTop: '1.15rem',
+            padding: '0.75rem',
+            borderRadius: 'var(--radius-sm)',
+            backgroundColor: '#FFFFFF',
+            border: '1px solid var(--border-light)',
+            display: 'flex',
+            justifyContent: 'center'
+          }}>
+            <WorkerQrCode worker={worker} size={112} showActions={false} />
           </div>
 
           {/* Department Authorization Indicator */}

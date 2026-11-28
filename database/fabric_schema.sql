@@ -61,7 +61,7 @@ IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'WorkerMedicalVitals' AND s
 BEGIN
     CREATE TABLE dbo.WorkerMedicalVitals (
         workerId VARCHAR(50) NOT NULL,
-        bloodGroup VARCHAR(10) NULL,
+        bloodGroup VARCHAR(20) NULL,
         heightCm INT NULL,
         weightKg INT NULL,
         bmi VARCHAR(20) NULL,
@@ -80,6 +80,10 @@ BEGIN
         fitnessStatus VARCHAR(50) NULL,
         examinerName VARCHAR(200) NULL,
         remarks VARCHAR(1000) NULL,
+        followUpDays INT NULL,
+        followUpDate VARCHAR(50) NULL,
+        followUpNotified BIT NULL,
+        medicalHistoryJson VARCHAR(MAX) NULL,
         examinedAt VARCHAR(50) NULL
     );
     ALTER TABLE dbo.WorkerMedicalVitals ADD CONSTRAINT PK_WorkerMedicalVitals PRIMARY KEY NONCLUSTERED (workerId) NOT ENFORCED;
@@ -93,6 +97,7 @@ BEGIN
         briefingDone BIT NULL,
         topicsCovered VARCHAR(2000) NULL,
         ppeIssued VARCHAR(2000) NULL,
+        ppeNotes VARCHAR(500) NULL,
         safetyOfficerName VARCHAR(200) NULL,
         safetyDate VARCHAR(50) NULL,
         inductedAt VARCHAR(50) NULL

@@ -175,6 +175,12 @@ const SCHEMA_STATEMENTS = [
   `IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'WorkerHRData' AND COLUMN_NAME = 'activity') BEGIN ALTER TABLE dbo.WorkerHRData ADD activity VARCHAR(200) NULL; END;`,
   `IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'WorkerCampAllocation' AND COLUMN_NAME = 'contractorSupervisor') BEGIN ALTER TABLE dbo.WorkerCampAllocation ADD contractorSupervisor VARCHAR(200) NULL; END;`,
   `IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'WorkerCampAllocation' AND COLUMN_NAME = 'supervisorMobile') BEGIN ALTER TABLE dbo.WorkerCampAllocation ADD supervisorMobile VARCHAR(30) NULL; END;`,
+  `IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'WorkerMedicalVitals' AND COLUMN_NAME = 'followUpDays') BEGIN ALTER TABLE dbo.WorkerMedicalVitals ADD followUpDays INT NULL; END;`,
+  `IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'WorkerMedicalVitals' AND COLUMN_NAME = 'followUpDate') BEGIN ALTER TABLE dbo.WorkerMedicalVitals ADD followUpDate VARCHAR(50) NULL; END;`,
+  `IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'WorkerMedicalVitals' AND COLUMN_NAME = 'followUpNotified') BEGIN ALTER TABLE dbo.WorkerMedicalVitals ADD followUpNotified BIT NULL; END;`,
+  `IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'WorkerMedicalVitals' AND COLUMN_NAME = 'medicalHistoryJson') BEGIN ALTER TABLE dbo.WorkerMedicalVitals ADD medicalHistoryJson VARCHAR(MAX) NULL; END;`,
+  `IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'WorkerSafetyInduction' AND COLUMN_NAME = 'ppeNotes') BEGIN ALTER TABLE dbo.WorkerSafetyInduction ADD ppeNotes VARCHAR(500) NULL; END;`,
+  `ALTER TABLE dbo.WorkerMedicalVitals ALTER COLUMN bloodGroup VARCHAR(20) NULL;`,
   `IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'ContractorsMaster' AND schema_id = SCHEMA_ID('dbo')) BEGIN CREATE TABLE dbo.ContractorsMaster (id VARCHAR(50) NOT NULL, contractorCode VARCHAR(50) NULL, locationCode VARCHAR(20) NULL, locationName VARCHAR(200) NULL, companyName VARCHAR(200) NOT NULL, licenseNo VARCHAR(100) NULL, department VARCHAR(100) NULL, contactPerson VARCHAR(200) NULL, contactMobile VARCHAR(30) NULL, email VARCHAR(200) NULL, address VARCHAR(500) NULL, registrationNo VARCHAR(100) NULL, labourLicenseNo VARCHAR(100) NULL, pfCode VARCHAR(100) NULL, esicCode VARCHAR(100) NULL, gstNo VARCHAR(50) NULL, panNo VARCHAR(50) NULL, validFrom VARCHAR(50) NULL, validUpto VARCHAR(50) NULL, status VARCHAR(30) NOT NULL, createdAt VARCHAR(50) NULL); ALTER TABLE dbo.ContractorsMaster ADD CONSTRAINT PK_ContractorsMaster PRIMARY KEY NONCLUSTERED (id) NOT ENFORCED; END;`,
   `IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'ContractorsMaster' AND COLUMN_NAME = 'contractorCode') BEGIN ALTER TABLE dbo.ContractorsMaster ADD contractorCode VARCHAR(50) NULL; END;`,
   `IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'ContractorsMaster' AND COLUMN_NAME = 'locationCode') BEGIN ALTER TABLE dbo.ContractorsMaster ADD locationCode VARCHAR(20) NULL; END;`,
@@ -647,10 +653,10 @@ export const dbGetAllWorkers = async () => {
       const query = `
         SELECT 
           w.id, w.assignedWorkerId, w.stage, w.status, w.fullName, w.contractorName, w.trade, w.mobileNumber, w.createdAt, w.updatedAt, w.completedAt,
-          hr.fatherHusbandName, hr.dob, hr.age, hr.gender, hr.idProofType, hr.idProofRef, hr.contractorCode, hr.locationCode, hr.locationName, hr.contractorLicense, hr.address, hr.workingLocation, hr.activity, hr.emergencyPerson, hr.emergencyRelationship, hr.emergencyMobile, hr.photo,
-          m.bloodGroup, m.heightCm, m.weightKg, m.bmi, m.bmiCategory, m.bpSystolic, m.bpDiastolic, m.spo2, m.pulseRate, m.respirationRate, m.rbs, m.alcoholTest, m.visionTest, m.hearingTest, m.vertigoTest, m.existingIllness, m.fitnessStatus, m.examinerName, m.remarks AS medicalRemarks,
-          s.briefingDone, s.topicsCovered, s.ppeIssued, s.safetyOfficerName, s.safetyDate,
-          it.faceBiometricRegistered, it.cwmsRegistered, it.campusMasterUploaded, it.undertakingAccepted, it.itAdminSignature, it.itDate,
+          hr.fatherHusbandName, hr.dob, hr.age, hr.gender, hr.idProofType, hr.idProofRef, hr.contractorCode, hr.locationCode, hr.locationName, hr.contractorLicense, hr.address, hr.workingLocation, hr.activity, hr.emergencyPerson, hr.emergencyRelationship, hr.emergencyMobile, hr.photo, hr.registeredAt,
+          m.bloodGroup, m.heightCm, m.weightKg, m.bmi, m.bmiCategory, m.bpSystolic, m.bpDiastolic, m.spo2, m.pulseRate, m.respirationRate, m.rbs, m.alcoholTest, m.visionTest, m.hearingTest, m.vertigoTest, m.existingIllness, m.fitnessStatus, m.examinerName, m.remarks AS medicalRemarks, m.examinedAt, m.followUpDays, m.followUpDate, m.followUpNotified, m.medicalHistoryJson,
+          s.briefingDone, s.topicsCovered, s.ppeIssued, s.ppeNotes, s.safetyOfficerName, s.safetyDate, s.inductedAt,
+          it.faceBiometricRegistered, it.cwmsRegistered, it.campusMasterUploaded, it.undertakingAccepted, it.itAdminSignature, it.itDate, it.enrolledAt,
           c.campName, c.blockNo, c.roomNo, c.bedNo, c.gatePassActive, c.allocatedBy, c.allocationDate, c.allocatedAt, c.contractorSupervisor, c.supervisorMobile
         FROM dbo.WorkersMaster w
         LEFT JOIN dbo.WorkerHRData hr ON w.id = hr.workerId
@@ -662,86 +668,112 @@ export const dbGetAllWorkers = async () => {
       `;
       const result = await pool.request().query(query);
 
-      const records = result.recordset.map(row => ({
-        id: row.id,
-        assignedWorkerId: row.assignedWorkerId || '',
-        stage: row.stage,
-        status: row.status,
-        createdAt: row.createdAt,
-        updatedAt: row.updatedAt,
-        completedAt: row.completedAt || (row.stage === 6 ? (row.allocatedAt || row.updatedAt || null) : null),
-        hr: {
-          fullName: row.fullName,
-          fatherHusbandName: row.fatherHusbandName || '',
-          dob: row.dob || '',
-          age: row.age,
-          gender: row.gender || '',
-          mobileNumber: row.mobileNumber || '',
-          idProofType: row.idProofType || '',
-          idProofRef: row.idProofRef || '',
-          contractorName: row.contractorName || '',
-          contractorCode: row.contractorCode || '',
-          locationCode: row.locationCode || '15',
-          locationName: row.locationName || '',
-          contractorLicense: row.contractorLicense || '',
-          trade: row.trade || '',
-          address: row.address || '',
-          workingLocation: row.workingLocation || '',
-          activity: row.activity || '',
-          emergencyPerson: row.emergencyPerson || '',
-          emergencyRelationship: row.emergencyRelationship || '',
-          emergencyMobile: row.emergencyMobile || '',
-          photo: row.photo || ''
-        },
-        medical: (row.bloodGroup || row.fitnessStatus || row.examinerName) ? {
-          bloodGroup: row.bloodGroup,
-          heightCm: row.heightCm,
-          weightKg: row.weightKg,
-          bmi: row.bmi,
-          bmiCategory: row.bmiCategory,
-          bpSystolic: row.bpSystolic,
-          bpDiastolic: row.bpDiastolic,
-          spo2: row.spo2,
-          pulseRate: row.pulseRate,
-          respirationRate: row.respirationRate,
-          rbs: row.rbs,
-          alcoholTest: row.alcoholTest,
-          visionTest: row.visionTest,
-          hearingTest: row.hearingTest,
-          vertigoTest: row.vertigoTest,
-          existingIllness: row.existingIllness,
-          fitnessStatus: row.fitnessStatus,
-          examinerName: row.examinerName,
-          remarks: row.medicalRemarks
-        } : null,
-        safety: (row.briefingDone !== null || row.safetyOfficerName) ? {
-          briefingDone: !!row.briefingDone,
-          topicsCovered: row.topicsCovered ? row.topicsCovered.split(' | ') : [],
-          ppeIssued: row.ppeIssued ? row.ppeIssued.split(' | ') : [],
-          safetyOfficerName: row.safetyOfficerName || '',
-          safetyDate: row.safetyDate || ''
-        } : null,
-        it: (row.faceBiometricRegistered !== null || row.itAdminSignature) ? {
-          faceBiometricRegistered: !!row.faceBiometricRegistered,
-          cwmsRegistered: !!row.cwmsRegistered,
-          campusMasterUploaded: !!row.campusMasterUploaded,
-          undertakingAccepted: !!row.undertakingAccepted,
-          assignedWorkerId: row.assignedWorkerId,
-          itAdminSignature: row.itAdminSignature || '',
-          itDate: row.itDate || ''
-        } : null,
-        camp: (row.campName || row.roomNo) ? {
-          campName: row.campName,
-          blockNumber: row.blockNo,
-          roomNumber: row.roomNo,
-          bedNumber: row.bedNo,
-          gatePassActive: !!row.gatePassActive,
-          allocatedBy: row.allocatedBy || '',
-          allocationDate: row.allocationDate || '',
-          contractorSupervisor: row.contractorSupervisor || '',
-          supervisorMobile: row.supervisorMobile || ''
-        } : null
-      }));
+      const records = result.recordset.map(row => {
+        let parsedMedicalHistory = [];
+        try {
+          if (row.medicalHistoryJson) {
+            const p = JSON.parse(row.medicalHistoryJson);
+            if (Array.isArray(p)) parsedMedicalHistory = p;
+          }
+        } catch (e) { }
+
+        return {
+          id: row.id,
+          assignedWorkerId: row.assignedWorkerId || '',
+          stage: row.stage,
+          status: row.status,
+          createdAt: row.createdAt,
+          updatedAt: row.updatedAt,
+          completedAt: row.completedAt || (row.stage === 6 ? (row.allocatedAt || row.updatedAt || null) : null),
+          stageTimestamps: {
+            hrAt: row.registeredAt || row.createdAt || null,
+            medicalAt: row.examinedAt || null,
+            safetyAt: row.inductedAt || null,
+            itAt: row.enrolledAt || null,
+            campAt: row.allocatedAt || null
+          },
+          hr: {
+            fullName: row.fullName,
+            fatherHusbandName: row.fatherHusbandName || '',
+            dob: row.dob || '',
+            age: row.age,
+            gender: row.gender || '',
+            mobileNumber: row.mobileNumber || '',
+            idProofType: row.idProofType || '',
+            idProofRef: row.idProofRef || '',
+            contractorName: row.contractorName || '',
+            contractorCode: row.contractorCode || '',
+            locationCode: row.locationCode || '15',
+            locationName: row.locationName || '',
+            contractorLicense: row.contractorLicense || '',
+            trade: row.trade || '',
+            address: row.address || '',
+            workingLocation: row.workingLocation || '',
+            activity: row.activity || '',
+            emergencyPerson: row.emergencyPerson || '',
+            emergencyRelationship: row.emergencyRelationship || '',
+            emergencyMobile: row.emergencyMobile || '',
+            photo: row.photo || ''
+          },
+          medical: (row.bloodGroup || row.fitnessStatus || row.examinerName) ? {
+            bloodGroup: row.bloodGroup,
+            heightCm: row.heightCm,
+            weightKg: row.weightKg,
+            bmi: row.bmi,
+            bmiCategory: row.bmiCategory,
+            bpSystolic: row.bpSystolic,
+            bpDiastolic: row.bpDiastolic,
+            spo2: row.spo2,
+            pulseRate: row.pulseRate,
+            respirationRate: row.respirationRate,
+            rbs: row.rbs,
+            alcoholTest: row.alcoholTest,
+            visionTest: row.visionTest,
+            hearingTest: row.hearingTest,
+            vertigoTest: row.vertigoTest,
+            existingIllness: row.existingIllness,
+            fitnessStatus: row.fitnessStatus,
+            examinerName: row.examinerName,
+            remarks: row.medicalRemarks,
+            examinedAt: row.examinedAt || null,
+            followUpDays: row.followUpDays || null,
+            followUpDate: row.followUpDate || '',
+            followUpNotified: Boolean(row.followUpNotified),
+            history: parsedMedicalHistory
+          } : null,
+          safety: (row.briefingDone !== null || row.safetyOfficerName) ? {
+            briefingDone: !!row.briefingDone,
+            topicsCovered: row.topicsCovered ? row.topicsCovered.split(' | ') : [],
+            ppeIssued: row.ppeIssued ? row.ppeIssued.split(' | ') : [],
+            ppeNotes: row.ppeNotes || '',
+            safetyOfficerName: row.safetyOfficerName || '',
+            safetyDate: row.safetyDate || '',
+            inductedAt: row.inductedAt || null
+          } : null,
+          it: (row.faceBiometricRegistered !== null || row.itAdminSignature) ? {
+            faceBiometricRegistered: !!row.faceBiometricRegistered,
+            cwmsRegistered: !!row.cwmsRegistered,
+            campusMasterUploaded: !!row.campusMasterUploaded,
+            undertakingAccepted: !!row.undertakingAccepted,
+            assignedWorkerId: row.assignedWorkerId,
+            itAdminSignature: row.itAdminSignature || '',
+            itDate: row.itDate || '',
+            enrolledAt: row.enrolledAt || null
+          } : null,
+          camp: (row.campName || row.roomNo) ? {
+            campName: row.campName,
+            blockNumber: row.blockNo,
+            roomNumber: row.roomNo,
+            bedNumber: row.bedNo,
+            gatePassActive: !!row.gatePassActive,
+            allocatedBy: row.allocatedBy || '',
+            allocationDate: row.allocationDate || '',
+            contractorSupervisor: row.contractorSupervisor || '',
+            supervisorMobile: row.supervisorMobile || '',
+            allocatedAt: row.allocatedAt || null
+          } : null
+        };
+      });
 
       // Preserve any locally-saved pending-sync records so Fabric reads never wipe unsynced worker submissions
       const pendingLocal = (fallbackWorkersCache || []).filter(w => w && w._fabricPendingSync);
@@ -876,11 +908,12 @@ export const dbUpdateWorkerPhoto = async (workerId, photoUrl) => {
  */
 export const dbUpdateMedical = async (workerId, medicalData, updatedWorker) => {
   const now = new Date().toISOString();
+  const historyJson = Array.isArray(medicalData.history) ? JSON.stringify(medicalData.history) : '[]';
   const fabricSaved = await runFabricWriteWithRetry(`Update Medical ${workerId}`, async (targetPool) => {
     const request = new sql.Request(targetPool);
     await request
       .input('workerId', sql.VarChar(50), clipStr(workerId, 50))
-      .input('bloodGroup', sql.VarChar(10), clipStr(medicalData.bloodGroup, 10))
+      .input('bloodGroup', sql.VarChar(20), clipStr(medicalData.bloodGroup, 20))
       .input('heightCm', sql.Int, Math.round(Number(medicalData.heightCm)) || null)
       .input('weightKg', sql.Int, Math.round(Number(medicalData.weightKg)) || null)
       .input('bmi', sql.VarChar(20), clipStr(medicalData.bmi, 20))
@@ -899,19 +932,23 @@ export const dbUpdateMedical = async (workerId, medicalData, updatedWorker) => {
       .input('fitnessStatus', sql.VarChar(50), clipStr(medicalData.fitnessStatus, 50))
       .input('examinerName', sql.VarChar(200), clipStr(medicalData.examinerName, 200))
       .input('remarks', sql.VarChar(1000), clipStr(medicalData.remarks, 1000))
+      .input('followUpDays', sql.Int, parseInt(medicalData.followUpDays, 10) || null)
+      .input('followUpDate', sql.VarChar(50), clipStr(medicalData.followUpDate, 50))
+      .input('followUpNotified', sql.Bit, medicalData.followUpNotified ? 1 : 0)
+      .input('medicalHistoryJson', sql.VarChar(sql.MAX), historyJson)
       .input('stage', sql.Int, updatedWorker.stage)
       .input('status', sql.VarChar(50), clipStr(updatedWorker.status, 50))
-      .input('updatedAt', sql.VarChar(50), now)
+      .input('updatedAt', sql.VarChar(50), medicalData.examinedAt || now)
       .query(`
         IF NOT EXISTS (SELECT 1 FROM dbo.WorkerMedicalVitals WHERE workerId = @workerId)
         BEGIN
-          INSERT INTO dbo.WorkerMedicalVitals (workerId, bloodGroup, heightCm, weightKg, bmi, bmiCategory, bpSystolic, bpDiastolic, spo2, pulseRate, respirationRate, rbs, alcoholTest, visionTest, hearingTest, vertigoTest, existingIllness, fitnessStatus, examinerName, remarks, examinedAt)
-          VALUES (@workerId, @bloodGroup, @heightCm, @weightKg, @bmi, @bmiCategory, @bpSystolic, @bpDiastolic, @spo2, @pulseRate, @respirationRate, @rbs, @alcoholTest, @visionTest, @hearingTest, @vertigoTest, @existingIllness, @fitnessStatus, @examinerName, @remarks, @updatedAt);
+          INSERT INTO dbo.WorkerMedicalVitals (workerId, bloodGroup, heightCm, weightKg, bmi, bmiCategory, bpSystolic, bpDiastolic, spo2, pulseRate, respirationRate, rbs, alcoholTest, visionTest, hearingTest, vertigoTest, existingIllness, fitnessStatus, examinerName, remarks, followUpDays, followUpDate, followUpNotified, medicalHistoryJson, examinedAt)
+          VALUES (@workerId, @bloodGroup, @heightCm, @weightKg, @bmi, @bmiCategory, @bpSystolic, @bpDiastolic, @spo2, @pulseRate, @respirationRate, @rbs, @alcoholTest, @visionTest, @hearingTest, @vertigoTest, @existingIllness, @fitnessStatus, @examinerName, @remarks, @followUpDays, @followUpDate, @followUpNotified, @medicalHistoryJson, @updatedAt);
         END
         ELSE
         BEGIN
           UPDATE dbo.WorkerMedicalVitals
-          SET bloodGroup = @bloodGroup, heightCm = @heightCm, weightKg = @weightKg, bmi = @bmi, bmiCategory = @bmiCategory, bpSystolic = @bpSystolic, bpDiastolic = @bpDiastolic, spo2 = @spo2, pulseRate = @pulseRate, respirationRate = @respirationRate, rbs = @rbs, alcoholTest = @alcoholTest, visionTest = @visionTest, hearingTest = @hearingTest, vertigoTest = @vertigoTest, existingIllness = @existingIllness, fitnessStatus = @fitnessStatus, examinerName = @examinerName, remarks = @remarks, examinedAt = @updatedAt
+          SET bloodGroup = @bloodGroup, heightCm = @heightCm, weightKg = @weightKg, bmi = @bmi, bmiCategory = @bmiCategory, bpSystolic = @bpSystolic, bpDiastolic = @bpDiastolic, spo2 = @spo2, pulseRate = @pulseRate, respirationRate = @respirationRate, rbs = @rbs, alcoholTest = @alcoholTest, visionTest = @visionTest, hearingTest = @hearingTest, vertigoTest = @vertigoTest, existingIllness = @existingIllness, fitnessStatus = @fitnessStatus, examinerName = @examinerName, remarks = @remarks, followUpDays = @followUpDays, followUpDate = @followUpDate, followUpNotified = @followUpNotified, medicalHistoryJson = @medicalHistoryJson, examinedAt = @updatedAt
           WHERE workerId = @workerId;
         END;
 
@@ -940,20 +977,21 @@ export const dbUpdateSafety = async (workerId, safetyData, updatedWorker) => {
       .input('briefingDone', sql.Bit, safetyData.briefingDone ? 1 : 0)
       .input('topicsCovered', sql.VarChar(2000), clipStr(topicsStr, 2000))
       .input('ppeIssued', sql.VarChar(2000), clipStr(ppeStr, 2000))
+      .input('ppeNotes', sql.VarChar(500), clipStr(safetyData.ppeNotes, 500))
       .input('safetyOfficerName', sql.VarChar(200), clipStr(safetyData.safetyOfficerName, 200))
       .input('safetyDate', sql.VarChar(50), clipStr(safetyData.safetyDate || now.slice(0, 10), 50))
       .input('stage', sql.Int, updatedWorker.stage)
-      .input('updatedAt', sql.VarChar(50), now)
+      .input('updatedAt', sql.VarChar(50), safetyData.inductedAt || now)
       .query(`
         IF NOT EXISTS (SELECT 1 FROM dbo.WorkerSafetyInduction WHERE workerId = @workerId)
         BEGIN
-          INSERT INTO dbo.WorkerSafetyInduction (workerId, briefingDone, topicsCovered, ppeIssued, safetyOfficerName, safetyDate, inductedAt)
-          VALUES (@workerId, @briefingDone, @topicsCovered, @ppeIssued, @safetyOfficerName, @safetyDate, @updatedAt);
+          INSERT INTO dbo.WorkerSafetyInduction (workerId, briefingDone, topicsCovered, ppeIssued, ppeNotes, safetyOfficerName, safetyDate, inductedAt)
+          VALUES (@workerId, @briefingDone, @topicsCovered, @ppeIssued, @ppeNotes, @safetyOfficerName, @safetyDate, @updatedAt);
         END
         ELSE
         BEGIN
           UPDATE dbo.WorkerSafetyInduction
-          SET briefingDone = @briefingDone, topicsCovered = @topicsCovered, ppeIssued = @ppeIssued, safetyOfficerName = @safetyOfficerName, safetyDate = @safetyDate, inductedAt = @updatedAt
+          SET briefingDone = @briefingDone, topicsCovered = @topicsCovered, ppeIssued = @ppeIssued, ppeNotes = @ppeNotes, safetyOfficerName = @safetyOfficerName, safetyDate = @safetyDate, inductedAt = @updatedAt
           WHERE workerId = @workerId;
         END;
 

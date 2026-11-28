@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Stethoscope, AlertTriangle, CheckCircle2, XCircle, HeartPulse, ShieldAlert, PauseCircle } from 'lucide-react';
-import { validateMedicalStep, calculateBMI } from '../../services/validationService';
+import { Stethoscope, AlertTriangle, CheckCircle2, XCircle, HeartPulse, ShieldAlert, PauseCircle, CalendarClock, History } from 'lucide-react';
+import { validateMedicalStep, calculateBMI, addDaysToIsoDate, formatTimestamp, getMedicalFitnessMeta } from '../../services/validationService';
 import { useAuth } from '../../context/AuthContext';
 
 export const Step2Medical = ({ initialData, onSave, isReadOnly }) => {
@@ -9,32 +9,41 @@ export const Step2Medical = ({ initialData, onSave, isReadOnly }) => {
     ? `${currentUser.name}${currentUser.designation ? ` (${currentUser.designation})` : ''}`
     : '';
 
-  const buildInitialForm = (data, examiner) => ({
-    bloodGroup: data?.bloodGroup || 'B+',
-    heightCm: data?.heightCm || '',
-    weightKg: data?.weightKg || '',
-    bmi: data?.bmi || '',
-    bmiCategory: data?.bmiCategory || '',
-    bpSystolic: data?.bpSystolic || '120',
-    bpDiastolic: data?.bpDiastolic || '80',
-    spo2: data?.spo2 || '98',
-    pulseRate: data?.pulseRate || '72',
-    respirationRate: data?.respirationRate || '16',
-    rbs: data?.rbs || '100',
-    alcoholTest: data?.alcoholTest || 'Pass',
-    visionTest: data?.visionTest || 'Normal',
-    hearingTest: data?.hearingTest || 'Normal',
-    vertigoTest: data?.vertigoTest || 'Fit',
-    existingIllness: data?.existingIllness || 'No',
-    fitnessStatus: data?.fitnessStatus || 'FIT',
-    examinerName: data?.examinerName || examiner,
-    remarks: data?.remarks || 'Fit for heavy industrial plant work.'
-  });
+  const buildInitialForm = (data, examiner) => {
+    const defaultFollowUpDays = data?.followUpDays ? String(data.followUpDays) : '7';
+    return {
+      bloodGroup: data?.bloodGroup || 'B+',
+      heightCm: data?.heightCm || '',
+      weightKg: data?.weightKg || '',
+      bmi: data?.bmi || '',
+      bmiCategory: data?.bmiCategory || '',
+      bpSystolic: data?.bpSystolic || '120',
+      bpDiastolic: data?.bpDiastolic || '80',
+      spo2: data?.spo2 || '98',
+      pulseRate: data?.pulseRate || '72',
+      respirationRate: data?.respirationRate || '16',
+      rbs: data?.rbs || '100',
+      alcoholTest: data?.alcoholTest || 'Pass',
+      visionTest: data?.visionTest || 'Normal',
+      hearingTest: data?.hearingTest || 'Normal',
+      vertigoTest: data?.vertigoTest || 'Fit',
+      existingIllness: data?.existingIllness || 'No',
+      fitnessStatus: data?.fitnessStatus || 'FIT',
+      followUpDays: defaultFollowUpDays,
+      followUpDate: data?.followUpDate || addDaysToIsoDate(defaultFollowUpDays),
+      examinerName: data?.examinerName || examiner,
+      remarks: data?.remarks || 'Fit for heavy industrial plant work.'
+    };
+  };
 
   const [formData, setFormData] = useState(() => buildInitialForm(initialData, loggedInExaminer));
   const [errors, setErrors] = useState({});
   const isDirtyRef = useRef(false);
   const lastInitialJsonRef = useRef(JSON.stringify(initialData || null));
+  const formRef = useRef(null);
+
+  const priorMedicalHistory = Array.isArray(initialData?.history) ? initialData.history : [];
+  const hasPreviousExam = Boolean(initialData?.fitnessStatus);
 
   useEffect(() => {
     const serialized = JSON.stringify(initialData || null);
@@ -67,7 +76,16 @@ export const Step2Medical = ({ initialData, onSave, isReadOnly }) => {
         next.bmiCategory = res.category;
       }
 
+      if (field === 'followUpDays') {
+        next.followUpDate = addDaysToIsoDate(val);
+      }
+
       if (field === 'fitnessStatus') {
+        if (val === 'FIT_WITH_FOLLOW_UP') {
+          const days = prev.followUpDays || '7';
+          next.followUpDays = days;
+          next.followUpDate = addDaysToIsoDate(days);
+        }
         if (val !== 'FIT' && prevRemarksIsDefaultFit(prev.remarks)) {
           next.remarks = '';
         } else if (val === 'FIT' && !prev.remarks?.trim()) {
@@ -79,6 +97,27 @@ export const Step2Medical = ({ initialData, onSave, isReadOnly }) => {
     });
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: null }));
+    }
+  };
+
+  // Move pointer sequentially to the next entry block when Enter is pressed inside an input/select
+  const handleFormKeyDown = (e) => {
+    if (e.key !== 'Enter') return;
+    const tag = e.target?.tagName;
+    if (tag === 'TEXTAREA' || e.target?.type === 'submit' || tag === 'BUTTON') return;
+    e.preventDefault();
+    const container = formRef.current;
+    if (!container) return;
+    const focusables = Array.from(
+      container.querySelectorAll('input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled])')
+    ).filter(el => el.offsetParent !== null);
+    const idx = focusables.indexOf(e.target);
+    if (idx !== -1 && idx + 1 < focusables.length) {
+      const nextEl = focusables[idx + 1];
+      nextEl.focus();
+      if (typeof nextEl.select === 'function' && nextEl.tagName === 'INPUT' && nextEl.type !== 'radio') {
+        try { nextEl.select(); } catch (err) { }
+      }
     }
   };
 
@@ -99,15 +138,17 @@ export const Step2Medical = ({ initialData, onSave, isReadOnly }) => {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="form-card" style={{ marginBottom: 0 }}>
+    <form ref={formRef} onSubmit={handleSubmit} onKeyDown={handleFormKeyDown} className="form-card" style={{ marginBottom: 0 }}>
       <div className="form-section-header">
         <h3>
           <Stethoscope size={20} color="var(--warning-solid)" />
           <span>Step 2: Medical & Physical Fitness Examination</span>
         </h3>
-        {isReadOnly && (
+        {isReadOnly ? (
           <span className="badge badge-info">Completed by Medical Officer</span>
-        )}
+        ) : hasPreviousExam ? (
+          <span className="badge badge-warning">Re-Performing Exam (Old + New Records Preserved)</span>
+        ) : null}
       </div>
 
       {Object.keys(errors).length > 0 && (
@@ -151,7 +192,7 @@ export const Step2Medical = ({ initialData, onSave, isReadOnly }) => {
             onChange={(e) => handleVitalChange('bloodGroup', e.target.value)}
             disabled={isReadOnly}
           >
-            {['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-'].map(bg => (
+            {['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-', 'Not Done'].map(bg => (
               <option key={bg} value={bg}>{bg}</option>
             ))}
           </select>
@@ -381,11 +422,12 @@ export const Step2Medical = ({ initialData, onSave, isReadOnly }) => {
         </div>
       </div>
 
-      {/* Gate Decision: FIT / FIT WITH PRECAUTIONS / HOLD / UNFIT */}
+      {/* Gate Decision: FIT / FIT WITH PRECAUTIONS / FIT WITH FOLLOW UP / HOLD / UNFIT */}
       {(() => {
         const statusTheme = {
           FIT: { bg: 'var(--success-bg)', border: 'var(--success-solid)', text: 'var(--success-text)' },
           FIT_WITH_PRECAUTIONS: { bg: 'var(--info-bg)', border: 'var(--info-solid)', text: 'var(--info-text)' },
+          FIT_WITH_FOLLOW_UP: { bg: 'var(--purple-bg)', border: 'var(--purple-solid)', text: 'var(--purple-text)' },
           HOLD: { bg: 'var(--warning-bg)', border: 'var(--warning-solid)', text: 'var(--warning-text)' },
           UNFIT: { bg: 'var(--danger-bg)', border: 'var(--danger-solid)', text: 'var(--danger-text)' }
         }[formData.fitnessStatus] || { bg: 'var(--success-bg)', border: 'var(--success-solid)', text: 'var(--success-text)' };
@@ -394,17 +436,21 @@ export const Step2Medical = ({ initialData, onSave, isReadOnly }) => {
           ? <CheckCircle2 size={20} />
           : formData.fitnessStatus === 'FIT_WITH_PRECAUTIONS'
             ? <ShieldAlert size={20} />
-            : formData.fitnessStatus === 'HOLD'
-              ? <PauseCircle size={20} />
-              : <XCircle size={20} />;
+            : formData.fitnessStatus === 'FIT_WITH_FOLLOW_UP'
+              ? <CalendarClock size={20} />
+              : formData.fitnessStatus === 'HOLD'
+                ? <PauseCircle size={20} />
+                : <XCircle size={20} />;
 
         const remarksPlaceholder = formData.fitnessStatus === 'FIT'
           ? 'Certified fit for plant work...'
           : formData.fitnessStatus === 'FIT_WITH_PRECAUTIONS'
             ? 'Specify work precautions (e.g. ground-level work only, no height/confined space, regular BP check)...'
-            : formData.fitnessStatus === 'HOLD'
-              ? 'Specify reason for HOLD and follow-up test / specialist opinion required...'
-              : 'Specify medical contraindications and reasons for rejection...';
+            : formData.fitnessStatus === 'FIT_WITH_FOLLOW_UP'
+              ? 'Specify medical follow-up requirement (e.g. re-check BP / RBS after scheduled days)...'
+              : formData.fitnessStatus === 'HOLD'
+                ? 'Specify reason for HOLD and follow-up test / specialist opinion required...'
+                : 'Specify medical contraindications and reasons for rejection...';
 
         return (
           <div style={{
@@ -427,7 +473,7 @@ export const Step2Medical = ({ initialData, onSave, isReadOnly }) => {
               <span>FINAL MEDICAL FITNESS STATUS (DOCTOR OPINION / STAGE GATE DECISION)</span>
             </h4>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 260px), 1fr))', gap: '0.75rem', marginBottom: '1rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))', gap: '0.75rem', marginBottom: '1rem' }}>
               <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
                 <input
                   type="radio"
@@ -437,7 +483,7 @@ export const Step2Medical = ({ initialData, onSave, isReadOnly }) => {
                   onChange={() => handleVitalChange('fitnessStatus', 'FIT')}
                   disabled={isReadOnly}
                 />
-                <span style={{ fontWeight: 800, color: 'var(--success-text)', fontSize: '0.9rem' }}>
+                <span style={{ fontWeight: 800, color: 'var(--success-text)', fontSize: '0.88rem' }}>
                   FIT FOR GENERAL WORK (Routes to Safety)
                 </span>
               </label>
@@ -451,8 +497,22 @@ export const Step2Medical = ({ initialData, onSave, isReadOnly }) => {
                   onChange={() => handleVitalChange('fitnessStatus', 'FIT_WITH_PRECAUTIONS')}
                   disabled={isReadOnly}
                 />
-                <span style={{ fontWeight: 800, color: 'var(--info-text)', fontSize: '0.9rem' }}>
+                <span style={{ fontWeight: 800, color: 'var(--info-text)', fontSize: '0.88rem' }}>
                   FIT WITH PRECAUTIONS (Routes to Safety)
+                </span>
+              </label>
+
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                <input
+                  type="radio"
+                  name="fitnessStatus"
+                  value="FIT_WITH_FOLLOW_UP"
+                  checked={formData.fitnessStatus === 'FIT_WITH_FOLLOW_UP'}
+                  onChange={() => handleVitalChange('fitnessStatus', 'FIT_WITH_FOLLOW_UP')}
+                  disabled={isReadOnly}
+                />
+                <span style={{ fontWeight: 800, color: 'var(--purple-text)', fontSize: '0.88rem' }}>
+                  FIT WITH FOLLOW UP (1–30 Days Alert)
                 </span>
               </label>
 
@@ -465,7 +525,7 @@ export const Step2Medical = ({ initialData, onSave, isReadOnly }) => {
                   onChange={() => handleVitalChange('fitnessStatus', 'HOLD')}
                   disabled={isReadOnly}
                 />
-                <span style={{ fontWeight: 800, color: 'var(--warning-text)', fontSize: '0.9rem' }}>
+                <span style={{ fontWeight: 800, color: 'var(--warning-text)', fontSize: '0.88rem' }}>
                   HOLD (Pending Review / Re-test)
                 </span>
               </label>
@@ -479,11 +539,53 @@ export const Step2Medical = ({ initialData, onSave, isReadOnly }) => {
                   onChange={() => handleVitalChange('fitnessStatus', 'UNFIT')}
                   disabled={isReadOnly}
                 />
-                <span style={{ fontWeight: 800, color: 'var(--danger-text)', fontSize: '0.9rem' }}>
+                <span style={{ fontWeight: 800, color: 'var(--danger-text)', fontSize: '0.88rem' }}>
                   UNFIT (Halts Onboarding &amp; Flags Profile)
                 </span>
               </label>
             </div>
+
+            {formData.fitnessStatus === 'FIT_WITH_FOLLOW_UP' && (
+              <div className="form-grid" style={{
+                marginBottom: '1rem',
+                padding: '0.85rem',
+                backgroundColor: 'var(--bg-surface)',
+                borderRadius: 'var(--radius-sm)',
+                border: '1px solid var(--purple-border, #C4B5FD)'
+              }}>
+                <div className="form-group">
+                  <label htmlFor="med-followup-days">Follow-Up Review After (1–30 Days) <span className="required">*</span></label>
+                  <select
+                    id="med-followup-days"
+                    className={`form-select ${errors.followUpDays ? 'error' : ''}`}
+                    value={formData.followUpDays || '7'}
+                    onChange={(e) => handleVitalChange('followUpDays', e.target.value)}
+                    disabled={isReadOnly}
+                  >
+                    {Array.from({ length: 30 }, (_, idx) => String(idx + 1)).map(day => (
+                      <option key={day} value={day}>
+                        {day} {day === '1' ? 'Day' : 'Days'} (Due {addDaysToIsoDate(day)})
+                      </option>
+                    ))}
+                  </select>
+                  {errors.followUpDays && <span className="error-text">{errors.followUpDays}</span>}
+                </div>
+
+                <div className="form-group">
+                  <label>Scheduled Follow-Up Date (Auto Notification Mail)</label>
+                  <input
+                    type="text"
+                    readOnly
+                    className="form-input"
+                    value={formData.followUpDate || addDaysToIsoDate(formData.followUpDays || 7)}
+                    style={{ backgroundColor: 'var(--bg-surface-subtle)', fontFamily: 'var(--font-family-mono)', fontWeight: 700 }}
+                  />
+                  <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                    Automated reminder email will be dispatched to Medical / HR once this date completes.
+                  </span>
+                </div>
+              </div>
+            )}
 
             <div className="form-group">
               <label style={{ color: statusTheme.text }}>
@@ -547,6 +649,12 @@ export const Step2Medical = ({ initialData, onSave, isReadOnly }) => {
                 <ShieldAlert size={16} />
               </>
             )}
+            {formData.fitnessStatus === 'FIT_WITH_FOLLOW_UP' && (
+              <>
+                <span>Certify FIT WITH FOLLOW UP ({formData.followUpDays || 7}d) &amp; Route to Safety</span>
+                <CalendarClock size={16} />
+              </>
+            )}
             {formData.fitnessStatus === 'HOLD' && (
               <>
                 <span>Place on Medical HOLD (Keep at Medical)</span>
@@ -560,6 +668,54 @@ export const Step2Medical = ({ initialData, onSave, isReadOnly }) => {
               </>
             )}
           </button>
+        </div>
+      )}
+
+      {/* Preserved Medical Re-Examination History (Old + New Records) */}
+      {priorMedicalHistory.length > 0 && (
+        <div style={{
+          marginTop: '1.75rem',
+          padding: '1rem 1.25rem',
+          backgroundColor: 'var(--bg-surface-subtle)',
+          border: '1px solid var(--border-light)',
+          borderRadius: 'var(--radius-md)'
+        }}>
+          <h4 style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+            <History size={16} color="var(--brand-primary)" />
+            <span>Saved Previous Medical Records ({priorMedicalHistory.length} Archived Exam{priorMedicalHistory.length === 1 ? '' : 's'})</span>
+          </h4>
+          <div className="data-table-wrapper">
+            <table className="data-table" style={{ fontSize: '0.78rem' }}>
+              <thead>
+                <tr>
+                  <th>Recorded Date</th>
+                  <th>Verdict</th>
+                  <th>Blood Group</th>
+                  <th>Height / Weight / BMI</th>
+                  <th>BP / SpO2 / RBS</th>
+                  <th>Examiner &amp; Remarks</th>
+                </tr>
+              </thead>
+              <tbody>
+                {priorMedicalHistory.map((rec, i) => {
+                  const fm = getMedicalFitnessMeta(rec.fitnessStatus);
+                  return (
+                    <tr key={i}>
+                      <td>{formatTimestamp(rec.examinedAt || rec.archivedAt)}</td>
+                      <td><span className={`badge badge-${fm.badge}`}>{fm.shortLabel}</span></td>
+                      <td>{rec.bloodGroup || '—'}</td>
+                      <td>{rec.heightCm || '—'}cm / {rec.weightKg || '—'}kg {rec.bmi ? `(BMI ${rec.bmi})` : ''}</td>
+                      <td>{rec.bpSystolic || '—'}/{rec.bpDiastolic || '—'} • {rec.spo2 || '—'}% • {rec.rbs || '—'}</td>
+                      <td>
+                        <div style={{ fontWeight: 600 }}>{rec.examinerName || '—'}</div>
+                        <div style={{ color: 'var(--text-muted)' }}>{rec.remarks || '—'}</div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </form>

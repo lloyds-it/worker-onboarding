@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { getStoredWorkers, saveWorkers, resetToInitialData, clearStoredWorkers } from '../services/storageService';
 import { logAuditEvent } from '../services/auditService';
 import { ROLES, STAGES } from '../types/constants';
-import { generateEmployeeId } from '../services/validationService';
+import { generateEmployeeId, isMedicalFitForNextStage } from '../services/validationService';
 import { useAuth } from './AuthContext';
 import {
   apiGetWorkers,
@@ -298,15 +298,19 @@ export const WorkerProvider = ({ children }) => {
         if (n > maxRef) maxRef = n;
       }
     });
+    const now = new Date().toISOString();
     const newId = `WRK-${year}-${String(maxRef + 1).padStart(3, '0')}`;
     const newWorker = {
       id: newId,
       assignedWorkerId: employeeId,
       stage: STAGES.MEDICAL, // Automatically routes to Medical Team per BRD
       status: 'IN_PROGRESS',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      createdAt: now,
+      updatedAt: now,
       completedAt: null,
+      stageTimestamps: {
+        hrAt: now
+      },
       hr: cleanHrData,
       medical: null,
       safety: null,
@@ -381,31 +385,66 @@ export const WorkerProvider = ({ children }) => {
     return { ok: true };
   };
 
-  // Step 2: Medical Examination
+  // Step 2: Medical Examination (preserves previous records in medical.history on re-test)
   const updateWorkerMedical = async (workerId, medicalData) => {
     if (currentRole !== ROLES.MEDICAL && currentRole !== ROLES.ADMIN) {
       showToast('Unauthorized: Only Medical Health Officers can record medical examinations.', 'danger');
       return;
     }
 
-    const isFit = medicalData.fitnessStatus === 'FIT' || medicalData.fitnessStatus === 'FIT_WITH_PRECAUTIONS';
+    const now = new Date().toISOString();
+    const isFit = isMedicalFitForNextStage(medicalData.fitnessStatus);
     const isHold = medicalData.fitnessStatus === 'HOLD';
 
     const updated = workers.map(w => {
       if (w.id !== workerId) return w;
 
-      const nextStage = isFit ? STAGES.SAFETY : (isHold ? STAGES.MEDICAL : STAGES.FLAGGED);
-      const nextStatus = isFit ? 'IN_PROGRESS' : (isHold ? 'HOLD' : 'FLAGGED');
+      const existingHistory = Array.isArray(w.medical?.history) ? [...w.medical.history] : [];
+      const hasPriorRecord = Boolean(w.medical && (w.medical.fitnessStatus || w.medical.examinedAt || w.medical.examinerName));
+      const updatedHistory = hasPriorRecord
+        ? [
+            {
+              ...w.medical,
+              history: undefined,
+              archivedAt: now
+            },
+            ...existingHistory
+          ]
+        : existingHistory;
+
+      let nextStage = STAGES.FLAGGED;
+      let nextStatus = 'FLAGGED';
+      if (isFit) {
+        if (w.stage > STAGES.MEDICAL && w.stage <= STAGES.COMPLETED) {
+          nextStage = w.stage;
+          nextStatus = w.status || 'IN_PROGRESS';
+        } else {
+          nextStage = STAGES.SAFETY;
+          nextStatus = 'IN_PROGRESS';
+        }
+      } else if (isHold) {
+        nextStage = STAGES.MEDICAL;
+        nextStatus = 'HOLD';
+      }
+
+      const prevTimestamps = w.stageTimestamps || { hrAt: w.createdAt };
 
       return {
         ...w,
         stage: nextStage,
         status: nextStatus,
-        updatedAt: new Date().toISOString(),
-        medical: {
-          ...medicalData
+        updatedAt: now,
+        stageTimestamps: {
+          ...prevTimestamps,
+          medicalAt: prevTimestamps.medicalAt || now
         },
-        safety: isFit ? (w.safety?.briefingDone ? w.safety : null) : null
+        medical: {
+          ...medicalData,
+          followUpNotified: false,
+          examinedAt: now,
+          history: updatedHistory
+        },
+        safety: isFit ? (w.safety?.briefingDone ? w.safety : null) : w.safety
       };
     });
 
@@ -416,12 +455,14 @@ export const WorkerProvider = ({ children }) => {
     const auditEntry = {
       role: currentRole,
       action: isFit
-        ? (medicalData.fitnessStatus === 'FIT_WITH_PRECAUTIONS' ? 'MEDICAL_FIT_WITH_PRECAUTIONS' : 'MEDICAL_FIT_APPROVED')
+        ? (medicalData.fitnessStatus === 'FIT_WITH_PRECAUTIONS'
+          ? 'MEDICAL_FIT_WITH_PRECAUTIONS'
+          : (medicalData.fitnessStatus === 'FIT_WITH_FOLLOW_UP' ? 'MEDICAL_FIT_WITH_FOLLOW_UP' : 'MEDICAL_FIT_APPROVED'))
         : (isHold ? 'MEDICAL_ON_HOLD' : 'MEDICAL_UNFIT_FLAGGED'),
       workerId,
       workerName: updatedTarget?.hr?.fullName,
       details: isFit
-        ? `Medical examination PASSED (${medicalData.fitnessStatus}). Auto-routed to EHS Safety Team.${medicalData.remarks ? ` Remarks: ${medicalData.remarks}` : ''}`
+        ? `Medical examination PASSED (${medicalData.fitnessStatus}${medicalData.fitnessStatus === 'FIT_WITH_FOLLOW_UP' && medicalData.followUpDate ? `, Follow-up ${medicalData.followUpDays}d on ${medicalData.followUpDate}` : ''}).${medicalData.remarks ? ` Remarks: ${medicalData.remarks}` : ''}`
         : isHold
           ? `Medical HOLD: ${medicalData.remarks || 'Pending follow-up'}. Held at Medical stage.`
           : `Medical UNFIT: ${medicalData.remarks}. Candidate onboarding halted.`
@@ -431,6 +472,8 @@ export const WorkerProvider = ({ children }) => {
 
     if (medicalData.fitnessStatus === 'FIT_WITH_PRECAUTIONS') {
       showToast('Medical fitness certified FIT WITH PRECAUTIONS. Routed to EHS Safety Team.', 'info');
+    } else if (medicalData.fitnessStatus === 'FIT_WITH_FOLLOW_UP') {
+      showToast(`Medical certified FIT WITH FOLLOW UP (${medicalData.followUpDays}d — due ${medicalData.followUpDate}). Routed to Safety.`, 'info');
     } else if (isFit) {
       showToast('Medical fitness certified FIT. Profile routed to EHS Safety Team.', 'success');
     } else if (isHold) {
@@ -440,7 +483,7 @@ export const WorkerProvider = ({ children }) => {
     }
 
     if (updatedTarget) {
-      return await persistStageMutation(apiUpdateMedical(workerId, medicalData, updatedTarget), 'Medical');
+      return await persistStageMutation(apiUpdateMedical(workerId, updatedTarget.medical, updatedTarget), 'Medical');
     }
     return { ok: true };
   };
@@ -452,17 +495,24 @@ export const WorkerProvider = ({ children }) => {
       return;
     }
 
+    const now = new Date().toISOString();
     const updated = workers.map(w => {
       if (w.id !== workerId) return w;
 
+      const prevTimestamps = w.stageTimestamps || { hrAt: w.createdAt };
       return {
         ...w,
-        stage: STAGES.IT, // Automatically routes to IT Team
-        updatedAt: new Date().toISOString(),
+        stage: w.stage > STAGES.SAFETY && w.stage <= STAGES.COMPLETED ? w.stage : STAGES.IT,
+        updatedAt: now,
+        stageTimestamps: {
+          ...prevTimestamps,
+          safetyAt: prevTimestamps.safetyAt || now
+        },
         safety: {
           ...safetyData,
           briefingDone: true,
-          safetyDate: safetyData.safetyDate || new Date().toISOString().slice(0, 10)
+          inductedAt: now,
+          safetyDate: safetyData.safetyDate || now.slice(0, 10)
         },
         it: w.it?.itAdminSignature ? w.it : null
       };
@@ -485,7 +535,7 @@ export const WorkerProvider = ({ children }) => {
     showToast('Safety briefing & PPE issuance logged. Worker routed to IT Enrollment.', 'success');
 
     if (updatedTarget) {
-      return await persistStageMutation(apiUpdateSafety(workerId, safetyData, updatedTarget), 'Safety');
+      return await persistStageMutation(apiUpdateSafety(workerId, updatedTarget.safety, updatedTarget), 'Safety');
     }
     return { ok: true };
   };
@@ -497,20 +547,27 @@ export const WorkerProvider = ({ children }) => {
       return;
     }
 
+    const now = new Date().toISOString();
     const updated = workers.map(w => {
       if (w.id !== workerId) return w;
 
       const generatedId = w.assignedWorkerId || `LME-2026-${Math.floor(1000 + Math.random() * 9000)}`;
+      const prevTimestamps = w.stageTimestamps || { hrAt: w.createdAt };
 
       return {
         ...w,
         assignedWorkerId: generatedId,
-        stage: STAGES.CAMP, // Automatically routes to Camp Management
-        updatedAt: new Date().toISOString(),
+        stage: w.stage > STAGES.IT && w.stage <= STAGES.COMPLETED ? w.stage : STAGES.CAMP,
+        updatedAt: now,
+        stageTimestamps: {
+          ...prevTimestamps,
+          itAt: prevTimestamps.itAt || now
+        },
         it: {
           ...itData,
           workerIdGenerated: true,
-          itDate: itData.itDate || new Date().toISOString().slice(0, 10)
+          enrolledAt: now,
+          itDate: itData.itDate || now.slice(0, 10)
         },
         camp: w.camp?.campName ? w.camp : null
       };
@@ -533,7 +590,7 @@ export const WorkerProvider = ({ children }) => {
     showToast(`IT Enrollment complete. Worker ID ${updatedTarget.assignedWorkerId} assigned. Routed to Camp Team.`, 'success');
 
     if (updatedTarget) {
-      return await persistStageMutation(apiUpdateIT(workerId, itData, updatedTarget), 'IT');
+      return await persistStageMutation(apiUpdateIT(workerId, updatedTarget.it, updatedTarget), 'IT');
     }
     return { ok: true };
   };
@@ -549,15 +606,21 @@ export const WorkerProvider = ({ children }) => {
       if (w.id !== workerId) return w;
 
       const completedAt = new Date().toISOString();
+      const prevTimestamps = w.stageTimestamps || { hrAt: w.createdAt };
       return {
         ...w,
         stage: STAGES.COMPLETED,
         status: 'COMPLETED',
         updatedAt: completedAt,
         completedAt,
+        stageTimestamps: {
+          ...prevTimestamps,
+          campAt: prevTimestamps.campAt || completedAt
+        },
         camp: {
           ...campData,
           gatePassActive: true,
+          allocatedAt: completedAt,
           allocationDate: campData.allocationDate || completedAt.slice(0, 10)
         }
       };
@@ -580,7 +643,7 @@ export const WorkerProvider = ({ children }) => {
     showToast('Housing allocated! Worker onboarding complete and Gate Pass is ACTIVE.', 'success');
 
     if (updatedTarget) {
-      return await persistStageMutation(apiUpdateCamp(workerId, campData, updatedTarget), 'Camp');
+      return await persistStageMutation(apiUpdateCamp(workerId, updatedTarget.camp, updatedTarget), 'Camp');
     }
     return { ok: true };
   };

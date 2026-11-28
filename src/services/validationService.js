@@ -87,6 +87,14 @@ export const validateHRStep = (data) => {
   };
 };
 
+export const addDaysToIsoDate = (days, fromDate = new Date()) => {
+  const n = parseInt(days, 10);
+  if (!Number.isFinite(n) || n < 0) return '';
+  const d = new Date(fromDate);
+  d.setDate(d.getDate() + n);
+  return d.toISOString().slice(0, 10);
+};
+
 export const FITNESS_STATUS_META = {
   FIT: {
     label: 'FIT FOR GENERAL WORK',
@@ -98,6 +106,12 @@ export const FITNESS_STATUS_META = {
     label: 'FIT WITH PRECAUTIONS',
     shortLabel: 'FIT WITH PRECAUTIONS',
     badge: 'info',
+    routesToSafety: true
+  },
+  FIT_WITH_FOLLOW_UP: {
+    label: 'FIT WITH FOLLOW UP',
+    shortLabel: 'FIT WITH FOLLOW UP',
+    badge: 'purple',
     routesToSafety: true
   },
   HOLD: {
@@ -124,14 +138,14 @@ export const getMedicalFitnessMeta = (status) => {
 };
 
 export const isMedicalFitForNextStage = (status) => (
-  status === 'FIT' || status === 'FIT_WITH_PRECAUTIONS'
+  status === 'FIT' || status === 'FIT_WITH_PRECAUTIONS' || status === 'FIT_WITH_FOLLOW_UP'
 );
 
 export const validateMedicalStep = (data) => {
   const errors = {};
 
   if (!data?.fitnessStatus) {
-    errors.fitnessStatus = 'Final fitness decision (FIT, FIT WITH PRECAUTIONS, HOLD, or UNFIT) must be selected.';
+    errors.fitnessStatus = 'Final fitness decision (FIT, FIT WITH PRECAUTIONS, FIT WITH FOLLOW UP, HOLD, or UNFIT) must be selected.';
   }
 
   if (data?.fitnessStatus === 'UNFIT' && !data?.remarks?.trim()) {
@@ -144,6 +158,16 @@ export const validateMedicalStep = (data) => {
 
   if (data?.fitnessStatus === 'FIT_WITH_PRECAUTIONS' && !data?.remarks?.trim()) {
     errors.remarks = 'Specify required work precautions when certifying FIT WITH PRECAUTIONS.';
+  }
+
+  if (data?.fitnessStatus === 'FIT_WITH_FOLLOW_UP') {
+    const days = parseInt(data?.followUpDays, 10);
+    if (!Number.isFinite(days) || days < 1 || days > 30) {
+      errors.followUpDays = 'Select follow-up review period between 1 and 30 days.';
+    }
+    if (!data?.remarks?.trim()) {
+      errors.remarks = 'Specify clinical follow-up advice / review notes.';
+    }
   }
 
   if (!data?.examinerName?.trim()) {
