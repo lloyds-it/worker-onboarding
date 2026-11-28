@@ -19,6 +19,7 @@ import {
   Search,
   RotateCcw,
   QrCode,
+  Pencil,
   X
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
@@ -650,8 +651,31 @@ export const WorkerTable = ({ onOpenProcessModal, onViewInductionDoc, onGenerate
                           </button>
                         )}
 
-                        {/* Non-Medical Roles: Inspect Completed Stage Record */}
-                        {currentRole !== ROLES.ADMIN && currentRole !== ROLES.MEDICAL && !canProcess && isStageCompletedForRole(worker, currentRole) && (
+                        {/* HR Role: Edit Registered Worker Information */}
+                        {currentRole === ROLES.HR && !canProcess && (
+                          <button
+                            id={`btn-edit-hr-${worker.id}`}
+                            className="btn btn-secondary"
+                            style={{
+                              padding: '0.35rem 0.7rem',
+                              fontSize: '0.76rem',
+                              borderColor: 'var(--info-border)',
+                              color: 'var(--info-text)',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.3rem',
+                              fontWeight: 700
+                            }}
+                            onClick={() => onOpenProcessModal(worker)}
+                            title="Edit worker personal, trade, or contractor details"
+                          >
+                            <Pencil size={13} />
+                            <span>Edit Record</span>
+                          </button>
+                        )}
+
+                        {/* Other Non-Medical Roles: Inspect Completed Stage Record */}
+                        {currentRole !== ROLES.ADMIN && currentRole !== ROLES.MEDICAL && currentRole !== ROLES.HR && !canProcess && isStageCompletedForRole(worker, currentRole) && (
                           <button
                             id={`btn-view-completed-${worker.id}`}
                             className="btn btn-secondary"

@@ -262,9 +262,11 @@ export const Step1HR = ({ initialData, onSave, isReadOnly }) => {
           <User size={20} color="var(--brand-primary)" />
           <span>Step 1: HR & Worker Personal Registration</span>
         </h3>
-        {isReadOnly && (
+        {isReadOnly ? (
           <span className="badge badge-info">Read-Only Mode (Completed by HR)</span>
-        )}
+        ) : initialData ? (
+          <span className="badge badge-info">Editable HR Record</span>
+        ) : null}
       </div>
 
       {Object.keys(errors).length > 0 && (
@@ -702,7 +704,11 @@ export const Step1HR = ({ initialData, onSave, isReadOnly }) => {
             </div>
           )}
           <button id="btn-save-step1" type="submit" disabled={isSubmitting} className="btn btn-primary">
-            <span>{isSubmitting ? 'Routing Candidate...' : 'Save & Route to Medical Team'}</span>
+            <span>
+              {isSubmitting
+                ? (initialData ? 'Saving Changes...' : 'Routing Candidate...')
+                : (initialData ? 'Update HR Details' : 'Save & Route to Medical Team')}
+            </span>
             <CheckCircle2 size={16} />
           </button>
         </div>

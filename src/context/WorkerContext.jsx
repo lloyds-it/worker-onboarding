@@ -440,7 +440,7 @@ export const WorkerProvider = ({ children }) => {
     showToast(`Worker ${cleanHrData.fullName || 'profile'} updated successfully.`, 'success');
 
     if (updatedTarget) {
-      return await persistStageMutation(apiRegisterWorker({ ...updatedTarget, _isUpdate: true }), 'HR update');
+      return await persistStageMutation(apiRegisterWorker({ ...updatedTarget, _isUpdate: true }), 'HR update', workerId);
     }
     return { ok: true };
   };
