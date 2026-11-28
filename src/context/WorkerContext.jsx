@@ -324,6 +324,7 @@ export const WorkerProvider = ({ children }) => {
       }
 
       await syncFabricData(true, true);
+      setSearchQuery('');
       return { ok: true, data: savedWorker };
     } catch (err) {
       console.warn(`[Fabric] ${warningLabel} sync error:`, err);
