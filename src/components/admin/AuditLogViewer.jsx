@@ -3,6 +3,7 @@ import { History, Search, Filter, ShieldCheck, RefreshCw, Lock } from 'lucide-re
 import { getAuditLogs } from '../../services/auditService';
 import { apiGetAuditLogs } from '../../services/apiService';
 import { ROLES, ROLE_LABELS } from '../../types/constants';
+import { SearchableSelect } from '../common/SearchableSelect';
 
 export const AuditLogViewer = () => {
   const [logs, setLogs] = useState([]);
@@ -105,9 +106,9 @@ export const AuditLogViewer = () => {
           />
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: '220px' }}>
           <Filter size={16} color="var(--text-muted)" />
-          <select
+          <SearchableSelect
             className="filter-select"
             value={filterRole}
             onChange={(e) => setFilterRole(e.target.value)}
@@ -116,7 +117,7 @@ export const AuditLogViewer = () => {
             {Object.keys(ROLES).map(r => (
               <option key={r} value={r}>{ROLE_LABELS[r] || r}</option>
             ))}
-          </select>
+          </SearchableSelect>
         </div>
 
         <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { SearchableSelect } from '../common/SearchableSelect';
 import {
   Users,
   UserPlus,
@@ -572,7 +573,7 @@ export const UserManagement = () => {
 
                 <div className="form-group">
                   <label htmlFor="staff-role">Assigned Department <span className="required">*</span></label>
-                  <select
+                  <SearchableSelect
                     id="staff-role"
                     className="form-select"
                     value={formData.role}
@@ -584,7 +585,7 @@ export const UserManagement = () => {
                     <option value={ROLES.IT}>IT Systems &amp; Biometrics (Step 4)</option>
                     <option value={ROLES.CAMP}>Camp Housing (Step 5)</option>
                     <option value={ROLES.ADMIN}>Chief Administrator (Executive Full Access)</option>
-                  </select>
+                  </SearchableSelect>
                 </div>
 
                 <div className="form-group">
@@ -613,7 +614,7 @@ export const UserManagement = () => {
 
                 <div className="form-group">
                   <label htmlFor="staff-location">Assigned Plant Location</label>
-                  <select
+                  <SearchableSelect
                     id="staff-location"
                     className="form-select"
                     value={formData.locationCode || 'ALL'}
@@ -625,7 +626,7 @@ export const UserManagement = () => {
                         {loc.locationCode} — {loc.locationName}
                       </option>
                     ))}
-                  </select>
+                  </SearchableSelect>
                 </div>
 
                 <div className="form-group">
@@ -942,7 +943,7 @@ export const UserManagement = () => {
                 </div>
                 <div className="form-group">
                   <label>Assigned Department Role</label>
-                  <select
+                  <SearchableSelect
                     className="form-select"
                     value={editForm.role}
                     disabled={editingUser.id === 'USR-ADMIN-01'}
@@ -963,7 +964,7 @@ export const UserManagement = () => {
                     <option value={ROLES.IT}>IT Systems &amp; Biometrics (Step 4)</option>
                     <option value={ROLES.CAMP}>Camp Housing (Step 5)</option>
                     <option value={ROLES.ADMIN}>Chief Administrator</option>
-                  </select>
+                  </SearchableSelect>
                 </div>
                 <div className="form-group">
                   <label>Official Designation</label>
@@ -985,7 +986,7 @@ export const UserManagement = () => {
                 </div>
                 <div className="form-group">
                   <label>Assigned Plant Location Scope</label>
-                  <select
+                  <SearchableSelect
                     className="form-select"
                     value={editForm.locationCode || 'ALL'}
                     onChange={e => setEditForm(prev => ({ ...prev, locationCode: e.target.value }))}
@@ -996,7 +997,7 @@ export const UserManagement = () => {
                         {loc.locationCode} — {loc.locationName}
                       </option>
                     ))}
-                  </select>
+                  </SearchableSelect>
                 </div>
               </div>
 

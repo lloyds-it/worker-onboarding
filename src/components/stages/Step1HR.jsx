@@ -4,6 +4,7 @@ import { TRADES, ID_TYPES } from '../../types/constants';
 import { validateHRStep, calculateAge, generateEmployeeId, DEFAULT_LOCATION_CODE } from '../../services/validationService';
 import { useWorkers } from '../../context/WorkerContext';
 import { WorkerPhotoUpload } from '../common/WorkerPhotoUpload';
+import { SearchableSelect } from '../common/SearchableSelect';
 
 export const Step1HR = ({ initialData, onSave, isReadOnly }) => {
   const { workers = [], contractors = [], locations = [], dropdownMasters = {} } = useWorkers();
@@ -414,7 +415,7 @@ export const Step1HR = ({ initialData, onSave, isReadOnly }) => {
           <label htmlFor="worker-gender">
             Gender
           </label>
-          <select
+          <SearchableSelect
             id="worker-gender"
             className="form-select"
             value={formData.gender}
@@ -424,7 +425,7 @@ export const Step1HR = ({ initialData, onSave, isReadOnly }) => {
             {genderOptions.map(g => (
               <option key={g.value} value={g.value}>{g.label}</option>
             ))}
-          </select>
+          </SearchableSelect>
         </div>
 
         {/* Mobile Number */}
@@ -450,7 +451,7 @@ export const Step1HR = ({ initialData, onSave, isReadOnly }) => {
           <label htmlFor="worker-id-type">
             Government ID Type
           </label>
-          <select
+          <SearchableSelect
             id="worker-id-type"
             className="form-select"
             value={formData.idProofType}
@@ -460,7 +461,7 @@ export const Step1HR = ({ initialData, onSave, isReadOnly }) => {
             {idTypeOptions.map(type => (
               <option key={type} value={type}>{type}</option>
             ))}
-          </select>
+          </SearchableSelect>
         </div>
 
         {/* ID Proof Reference */}
@@ -485,12 +486,13 @@ export const Step1HR = ({ initialData, onSave, isReadOnly }) => {
           <label htmlFor="contractor-name">
             Contractor / Agency
           </label>
-          <select
+          <SearchableSelect
             id="contractor-name"
             className={`form-select ${errors.contractorName ? 'error' : ''}`}
             value={formData.contractorName}
             onChange={(e) => handleChange('contractorName', e.target.value)}
             disabled={isReadOnly}
+            searchPlaceholder="Search contractor code or name..."
           >
             {availableContractors.length === 0 ? (
               <option value="">-- No Active Contractors (Add in Contractor Master) --</option>
@@ -501,7 +503,7 @@ export const Step1HR = ({ initialData, onSave, isReadOnly }) => {
                 </option>
               ))
             )}
-          </select>
+          </SearchableSelect>
           {errors.contractorName && <span className="error-text">{errors.contractorName}</span>}
         </div>
 
@@ -524,20 +526,21 @@ export const Step1HR = ({ initialData, onSave, isReadOnly }) => {
           <label htmlFor="worker-location-code">
             Location Code &amp; Name <span className="required">*</span>
           </label>
-          <select
+          <SearchableSelect
             id="worker-location-code"
             className="form-select"
             value={formData.locationCode || DEFAULT_LOCATION_CODE}
             onChange={(e) => handleChange('locationCode', e.target.value)}
             disabled={isReadOnly}
             style={{ fontFamily: 'var(--font-family-mono)', fontWeight: 700 }}
+            searchPlaceholder="Search location code or name..."
           >
             {availableLocations.map(loc => (
               <option key={loc.id || loc.locationCode} value={loc.locationCode}>
                 {loc.locationCode} — {loc.locationName}
               </option>
             ))}
-          </select>
+          </SearchableSelect>
         </div>
 
         {/* Contractor License */}
@@ -558,17 +561,18 @@ export const Step1HR = ({ initialData, onSave, isReadOnly }) => {
           <label htmlFor="worker-trade">
             Trade / Skill Category <span className="required">*</span>
           </label>
-          <select
+          <SearchableSelect
             id="worker-trade"
             className="form-select"
             value={formData.trade}
             onChange={(e) => handleChange('trade', e.target.value)}
             disabled={isReadOnly}
+            searchPlaceholder="Search trade..."
           >
             {tradeOptions.map(trade => (
               <option key={trade} value={trade}>{trade}</option>
             ))}
-          </select>
+          </SearchableSelect>
         </div>
 
         {/* Working Location (Printed on Gate Pass ID Card) */}

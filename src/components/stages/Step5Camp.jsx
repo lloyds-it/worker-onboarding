@@ -3,6 +3,7 @@ import { Home, CheckCircle2, Building, ShieldCheck, KeyRound } from 'lucide-reac
 import { CAMPS, BLOCKS, DEFAULT_DROPDOWN_MASTERS } from '../../types/constants';
 import { useAuth } from '../../context/AuthContext';
 import { useWorkers } from '../../context/WorkerContext';
+import { SearchableSelect } from '../common/SearchableSelect';
 
 export const Step5Camp = ({ initialData, worker, onSave, isReadOnly }) => {
   const { currentUser } = useAuth();
@@ -140,34 +141,36 @@ export const Step5Camp = ({ initialData, worker, onSave, isReadOnly }) => {
         {/* Camp Name */}
         <div className="form-group">
           <label htmlFor="camp-name">Camp Name <span className="required">*</span></label>
-          <select
+          <SearchableSelect
             id="camp-name"
             className="form-select"
             value={formData.campName}
             onChange={(e) => handleChange('campName', e.target.value)}
             disabled={isReadOnly}
+            searchPlaceholder="Search camp facility..."
           >
             {campOptions.map(c => (
               <option key={c} value={c}>{c}</option>
             ))}
-          </select>
+          </SearchableSelect>
           {errors.campName && <span className="error-text">{errors.campName}</span>}
         </div>
 
         {/* Block */}
         <div className="form-group">
           <label htmlFor="camp-block">Block Number / Wing <span className="required">*</span></label>
-          <select
+          <SearchableSelect
             id="camp-block"
             className="form-select"
             value={formData.blockNumber}
             onChange={(e) => handleChange('blockNumber', e.target.value)}
             disabled={isReadOnly}
+            searchPlaceholder="Search block..."
           >
             {blockOptions.map(b => (
               <option key={b} value={b}>{b}</option>
             ))}
-          </select>
+          </SearchableSelect>
           {errors.blockNumber && <span className="error-text">{errors.blockNumber}</span>}
         </div>
 
@@ -189,17 +192,18 @@ export const Step5Camp = ({ initialData, worker, onSave, isReadOnly }) => {
         {/* Bed */}
         <div className="form-group">
           <label htmlFor="camp-bed">Bed Number <span className="required">*</span></label>
-          <select
+          <SearchableSelect
             id="camp-bed"
             className="form-select"
             value={formData.bedNumber}
             onChange={(e) => handleChange('bedNumber', e.target.value)}
             disabled={isReadOnly}
+            searchPlaceholder="Search bed..."
           >
             {bedOptions.map(b => (
               <option key={b.value} value={b.value}>{b.label}</option>
             ))}
-          </select>
+          </SearchableSelect>
           {errors.bedNumber && <span className="error-text">{errors.bedNumber}</span>}
         </div>
       </div>

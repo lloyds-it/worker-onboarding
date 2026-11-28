@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { useWorkers } from '../../context/WorkerContext';
 import { DropdownMastersTab } from './DropdownMastersTab';
+import { SearchableSelect } from '../common/SearchableSelect';
 
 // ─── Fallback Department options ─────────────────────────────────────────────
 const DEFAULT_DEPARTMENTS = ['Civil', 'Mechanical', 'Electrical', 'Other'];
@@ -176,7 +177,7 @@ const ContractorModal = ({ contractor, locations = [], departments = DEFAULT_DEP
                 <label htmlFor="ctr-locationCode">
                   Location Code &amp; Name <span className="required">*</span>
                 </label>
-                <select
+                <SearchableSelect
                   id="ctr-locationCode"
                   className={`form-select ${errors.locationCode ? 'error' : ''}`}
                   value={form.locationCode || '15'}
@@ -187,7 +188,7 @@ const ContractorModal = ({ contractor, locations = [], departments = DEFAULT_DEP
                       {loc.locationCode} — {loc.locationName}
                     </option>
                   ))}
-                </select>
+                </SearchableSelect>
                 {errors.locationCode && <span className="error-text">{errors.locationCode}</span>}
               </div>
               {field('Contractor License No.', 'licenseNo', 'text', 'e.g. LIC-MH-2024-8841', true)}
@@ -195,18 +196,18 @@ const ContractorModal = ({ contractor, locations = [], departments = DEFAULT_DEP
                 <label htmlFor="ctr-dept">
                   Department / Category <span className="required">*</span>
                 </label>
-                <select
+                <SearchableSelect
                   id="ctr-dept"
                   className="form-select"
                   value={form.department}
                   onChange={e => set('department', e.target.value)}
                 >
                   {departmentOptions.map(d => <option key={d} value={d}>{d}</option>)}
-                </select>
+                </SearchableSelect>
               </div>
               <div className="form-group">
                 <label htmlFor="ctr-status">Status</label>
-                <select
+                <SearchableSelect
                   id="ctr-status"
                   className="form-select"
                   value={form.status}
@@ -215,7 +216,7 @@ const ContractorModal = ({ contractor, locations = [], departments = DEFAULT_DEP
                   <option value="ACTIVE">Active</option>
                   <option value="EXPIRED">Expired</option>
                   <option value="SUSPENDED">Suspended</option>
-                </select>
+                </SearchableSelect>
               </div>
               {field('Valid From', 'validFrom', 'date', '')}
               {field('Valid Upto', 'validUpto', 'date', '')}
@@ -595,7 +596,7 @@ export const ContractorMaster = () => {
               </div>
               <div className="form-group">
                 <label htmlFor="loc-status-select">Status</label>
-                <select
+                <SearchableSelect
                   id="loc-status-select"
                   className="form-select"
                   value={locForm.status}
@@ -603,7 +604,7 @@ export const ContractorMaster = () => {
                 >
                   <option value="ACTIVE">ACTIVE</option>
                   <option value="INACTIVE">INACTIVE</option>
-                </select>
+                </SearchableSelect>
               </div>
             </div>
             <div style={{ marginTop: '1rem', display: 'flex', justifyContent: 'flex-end', gap: '0.65rem' }}>
@@ -750,23 +751,23 @@ export const ContractorMaster = () => {
         </div>
 
         {/* Department Filter */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem', minWidth: '175px' }}>
           <label style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Dept</label>
-          <select className="filter-select" value={deptFilter} onChange={e => setDeptFilter(e.target.value)}>
+          <SearchableSelect className="filter-select" value={deptFilter} onChange={e => setDeptFilter(e.target.value)}>
             <option value="ALL">All Departments</option>
             {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
-          </select>
+          </SearchableSelect>
         </div>
 
         {/* Status Filter */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem', minWidth: '160px' }}>
           <label style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Status</label>
-          <select className="filter-select" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
+          <SearchableSelect className="filter-select" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
             <option value="ALL">All Statuses</option>
             <option value="ACTIVE">Active</option>
             <option value="EXPIRED">Expired</option>
             <option value="SUSPENDED">Suspended</option>
-          </select>
+          </SearchableSelect>
         </div>
 
         <div style={{ marginLeft: 'auto', fontSize: '0.82rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>

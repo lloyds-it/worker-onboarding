@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { ShieldAlert, X, CheckCircle2 } from 'lucide-react';
 import { STAGES, STAGE_META } from '../../types/constants';
 import { useWorkers } from '../../context/WorkerContext';
+import { SearchableSelect } from '../common/SearchableSelect';
 
 export const AdminOverrideModal = ({ worker, onClose }) => {
   const { adminOverrideWorker } = useWorkers();
@@ -62,7 +63,7 @@ export const AdminOverrideModal = ({ worker, onClose }) => {
 
             <div className="form-group" style={{ marginBottom: '1.25rem' }}>
               <label htmlFor="override-target-stage">Target Override Stage</label>
-              <select
+              <SearchableSelect
                 id="override-target-stage"
                 className="form-select"
                 value={targetStage}
@@ -75,7 +76,7 @@ export const AdminOverrideModal = ({ worker, onClose }) => {
                 <option value={STAGES.CAMP}>Step 5: Camp Accommodation</option>
                 <option value={STAGES.COMPLETED}>Stage Completed & Gate Pass Active</option>
                 <option value={STAGES.FLAGGED}>Medical Flagged / Unfit (Halt)</option>
-              </select>
+              </SearchableSelect>
             </div>
 
             <div className="form-group">

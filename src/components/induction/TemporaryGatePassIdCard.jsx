@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { useWorkers } from '../../context/WorkerContext';
 import { useAuth } from '../../context/AuthContext';
+import { SearchableSelect } from '../common/SearchableSelect';
 import { WorkerPhotoUpload } from '../common/WorkerPhotoUpload';
 import { getWorkerMissingDetails } from '../../services/validationService';
 
@@ -433,12 +434,13 @@ export const TemporaryGatePassIdCard = ({ initialWorker, onBack }) => {
             <label htmlFor="worker-picker-idcard" style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-muted)' }}>
               Select Worker:
             </label>
-            <select
+            <SearchableSelect
               id="worker-picker-idcard"
               className="form-select"
-              style={{ padding: '0.4rem 0.75rem', fontSize: '0.85rem', minWidth: '220px' }}
+              style={{ padding: '0.4rem 0.75rem', fontSize: '0.85rem', width: '260px' }}
               value={selectedWorkerId || ''}
               onChange={handleWorkerChange}
+              searchPlaceholder="Search worker name or ID..."
             >
               {workers.map(w => {
                 const wComp = getWorkerMissingDetails(w);
@@ -448,7 +450,7 @@ export const TemporaryGatePassIdCard = ({ initialWorker, onBack }) => {
                   </option>
                 );
               })}
-            </select>
+            </SearchableSelect>
           </div>
         </div>
 

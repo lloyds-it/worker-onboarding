@@ -4,6 +4,7 @@ import { validateMedicalStep, calculateBMI, addDaysToIsoDate, formatTimestamp, g
 import { useAuth } from '../../context/AuthContext';
 import { useWorkers } from '../../context/WorkerContext';
 import { DEFAULT_DROPDOWN_MASTERS } from '../../types/constants';
+import { SearchableSelect } from '../common/SearchableSelect';
 
 export const Step2Medical = ({ initialData, onSave, isReadOnly }) => {
   const { currentUser } = useAuth();
@@ -134,13 +135,14 @@ export const Step2Medical = ({ initialData, onSave, isReadOnly }) => {
   // Move pointer sequentially to the next entry block when Enter is pressed inside an input/select
   const handleFormKeyDown = (e) => {
     if (e.key !== 'Enter') return;
+    if (e.target?.classList?.contains('searchable-select-search')) return;
     const tag = e.target?.tagName;
-    if (tag === 'TEXTAREA' || e.target?.type === 'submit' || tag === 'BUTTON') return;
+    if (tag === 'TEXTAREA' || e.target?.type === 'submit' || (tag === 'BUTTON' && !e.target?.classList?.contains('searchable-select-trigger'))) return;
     e.preventDefault();
     const container = formRef.current;
     if (!container) return;
     const focusables = Array.from(
-      container.querySelectorAll('input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled])')
+      container.querySelectorAll('input:not([disabled]):not([type="hidden"]), button.searchable-select-trigger:not([disabled]), select:not([disabled]), textarea:not([disabled])')
     ).filter(el => el.offsetParent !== null);
     const idx = focusables.indexOf(e.target);
     if (idx !== -1 && idx + 1 < focusables.length) {
@@ -221,7 +223,7 @@ export const Step2Medical = ({ initialData, onSave, isReadOnly }) => {
         {/* Blood Group */}
         <div className="form-group">
           <label htmlFor="med-blood-group">Blood Group <span className="required">*</span></label>
-          <select
+          <SearchableSelect
             id="med-blood-group"
             className="form-select"
             value={formData.bloodGroup}
@@ -231,7 +233,7 @@ export const Step2Medical = ({ initialData, onSave, isReadOnly }) => {
             {bloodGroupOptions.map(bg => (
               <option key={bg} value={bg}>{bg}</option>
             ))}
-          </select>
+          </SearchableSelect>
           {errors.bloodGroup && <span className="error-text">{errors.bloodGroup}</span>}
         </div>
 
@@ -417,7 +419,7 @@ export const Step2Medical = ({ initialData, onSave, isReadOnly }) => {
         {/* Vision Test */}
         <div className="form-group">
           <label>Vision Test</label>
-          <select
+          <SearchableSelect
             className="form-select"
             value={formData.visionTest}
             onChange={(e) => handleVitalChange('visionTest', e.target.value)}
@@ -426,13 +428,13 @@ export const Step2Medical = ({ initialData, onSave, isReadOnly }) => {
             {visionOptions.map(opt => (
               <option key={opt.value} value={opt.value}>{opt.label}</option>
             ))}
-          </select>
+          </SearchableSelect>
         </div>
 
         {/* Hearing Test */}
         <div className="form-group">
           <label>Hearing Test</label>
-          <select
+          <SearchableSelect
             className="form-select"
             value={formData.hearingTest}
             onChange={(e) => handleVitalChange('hearingTest', e.target.value)}
@@ -441,13 +443,13 @@ export const Step2Medical = ({ initialData, onSave, isReadOnly }) => {
             {hearingOptions.map(opt => (
               <option key={opt.value} value={opt.value}>{opt.label}</option>
             ))}
-          </select>
+          </SearchableSelect>
         </div>
 
         {/* Vertigo / Height Test */}
         <div className="form-group">
           <label>Vertigo & Height Work Test</label>
-          <select
+          <SearchableSelect
             className="form-select"
             value={formData.vertigoTest}
             onChange={(e) => handleVitalChange('vertigoTest', e.target.value)}
@@ -456,7 +458,7 @@ export const Step2Medical = ({ initialData, onSave, isReadOnly }) => {
             {vertigoOptions.map(opt => (
               <option key={opt.value} value={opt.value}>{opt.label}</option>
             ))}
-          </select>
+          </SearchableSelect>
         </div>
       </div>
 
@@ -593,19 +595,20 @@ export const Step2Medical = ({ initialData, onSave, isReadOnly }) => {
               }}>
                 <div className="form-group">
                   <label htmlFor="med-followup-days">Follow-Up Review After (1–30 Days) <span className="required">*</span></label>
-                  <select
+                  <SearchableSelect
                     id="med-followup-days"
                     className={`form-select ${errors.followUpDays ? 'error' : ''}`}
                     value={formData.followUpDays || '7'}
                     onChange={(e) => handleVitalChange('followUpDays', e.target.value)}
                     disabled={isReadOnly}
+                    searchPlaceholder="Search days (1-30)..."
                   >
                     {Array.from({ length: 30 }, (_, idx) => String(idx + 1)).map(day => (
                       <option key={day} value={day}>
                         {day} {day === '1' ? 'Day' : 'Days'} (Due {addDaysToIsoDate(day)})
                       </option>
                     ))}
-                  </select>
+                  </SearchableSelect>
                   {errors.followUpDays && <span className="error-text">{errors.followUpDays}</span>}
                 </div>
 

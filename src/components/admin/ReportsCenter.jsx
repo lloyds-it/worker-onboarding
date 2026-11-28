@@ -13,6 +13,7 @@ import { useWorkers } from '../../context/WorkerContext';
 import { exportWorkersToCSV } from '../../services/reportService';
 import { formatTimestamp, formatDuration, getMedicalFitnessMeta } from '../../services/validationService';
 import { STAGES, STAGE_META, TRADES } from '../../types/constants';
+import { SearchableSelect } from '../common/SearchableSelect';
 
 export const ReportsCenter = () => {
   const { workers, contractors = [] } = useWorkers();
@@ -101,9 +102,9 @@ export const ReportsCenter = () => {
         </div>
 
         {/* Contractor Filter */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', minWidth: '210px' }}>
           <label style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>CONTRACTOR</label>
-          <select
+          <SearchableSelect
             className="filter-select"
             value={selectedContractor}
             onChange={(e) => setSelectedContractor(e.target.value)}
@@ -112,13 +113,13 @@ export const ReportsCenter = () => {
             {contractorOptions.map(name => (
               <option key={name} value={name}>{name}</option>
             ))}
-          </select>
+          </SearchableSelect>
         </div>
 
         {/* Trade Filter */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', minWidth: '185px' }}>
           <label style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>SKILL TRADE</label>
-          <select
+          <SearchableSelect
             className="filter-select"
             value={selectedTrade}
             onChange={(e) => setSelectedTrade(e.target.value)}
@@ -127,13 +128,13 @@ export const ReportsCenter = () => {
             {TRADES.map(t => (
               <option key={t} value={t}>{t}</option>
             ))}
-          </select>
+          </SearchableSelect>
         </div>
 
         {/* Fitness Filter */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', minWidth: '195px' }}>
           <label style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>MEDICAL STATUS</label>
-          <select
+          <SearchableSelect
             className="filter-select"
             value={selectedFitness}
             onChange={(e) => setSelectedFitness(e.target.value)}
@@ -144,7 +145,7 @@ export const ReportsCenter = () => {
             <option value="HOLD">Medical HOLD</option>
             <option value="UNFIT">Flagged UNFIT Only</option>
             <option value="PENDING">Pending Medical Exam</option>
-          </select>
+          </SearchableSelect>
         </div>
 
         <div style={{ marginLeft: 'auto', fontSize: '0.85rem', color: 'var(--text-muted)' }}>

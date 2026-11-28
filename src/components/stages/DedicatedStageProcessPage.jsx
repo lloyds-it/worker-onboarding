@@ -23,6 +23,7 @@ import { Step3Safety } from './Step3Safety';
 import { Step4IT } from './Step4IT';
 import { Step5Camp } from './Step5Camp';
 import { WorkerQrCode } from '../common/WorkerQrCode';
+import { SearchableSelect } from '../common/SearchableSelect';
 
 export const DedicatedStageProcessPage = ({ worker: propWorker, onSelectWorker, onBack }) => {
   const { currentRole, canEditStage } = useAuth();
@@ -188,7 +189,7 @@ export const DedicatedStageProcessPage = ({ worker: propWorker, onSelectWorker, 
           {workers.length > 1 && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
               <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>Switch Worker:</span>
-              <select
+              <SearchableSelect
                 id="select-active-worker"
                 value={worker.id}
                 onChange={(e) => {
@@ -201,16 +202,17 @@ export const DedicatedStageProcessPage = ({ worker: propWorker, onSelectWorker, 
                 style={{
                   fontSize: '0.8rem',
                   padding: '0.35rem 0.65rem',
-                  maxWidth: '260px',
+                  width: '260px',
                   fontWeight: 600
                 }}
+                searchPlaceholder="Search worker name or ID..."
               >
                 {workers.map(w => (
                   <option key={w.id} value={w.id}>
                     {w.assignedWorkerId || w.id} — {w.hr?.fullName} (Stage {w.stage})
                   </option>
                 ))}
-              </select>
+              </SearchableSelect>
             </div>
           )}
 
