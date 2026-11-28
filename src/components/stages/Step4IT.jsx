@@ -8,14 +8,16 @@ export const Step4IT = ({ initialData, worker, onSave, isReadOnly }) => {
     ? `${currentUser.name}${currentUser.designation ? ` (${currentUser.designation})` : ''}`
     : '';
 
+  const hasSubmittedIT = Boolean(initialData?.itAdminSignature || initialData?.itDate);
+
   const [faceBiometricRegistered, setFaceBiometricRegistered] = useState(
-    initialData?.faceBiometricRegistered ?? true
+    hasSubmittedIT ? (initialData?.faceBiometricRegistered ?? true) : true
   );
   const [cwmsRegistered, setCwmsRegistered] = useState(
-    initialData?.cwmsRegistered ?? true
+    hasSubmittedIT ? (initialData?.cwmsRegistered ?? true) : true
   );
   const [campusMasterUploaded, setCampusMasterUploaded] = useState(
-    initialData?.campusMasterUploaded ?? true
+    hasSubmittedIT ? (initialData?.campusMasterUploaded ?? true) : true
   );
   const [itAdminSignature, setItAdminSignature] = useState(
     initialData?.itAdminSignature || loggedInIT
@@ -29,7 +31,7 @@ export const Step4IT = ({ initialData, worker, onSave, isReadOnly }) => {
     if (serialized === lastInitialJsonRef.current) return;
     lastInitialJsonRef.current = serialized;
     if (isDirtyRef.current) return;
-    if (initialData) {
+    if (initialData && (initialData.itAdminSignature || initialData.itDate)) {
       setFaceBiometricRegistered(initialData.faceBiometricRegistered ?? true);
       setCwmsRegistered(initialData.cwmsRegistered ?? true);
       setCampusMasterUploaded(initialData.campusMasterUploaded ?? true);

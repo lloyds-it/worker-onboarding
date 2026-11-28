@@ -190,15 +190,21 @@ export const WorkerProvider = ({ children }) => {
     // 2. Fetch fresh live data from database/Fabric
     syncFabricData();
 
-    // 3. Auto-refresh periodically and on tab focus so departments see new stage submissions automatically
+    // 3. Auto-refresh periodically and on tab focus when viewing queues/dashboards (paused during active stage form entry)
+    const shouldBackgroundRefresh = () => {
+      if (document.visibilityState !== 'visible') return false;
+      const hash = (window.location.hash || '').toLowerCase();
+      return !(hash.startsWith('#process') || hash.startsWith('#register'));
+    };
+
     const pollInterval = setInterval(() => {
-      if (document.visibilityState === 'visible') {
+      if (shouldBackgroundRefresh()) {
         syncFabricData(true);
       }
     }, 15000);
 
     const handleVisibilityOrFocus = () => {
-      if (document.visibilityState === 'visible') {
+      if (shouldBackgroundRefresh()) {
         syncFabricData(true);
       }
     };
@@ -395,13 +401,7 @@ export const WorkerProvider = ({ children }) => {
         medical: {
           ...medicalData
         },
-        safety: isFit ? (w.safety || {
-          briefingDone: false,
-          topicsCovered: [],
-          ppeIssued: [],
-          safetyOfficerName: '',
-          safetyDate: ''
-        }) : null
+        safety: isFit ? (w.safety?.briefingDone ? w.safety : null) : null
       };
     });
 
@@ -460,15 +460,7 @@ export const WorkerProvider = ({ children }) => {
           briefingDone: true,
           safetyDate: safetyData.safetyDate || new Date().toISOString().slice(0, 10)
         },
-        it: w.it || {
-          workerIdGenerated: false,
-          faceBiometricRegistered: false,
-          cwmsRegistered: false,
-          campusMasterUploaded: false,
-          undertakingAccepted: false,
-          itAdminSignature: '',
-          itDate: ''
-        }
+        it: w.it?.itAdminSignature ? w.it : null
       };
     });
 
@@ -516,13 +508,7 @@ export const WorkerProvider = ({ children }) => {
           workerIdGenerated: true,
           itDate: itData.itDate || new Date().toISOString().slice(0, 10)
         },
-        camp: w.camp || {
-          campName: '',
-          blockNumber: '',
-          roomNumber: '',
-          bedNumber: '',
-          gatePassActive: false
-        }
+        camp: w.camp?.campName ? w.camp : null
       };
     });
 

@@ -9,12 +9,19 @@ export const Step3Safety = ({ initialData, onSave, isReadOnly }) => {
     ? `${currentUser.name} (${currentUser.designation || 'EHS Safety'})`
     : '';
 
-  const [topicsCovered, setTopicsCovered] = useState(
-    initialData?.topicsCovered || SAFETY_TOPICS
+  const resolveInitialTopics = (data) => (
+    (data?.briefingDone || (Array.isArray(data?.topicsCovered) && data.topicsCovered.length > 0))
+      ? data.topicsCovered
+      : SAFETY_TOPICS
   );
-  const [ppeIssued, setPpeIssued] = useState(
-    initialData?.ppeIssued || ['helmet', 'jacket', 'shoes', 'gloves', 'earplugs']
+  const resolveInitialPpe = (data) => (
+    (data?.briefingDone || (Array.isArray(data?.ppeIssued) && data.ppeIssued.length > 0))
+      ? data.ppeIssued
+      : ['helmet', 'jacket', 'shoes', 'gloves', 'earplugs']
   );
+
+  const [topicsCovered, setTopicsCovered] = useState(() => resolveInitialTopics(initialData));
+  const [ppeIssued, setPpeIssued] = useState(() => resolveInitialPpe(initialData));
   const [safetyOfficerName, setSafetyOfficerName] = useState(
     initialData?.safetyOfficerName || defaultOfficerName
   );
@@ -31,8 +38,8 @@ export const Step3Safety = ({ initialData, onSave, isReadOnly }) => {
     lastInitialJsonRef.current = serialized;
     if (isDirtyRef.current) return;
     if (initialData) {
-      setTopicsCovered(initialData.topicsCovered || SAFETY_TOPICS);
-      setPpeIssued(initialData.ppeIssued || ['helmet', 'jacket', 'shoes', 'gloves', 'earplugs']);
+      setTopicsCovered(resolveInitialTopics(initialData));
+      setPpeIssued(resolveInitialPpe(initialData));
       setSafetyOfficerName(initialData.safetyOfficerName || defaultOfficerName);
       setSafetyDate(initialData.safetyDate || new Date().toISOString().slice(0, 10));
       setError(null);
@@ -48,21 +55,13 @@ export const Step3Safety = ({ initialData, onSave, isReadOnly }) => {
   const toggleTopic = (topic) => {
     if (isReadOnly) return;
     isDirtyRef.current = true;
-    if (topicsCovered.includes(topic)) {
-      setTopicsCovered(topicsCovered.filter(t => t !== topic));
-    } else {
-      setTopicsCovered([...topicsCovered, topic]);
-    }
+    setTopicsCovered(prev => (prev.includes(topic) ? prev.filter(t => t !== topic) : [...prev, topic]));
   };
 
   const togglePpe = (itemId) => {
     if (isReadOnly) return;
     isDirtyRef.current = true;
-    if (ppeIssued.includes(itemId)) {
-      setPpeIssued(ppeIssued.filter(id => id !== itemId));
-    } else {
-      setPpeIssued([...ppeIssued, itemId]);
-    }
+    setPpeIssued(prev => (prev.includes(itemId) ? prev.filter(id => id !== itemId) : [...prev, itemId]));
   };
 
   const handleSubmit = (e) => {
