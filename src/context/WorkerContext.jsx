@@ -304,12 +304,14 @@ export const WorkerProvider = ({ children }) => {
       return;
     }
 
+    const isFit = medicalData.fitnessStatus === 'FIT' || medicalData.fitnessStatus === 'FIT_WITH_PRECAUTIONS';
+    const isHold = medicalData.fitnessStatus === 'HOLD';
+
     const updated = workers.map(w => {
       if (w.id !== workerId) return w;
 
-      const isFit = medicalData.fitnessStatus === 'FIT';
-      const nextStage = isFit ? STAGES.SAFETY : STAGES.FLAGGED;
-      const nextStatus = isFit ? 'IN_PROGRESS' : 'FLAGGED';
+      const nextStage = isFit ? STAGES.SAFETY : (isHold ? STAGES.MEDICAL : STAGES.FLAGGED);
+      const nextStatus = isFit ? 'IN_PROGRESS' : (isHold ? 'HOLD' : 'FLAGGED');
 
       return {
         ...w,
@@ -340,21 +342,28 @@ export const WorkerProvider = ({ children }) => {
         .catch(err => console.warn('[Fabric] Medical sync warning:', err));
     }
 
-    const isFit = medicalData.fitnessStatus === 'FIT';
     const auditEntry = {
       role: currentRole,
-      action: isFit ? 'MEDICAL_FIT_APPROVED' : 'MEDICAL_UNFIT_FLAGGED',
+      action: isFit
+        ? (medicalData.fitnessStatus === 'FIT_WITH_PRECAUTIONS' ? 'MEDICAL_FIT_WITH_PRECAUTIONS' : 'MEDICAL_FIT_APPROVED')
+        : (isHold ? 'MEDICAL_ON_HOLD' : 'MEDICAL_UNFIT_FLAGGED'),
       workerId,
       workerName: updatedTarget?.hr?.fullName,
       details: isFit
-        ? `Medical examination PASSED. Auto-routed to EHS Safety Team.`
-        : `Medical UNFIT: ${medicalData.remarks}. Candidate onboarding halted.`
+        ? `Medical examination PASSED (${medicalData.fitnessStatus}). Auto-routed to EHS Safety Team.${medicalData.remarks ? ` Remarks: ${medicalData.remarks}` : ''}`
+        : isHold
+          ? `Medical HOLD: ${medicalData.remarks || 'Pending follow-up'}. Held at Medical stage.`
+          : `Medical UNFIT: ${medicalData.remarks}. Candidate onboarding halted.`
     };
     logAuditEvent(auditEntry);
     apiLogAudit(auditEntry);
 
-    if (isFit) {
+    if (medicalData.fitnessStatus === 'FIT_WITH_PRECAUTIONS') {
+      showToast('Medical fitness certified FIT WITH PRECAUTIONS. Routed to EHS Safety Team.', 'info');
+    } else if (isFit) {
       showToast('Medical fitness certified FIT. Profile routed to EHS Safety Team.', 'success');
+    } else if (isHold) {
+      showToast('Worker placed on MEDICAL HOLD at Step 2 for follow-up clearance.', 'warning');
     } else {
       showToast('Worker marked UNFIT. Profile halted and flagged with medical remark.', 'danger');
     }

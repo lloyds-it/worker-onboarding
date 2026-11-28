@@ -106,15 +106,63 @@ export const validateHRStep = (data) => {
   };
 };
 
+export const FITNESS_STATUS_META = {
+  FIT: {
+    label: 'FIT FOR GENERAL WORK',
+    shortLabel: 'FIT',
+    badge: 'success',
+    routesToSafety: true
+  },
+  FIT_WITH_PRECAUTIONS: {
+    label: 'FIT WITH PRECAUTIONS',
+    shortLabel: 'FIT WITH PRECAUTIONS',
+    badge: 'info',
+    routesToSafety: true
+  },
+  HOLD: {
+    label: 'HOLD (Pending Doctor Review)',
+    shortLabel: 'HOLD',
+    badge: 'warning',
+    routesToSafety: false
+  },
+  UNFIT: {
+    label: 'UNFIT',
+    shortLabel: 'UNFIT',
+    badge: 'danger',
+    routesToSafety: false
+  }
+};
+
+export const getMedicalFitnessMeta = (status) => {
+  return FITNESS_STATUS_META[status] || {
+    label: status || 'Pending',
+    shortLabel: status || 'Pending',
+    badge: 'warning',
+    routesToSafety: false
+  };
+};
+
+export const isMedicalFitForNextStage = (status) => (
+  status === 'FIT' || status === 'FIT_WITH_PRECAUTIONS'
+);
+
 export const validateMedicalStep = (data) => {
   const errors = {};
 
   if (!data?.fitnessStatus) {
-    errors.fitnessStatus = 'Final fitness decision (FIT or UNFIT) must be selected.';
+    errors.fitnessStatus = 'Final fitness decision (FIT, FIT WITH PRECAUTIONS, HOLD, or UNFIT) must be selected.';
   }
 
   if (data?.fitnessStatus === 'UNFIT' && !data?.remarks?.trim()) {
     errors.remarks = 'Medical reason/remarks required when flagging worker as UNFIT.';
+  }
+
+  if (data?.fitnessStatus === 'HOLD' && !data?.remarks?.trim()) {
+    errors.remarks = 'Hold reason / required follow-up tests must be entered when placing a worker on HOLD.';
+  }
+
+  if (data?.fitnessStatus === 'FIT_WITH_PRECAUTIONS' && !data?.remarks?.trim()) {
+    errors.remarks = 'Specify required work precautions when certifying FIT WITH PRECAUTIONS.';
   }
 
   if (!data?.examinerName?.trim()) {

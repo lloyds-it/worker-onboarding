@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import { useWorkers } from '../../context/WorkerContext';
 import { exportWorkersToCSV } from '../../services/reportService';
-import { formatTimestamp, formatDuration } from '../../services/validationService';
+import { formatTimestamp, formatDuration, getMedicalFitnessMeta } from '../../services/validationService';
 import { STAGES, STAGE_META, TRADES } from '../../types/constants';
 
 export const ReportsCenter = () => {
@@ -36,6 +36,8 @@ export const ReportsCenter = () => {
     if (selectedTrade !== 'ALL' && w.hr?.trade !== selectedTrade) return false;
     if (selectedFitness !== 'ALL') {
       if (selectedFitness === 'FIT' && w.medical?.fitnessStatus !== 'FIT') return false;
+      if (selectedFitness === 'FIT_WITH_PRECAUTIONS' && w.medical?.fitnessStatus !== 'FIT_WITH_PRECAUTIONS') return false;
+      if (selectedFitness === 'HOLD' && w.medical?.fitnessStatus !== 'HOLD') return false;
       if (selectedFitness === 'UNFIT' && w.medical?.fitnessStatus !== 'UNFIT') return false;
       if (selectedFitness === 'PENDING' && w.medical?.fitnessStatus) return false;
     }
@@ -138,6 +140,8 @@ export const ReportsCenter = () => {
           >
             <option value="ALL">All Statuses</option>
             <option value="FIT">Certified FIT Only</option>
+            <option value="FIT_WITH_PRECAUTIONS">FIT With Precautions</option>
+            <option value="HOLD">Medical HOLD</option>
             <option value="UNFIT">Flagged UNFIT Only</option>
             <option value="PENDING">Pending Medical Exam</option>
           </select>
@@ -194,11 +198,14 @@ export const ReportsCenter = () => {
                     </span>
                   </td>
                   <td>
-                    {w.medical?.fitnessStatus ? (
-                      <span className={`badge badge-${w.medical?.fitnessStatus === 'FIT' ? 'success' : 'danger'}`}>
-                        {w.medical?.fitnessStatus}
-                      </span>
-                    ) : (
+                    {w.medical?.fitnessStatus ? (() => {
+                      const fm = getMedicalFitnessMeta(w.medical.fitnessStatus);
+                      return (
+                        <span className={`badge badge-${fm.badge}`}>
+                          {fm.shortLabel}
+                        </span>
+                      );
+                    })() : (
                       <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>Pending</span>
                     )}
                   </td>

@@ -15,15 +15,30 @@ import logoMetals from '../../assets/logo_metals.png';
 import logoInfra from '../../assets/logo_infra.png';
 import { TRADES, SAFETY_TOPICS, PPE_ITEMS } from '../../types/constants';
 import { useAuth } from '../../context/AuthContext';
-import { getWorkerMissingDetails } from '../../services/validationService';
+import { getWorkerMissingDetails, getMedicalFitnessMeta } from '../../services/validationService';
 
 export const PrintableInductionDoc = ({ worker, onBack, onGenerateIdCard }) => {
   const { users = [] } = useAuth();
 
-  const medSignature = users.find(u => u.role === 'MEDICAL')?.signature;
-  const safetySignature = users.find(u => u.role === 'SAFETY')?.signature;
-  const itSignature = users.find(u => u.role === 'IT')?.signature;
-  const adminSignature = users.find(u => u.role === 'ADMIN')?.signature;
+  const hr = worker?.hr || {};
+  const medical = worker?.medical || {};
+  const safety = worker?.safety || {};
+  const it = worker?.it || {};
+  const camp = worker?.camp || {};
+
+  const resolveRoleSignature = (role, recordedOfficerText) => {
+    if (recordedOfficerText) {
+      const lower = String(recordedOfficerText).toLowerCase();
+      const exactUser = users.find(u => u.role === role && u.name && lower.includes(u.name.toLowerCase()) && u.signature);
+      if (exactUser?.signature) return exactUser.signature;
+    }
+    return users.find(u => u.role === role && u.signature)?.signature || null;
+  };
+
+  const medSignature = resolveRoleSignature('MEDICAL', medical.examinerName);
+  const safetySignature = resolveRoleSignature('SAFETY', safety.safetyOfficerName);
+  const itSignature = resolveRoleSignature('IT', it.itAdminSignature);
+  const adminSignature = users.find(u => u.role === 'ADMIN' && u.signature)?.signature || null;
 
   if (!worker) {
     return (
@@ -38,14 +53,7 @@ export const PrintableInductionDoc = ({ worker, onBack, onGenerateIdCard }) => {
 
   // Validate onboarding completeness across all 5 steps
   const completion = getWorkerMissingDetails(worker);
-
-
-
-  const hr = worker?.hr || {};
-  const medical = worker?.medical || {};
-  const safety = worker?.safety || {};
-  const it = worker?.it || {};
-  const camp = worker?.camp || {};
+  const fitnessMeta = getMedicalFitnessMeta(medical.fitnessStatus);
 
   return (
     <div>
@@ -261,10 +269,12 @@ export const PrintableInductionDoc = ({ worker, onBack, onGenerateIdCard }) => {
             <strong>FINAL MEDICAL FITNESS STATUS:</strong> &nbsp;&nbsp;
             <span style={{
               fontWeight: 900,
-              fontSize: '0.95rem',
-              color: medical.fitnessStatus === 'FIT' ? '#059669' : '#DC2626'
+              fontSize: '0.88rem',
+              color: fitnessMeta.badge === 'success' ? '#059669' : (fitnessMeta.badge === 'info' ? '#1D4ED8' : (fitnessMeta.badge === 'warning' ? '#B45309' : '#DC2626'))
             }}>
-              [{medical.fitnessStatus === 'FIT' ? '✔' : ' '}] FIT FOR GENERAL WORK &nbsp;&nbsp;&nbsp;&nbsp;
+              [{medical.fitnessStatus === 'FIT' ? '✔' : ' '}] FIT FOR GENERAL WORK &nbsp;&nbsp;
+              [{medical.fitnessStatus === 'FIT_WITH_PRECAUTIONS' ? '✔' : ' '}] FIT WITH PRECAUTIONS &nbsp;&nbsp;
+              [{medical.fitnessStatus === 'HOLD' ? '✔' : ' '}] HOLD &nbsp;&nbsp;
               [{medical.fitnessStatus === 'UNFIT' ? '✔' : ' '}] UNFIT
             </span>
             <div style={{ fontSize: '0.75rem', marginTop: '0.2rem' }}>
@@ -272,7 +282,7 @@ export const PrintableInductionDoc = ({ worker, onBack, onGenerateIdCard }) => {
             </div>
           </div>
           <div style={{ textAlign: 'right', fontSize: '0.75rem' }}>
-            <div><strong>Medical Examiner:</strong> {medical.examinerName || 'Gopal Ray'}</div>
+            <div><strong>Medical Examiner:</strong> {medical.examinerName || '—'}</div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.4rem', minHeight: '28px', marginTop: '0.2rem' }}>
               <span>Signature & Stamp:</span>
               {medSignature ? (
@@ -359,7 +369,7 @@ export const PrintableInductionDoc = ({ worker, onBack, onGenerateIdCard }) => {
               <td style={{ padding: '0.5rem', border: '1px solid #CBD5E0', width: '35%' }}>
                 <strong>IT Admin Signature:</strong> {itSignature ? (
                   <img src={itSignature} alt="IT Sig" style={{ maxHeight: '24px', maxWidth: '85px', verticalAlign: 'middle', objectFit: 'contain' }} />
-                ) : (it.itAdminSignature || 'Chitta Ranjan Panda')}
+                ) : (it.itAdminSignature || '—')}
               </td>
             </tr>
           </tbody>

@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
-import { 
-  Users, 
-  UserPlus, 
-  ShieldCheck, 
-  CheckCircle2, 
-  XCircle, 
-  Trash2, 
-  Building2, 
-  Mail, 
+import {
+  Users,
+  UserPlus,
+  ShieldCheck,
+  CheckCircle2,
+  XCircle,
+  Trash2,
+  Building2,
+  Mail,
   Briefcase,
   Key,
   FileSignature,
@@ -237,363 +237,363 @@ export const UserManagement = () => {
             </button>
           </div>
 
-      {/* Success / Error alerts */}
-      {success && (
-        <div style={{
-          backgroundColor: 'var(--success-bg)',
-          color: 'var(--success-text)',
-          border: '1px solid var(--success-border)',
-          borderRadius: 'var(--radius-sm)',
-          padding: '0.75rem 1rem',
-          marginBottom: '1.25rem',
-          fontSize: '0.85rem',
-          fontWeight: 600
-        }}>
-          {success}
-        </div>
-      )}
-      {error && !isCreating && (
-        <div style={{
-          backgroundColor: 'var(--danger-bg)',
-          color: 'var(--danger-text)',
-          border: '1px solid var(--danger-border)',
-          borderRadius: 'var(--radius-sm)',
-          padding: '0.75rem 1rem',
-          marginBottom: '1.25rem',
-          fontSize: '0.85rem',
-          fontWeight: 600
-        }}>
-          {error}
-        </div>
-      )}
-
-      {/* Create User Card Form */}
-      {isCreating && (
-        <form onSubmit={handleSubmit} className="form-card" style={{ marginBottom: '1.75rem' }}>
-          <div className="form-section-header">
-            <h3>
-              <UserPlus size={18} color="var(--brand-primary)" />
-              <span>Create Staff Member & Assign Department Role</span>
-            </h3>
-            <span className="badge badge-info">Admin Authority</span>
-          </div>
-
-          {error && (
+          {/* Success / Error alerts */}
+          {success && (
+            <div style={{
+              backgroundColor: 'var(--success-bg)',
+              color: 'var(--success-text)',
+              border: '1px solid var(--success-border)',
+              borderRadius: 'var(--radius-sm)',
+              padding: '0.75rem 1rem',
+              marginBottom: '1.25rem',
+              fontSize: '0.85rem',
+              fontWeight: 600
+            }}>
+              {success}
+            </div>
+          )}
+          {error && !isCreating && (
             <div style={{
               backgroundColor: 'var(--danger-bg)',
               color: 'var(--danger-text)',
               border: '1px solid var(--danger-border)',
               borderRadius: 'var(--radius-sm)',
-              padding: '0.65rem 0.85rem',
-              marginBottom: '1rem',
-              fontSize: '0.8rem',
+              padding: '0.75rem 1rem',
+              marginBottom: '1.25rem',
+              fontSize: '0.85rem',
               fontWeight: 600
             }}>
               {error}
             </div>
           )}
 
-          <div className="form-grid">
-            <div className="form-group">
-              <label htmlFor="staff-name">Staff Full Name <span className="required">*</span></label>
-              <input
-                id="staff-name"
-                type="text"
-                className="form-input"
-                placeholder="e.g. Sunil Deshmukh"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              />
-            </div>
+          {/* Create User Card Form */}
+          {isCreating && (
+            <form onSubmit={handleSubmit} className="form-card" style={{ marginBottom: '1.75rem' }}>
+              <div className="form-section-header">
+                <h3>
+                  <UserPlus size={18} color="var(--brand-primary)" />
+                  <span>Create Staff Member & Assign Department Role</span>
+                </h3>
+                <span className="badge badge-info">Admin Authority</span>
+              </div>
 
-            <div className="form-group">
-              <label htmlFor="staff-email">Work Email Address <span className="required">*</span></label>
-              <input
-                id="staff-email"
-                type="email"
-                className="form-input"
-                placeholder="e.g. sunil.deshmukh@lloyds.in"
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              />
-            </div>
+              {error && (
+                <div style={{
+                  backgroundColor: 'var(--danger-bg)',
+                  color: 'var(--danger-text)',
+                  border: '1px solid var(--danger-border)',
+                  borderRadius: 'var(--radius-sm)',
+                  padding: '0.65rem 0.85rem',
+                  marginBottom: '1rem',
+                  fontSize: '0.8rem',
+                  fontWeight: 600
+                }}>
+                  {error}
+                </div>
+              )}
 
-            <div className="form-group">
-              <label htmlFor="staff-role">Assigned Department <span className="required">*</span></label>
-              <select
-                id="staff-role"
-                className="form-select"
-                value={formData.role}
-                onChange={(e) => handleRoleChange(e.target.value)}
-              >
-                <option value={ROLES.HR}>HR Operations (Step 1)</option>
-                <option value={ROLES.MEDICAL}>Medical Health (Step 2)</option>
-                <option value={ROLES.SAFETY}>EHS Safety (Step 3)</option>
-                <option value={ROLES.IT}>IT Systems &amp; Biometrics (Step 4)</option>
-                <option value={ROLES.CAMP}>Camp Housing (Step 5)</option>
-                <option value={ROLES.ADMIN}>Chief Administrator (Executive Full Access)</option>
-              </select>
-            </div>
+              <div className="form-grid">
+                <div className="form-group">
+                  <label htmlFor="staff-name">Staff Full Name <span className="required">*</span></label>
+                  <input
+                    id="staff-name"
+                    type="text"
+                    className="form-input"
+                    placeholder="e.g. Sunil Deshmukh"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  />
+                </div>
 
-            <div className="form-group">
-              <label htmlFor="staff-designation">Official Designation / Title</label>
-              <input
-                id="staff-designation"
-                type="text"
-                className="form-input"
-                placeholder="e.g. Site HR Lead"
-                value={formData.designation}
-                onChange={(e) => setFormData({ ...formData, designation: e.target.value })}
-              />
-            </div>
+                <div className="form-group">
+                  <label htmlFor="staff-email">Work Email Address <span className="required">*</span></label>
+                  <input
+                    id="staff-email"
+                    type="email"
+                    className="form-input"
+                    placeholder="e.g. sunil.deshmukh@lloyds.in"
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  />
+                </div>
 
-            <div className="form-group">
-              <label htmlFor="staff-password">Initial Password (Optional)</label>
-              <div style={{ position: 'relative' }}>
-                <input
-                  id="staff-password"
-                  type={showPassword ? 'text' : 'password'}
-                  className="form-input"
-                  placeholder="Leave blank for default (Lloyds@2026#)"
-                  value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  style={{ paddingRight: '2.5rem' }}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  style={{
-                    position: 'absolute',
-                    right: '0.75rem',
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    background: 'none',
-                    border: 'none',
-                    cursor: 'pointer',
-                    color: 'var(--text-muted)'
-                  }}
-                  title={showPassword ? 'Hide password' : 'Show password'}
-                >
-                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                <div className="form-group">
+                  <label htmlFor="staff-role">Assigned Department <span className="required">*</span></label>
+                  <select
+                    id="staff-role"
+                    className="form-select"
+                    value={formData.role}
+                    onChange={(e) => handleRoleChange(e.target.value)}
+                  >
+                    <option value={ROLES.HR}>HR Operations (Step 1)</option>
+                    <option value={ROLES.MEDICAL}>Medical Health (Step 2)</option>
+                    <option value={ROLES.SAFETY}>EHS Safety (Step 3)</option>
+                    <option value={ROLES.IT}>IT Systems &amp; Biometrics (Step 4)</option>
+                    <option value={ROLES.CAMP}>Camp Housing (Step 5)</option>
+                    <option value={ROLES.ADMIN}>Chief Administrator (Executive Full Access)</option>
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="staff-designation">Official Designation / Title</label>
+                  <input
+                    id="staff-designation"
+                    type="text"
+                    className="form-input"
+                    placeholder="e.g. Site HR Lead"
+                    value={formData.designation}
+                    onChange={(e) => setFormData({ ...formData, designation: e.target.value })}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="staff-password">Initial Password (Optional)</label>
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      id="staff-password"
+                      type={showPassword ? 'text' : 'password'}
+                      className="form-input"
+                      placeholder="Leave blank for default (Lloyds@2026#)"
+                      value={formData.password}
+                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                      style={{ paddingRight: '2.5rem' }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      style={{
+                        position: 'absolute',
+                        right: '0.75rem',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        color: 'var(--text-muted)'
+                      }}
+                      title={showPassword ? 'Hide password' : 'Show password'}
+                    >
+                      {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ marginTop: '1.25rem', display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+                <button type="button" className="btn btn-secondary" onClick={() => setIsCreating(false)}>
+                  Cancel
                 </button>
+                <button type="submit" className="btn btn-primary">
+                  <CheckCircle2 size={16} />
+                  <span>Save & Authorize Account</span>
+                </button>
+              </div>
+            </form>
+          )}
+
+          {/* KPI Stats */}
+          <div className="dashboard-grid">
+            <div className="stat-card">
+              <div className="stat-info">
+                <h3>Total Staff Accounts</h3>
+                <div className="stat-value">{users.length}</div>
+                <div className="stat-sub">Configured credentials</div>
+              </div>
+              <div className="stat-icon" style={{ backgroundColor: 'var(--info-bg)', color: 'var(--info-solid)' }}>
+                <Users size={22} />
+              </div>
+            </div>
+
+            <div className="stat-card">
+              <div className="stat-info">
+                <h3>Active Accounts</h3>
+                <div className="stat-value" style={{ color: 'var(--success-solid)' }}>
+                  {users.filter(u => u.status === 'ACTIVE').length}
+                </div>
+                <div className="stat-sub">Permitted login access</div>
+              </div>
+              <div className="stat-icon" style={{ backgroundColor: 'var(--success-bg)', color: 'var(--success-solid)' }}>
+                <CheckCircle2 size={22} />
+              </div>
+            </div>
+
+            <div className="stat-card">
+              <div className="stat-info">
+                <h3>Departments Covered</h3>
+                <div className="stat-value">6 / 6</div>
+                <div className="stat-sub">All functional areas staffed</div>
+              </div>
+              <div className="stat-icon" style={{ backgroundColor: 'var(--purple-bg)', color: 'var(--purple-solid)' }}>
+                <Building2 size={22} />
               </div>
             </div>
           </div>
 
-          <div style={{ marginTop: '1.25rem', display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
-            <button type="button" className="btn btn-secondary" onClick={() => setIsCreating(false)}>
-              Cancel
-            </button>
-            <button type="submit" className="btn btn-primary">
-              <CheckCircle2 size={16} />
-              <span>Save & Authorize Account</span>
-            </button>
-          </div>
-        </form>
-      )}
-
-      {/* KPI Stats */}
-      <div className="dashboard-grid">
-        <div className="stat-card">
-          <div className="stat-info">
-            <h3>Total Staff Accounts</h3>
-            <div className="stat-value">{users.length}</div>
-            <div className="stat-sub">Configured credentials</div>
-          </div>
-          <div className="stat-icon" style={{ backgroundColor: 'var(--info-bg)', color: 'var(--info-solid)' }}>
-            <Users size={22} />
-          </div>
-        </div>
-
-        <div className="stat-card">
-          <div className="stat-info">
-            <h3>Active Accounts</h3>
-            <div className="stat-value" style={{ color: 'var(--success-solid)' }}>
-              {users.filter(u => u.status === 'ACTIVE').length}
+          {/* Staff Roster Table */}
+          <div className="table-card">
+            <div style={{ padding: '1.25rem', borderBottom: '1px solid var(--border-light)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ fontSize: '1rem', fontWeight: 800 }}>
+                Authorized Department Staff Directory
+              </h3>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                Strict role-based isolation enforced
+              </span>
             </div>
-            <div className="stat-sub">Permitted login access</div>
-          </div>
-          <div className="stat-icon" style={{ backgroundColor: 'var(--success-bg)', color: 'var(--success-solid)' }}>
-            <CheckCircle2 size={22} />
-          </div>
-        </div>
 
-        <div className="stat-card">
-          <div className="stat-info">
-            <h3>Departments Covered</h3>
-            <div className="stat-value">6 / 6</div>
-            <div className="stat-sub">All functional areas staffed</div>
-          </div>
-          <div className="stat-icon" style={{ backgroundColor: 'var(--purple-bg)', color: 'var(--purple-solid)' }}>
-            <Building2 size={22} />
-          </div>
-        </div>
-      </div>
-
-      {/* Staff Roster Table */}
-      <div className="table-card">
-        <div style={{ padding: '1.25rem', borderBottom: '1px solid var(--border-light)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h3 style={{ fontSize: '1rem', fontWeight: 800 }}>
-            Authorized Department Staff Directory
-          </h3>
-          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-            Strict role-based isolation enforced
-          </span>
-        </div>
-
-        <div className="data-table-wrapper">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Staff Member</th>
-                <th>Work Email</th>
-                <th>Assigned Department</th>
-                <th>Official Designation</th>
-                <th>Digital Signature</th>
-                <th>Account Status</th>
-                <th style={{ textAlign: 'right' }}>Admin Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {users.map(u => {
-                const isPrimaryAdmin = u.id === 'USR-ADMIN-01';
-                const isActive = u.status === 'ACTIVE';
-
-                return (
-                  <tr key={u.id}>
-                    <td>
-                      <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
-                        {u.name} {u.id === currentUser?.id && <span style={{ fontSize: '0.7rem', color: 'var(--brand-primary)', fontWeight: 800 }}>(You)</span>}
-                      </div>
-                      <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontFamily: 'var(--font-family-mono)' }}>
-                        {u.id}
-                      </div>
-                    </td>
-
-                    <td style={{ fontSize: '0.85rem' }}>
-                      <strong>{u.email}</strong>
-                    </td>
-
-                    <td>{getRoleBadge(u.role)}</td>
-
-                    <td>
-                      <div style={{ fontSize: '0.825rem', fontWeight: 600 }}>{u.designation}</div>
-                      <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{u.department}</div>
-                    </td>
-
-                    <td>
-                      {u.signature ? (
-                        <div 
-                          onClick={() => setSignatureModalUser(u)}
-                          title="Click to view or replace signature"
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '0.4rem',
-                            padding: '0.2rem 0.5rem',
-                            backgroundColor: '#FFFFFF',
-                            border: '1px solid var(--border-medium)',
-                            borderRadius: '6px',
-                            cursor: 'pointer',
-                            boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
-                          }}
-                        >
-                          <img 
-                            src={u.signature} 
-                            alt="Sig" 
-                            style={{ height: '22px', maxWidth: '65px', objectFit: 'contain' }} 
-                          />
-                          <span style={{ fontSize: '0.7rem', color: 'var(--success-solid, #059669)', fontWeight: 800 }}>✓ Active</span>
-                        </div>
-                      ) : (
-                        <button
-                          type="button"
-                          className="btn btn-secondary"
-                          onClick={() => setSignatureModalUser(u)}
-                          style={{ padding: '0.25rem 0.55rem', fontSize: '0.72rem', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}
-                        >
-                          <FileSignature size={13} />
-                          <span>+ Add Sig</span>
-                        </button>
-                      )}
-                    </td>
-
-                    <td>
-                      <span className={`badge badge-${isActive ? 'success' : 'danger'}`}>
-                        {isActive ? 'ACTIVE' : 'DEACTIVATED'}
-                      </span>
-                    </td>
-
-                    <td style={{ textAlign: 'right' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.4rem', flexWrap: 'wrap' }}>
-                        <button
-                          className="btn btn-secondary"
-                          style={{ padding: '0.35rem 0.6rem', fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
-                          onClick={() => handleSendResetLink(u)}
-                          disabled={sendingResetId === u.id || !isActive}
-                          title={`Email password reset link to ${u.email}`}
-                        >
-                          <Mail size={13} color="#2563EB" />
-                          <span>{sendingResetId === u.id ? 'Sending...' : 'Reset Link'}</span>
-                        </button>
-
-                        <button
-                          className="btn btn-secondary"
-                          style={{ padding: '0.35rem 0.6rem', fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
-                          onClick={() => setPasswordModalUser(u)}
-                          title={`Set password directly for ${u.name}`}
-                        >
-                          <Key size={13} color="var(--brand-primary)" />
-                          <span>Password</span>
-                        </button>
-
-                        <button
-                          className="btn btn-secondary"
-                          style={{ padding: '0.35rem 0.55rem', fontSize: '0.75rem' }}
-                          onClick={() => setSignatureModalUser(u)}
-                          title={`Upload or manage digital signature for ${u.name}`}
-                        >
-                          <FileSignature size={14} color="#2563EB" />
-                        </button>
-
-                        {!isPrimaryAdmin && (
-                          <>
-                            <button
-                              className="btn btn-secondary"
-                              style={{ padding: '0.35rem 0.65rem', fontSize: '0.75rem' }}
-                              onClick={() => toggleUserStatus(u.id)}
-                            >
-                              {isActive ? 'Deactivate' : 'Activate'}
-                            </button>
-
-                            <button
-                              className="btn btn-secondary"
-                              style={{ padding: '0.35rem 0.55rem', color: 'var(--danger-solid)' }}
-                              onClick={() => {
-                                if (window.confirm(`Are you sure you want to remove ${u.name}?`)) {
-                                  deleteUser(u.id);
-                                }
-                              }}
-                              title="Delete user account"
-                            >
-                              <Trash2 size={14} />
-                            </button>
-                          </>
-                        )}
-                        {isPrimaryAdmin && (
-                          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontStyle: 'italic', paddingLeft: '0.25rem' }}>
-                            Chief
-                          </span>
-                        )}
-                      </div>
-                    </td>
+            <div className="data-table-wrapper">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Staff Member</th>
+                    <th>Work Email</th>
+                    <th>Assigned Department</th>
+                    <th>Official Designation</th>
+                    <th>Digital Signature</th>
+                    <th>Account Status</th>
+                    <th style={{ textAlign: 'right' }}>Admin Actions</th>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
+                </thead>
+                <tbody>
+                  {users.map(u => {
+                    const isPrimaryAdmin = u.id === 'USR-ADMIN-01';
+                    const isActive = u.status === 'ACTIVE';
+
+                    return (
+                      <tr key={u.id}>
+                        <td>
+                          <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
+                            {u.name} {u.id === currentUser?.id && <span style={{ fontSize: '0.7rem', color: 'var(--brand-primary)', fontWeight: 800 }}>(You)</span>}
+                          </div>
+                          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontFamily: 'var(--font-family-mono)' }}>
+                            {u.id}
+                          </div>
+                        </td>
+
+                        <td style={{ fontSize: '0.85rem' }}>
+                          <strong>{u.email}</strong>
+                        </td>
+
+                        <td>{getRoleBadge(u.role)}</td>
+
+                        <td>
+                          <div style={{ fontSize: '0.825rem', fontWeight: 600 }}>{u.designation}</div>
+                          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{u.department}</div>
+                        </td>
+
+                        <td>
+                          {u.signature ? (
+                            <div
+                              onClick={() => setSignatureModalUser(u)}
+                              title="Click to view or replace signature"
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.4rem',
+                                padding: '0.2rem 0.5rem',
+                                backgroundColor: '#FFFFFF',
+                                border: '1px solid var(--border-medium)',
+                                borderRadius: '6px',
+                                cursor: 'pointer',
+                                boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                              }}
+                            >
+                              <img
+                                src={u.signature}
+                                alt="Sig"
+                                style={{ height: '22px', maxWidth: '65px', objectFit: 'contain' }}
+                              />
+                              <span style={{ fontSize: '0.7rem', color: 'var(--success-solid, #059669)', fontWeight: 800 }}>✓ Active</span>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              className="btn btn-secondary"
+                              onClick={() => setSignatureModalUser(u)}
+                              style={{ padding: '0.25rem 0.55rem', fontSize: '0.72rem', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}
+                            >
+                              <FileSignature size={13} />
+                              <span>+ Add Sig</span>
+                            </button>
+                          )}
+                        </td>
+
+                        <td>
+                          <span className={`badge badge-${isActive ? 'success' : 'danger'}`}>
+                            {isActive ? 'ACTIVE' : 'DEACTIVATED'}
+                          </span>
+                        </td>
+
+                        <td style={{ textAlign: 'right' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.4rem', flexWrap: 'wrap' }}>
+                            <button
+                              className="btn btn-secondary"
+                              style={{ padding: '0.35rem 0.6rem', fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                              onClick={() => handleSendResetLink(u)}
+                              disabled={sendingResetId === u.id || !isActive}
+                              title={`Email password reset link to ${u.email}`}
+                            >
+                              <Mail size={13} color="#2563EB" />
+                              <span>{sendingResetId === u.id ? 'Sending...' : 'Reset Link'}</span>
+                            </button>
+
+                            <button
+                              className="btn btn-secondary"
+                              style={{ padding: '0.35rem 0.6rem', fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                              onClick={() => setPasswordModalUser(u)}
+                              title={`Set password directly for ${u.name}`}
+                            >
+                              <Key size={13} color="var(--brand-primary)" />
+                              <span>Password</span>
+                            </button>
+
+                            <button
+                              className="btn btn-secondary"
+                              style={{ padding: '0.35rem 0.55rem', fontSize: '0.75rem' }}
+                              onClick={() => setSignatureModalUser(u)}
+                              title={`Upload or manage digital signature for ${u.name}`}
+                            >
+                              <FileSignature size={14} color="#2563EB" />
+                            </button>
+
+                            {!isPrimaryAdmin && (
+                              <>
+                                <button
+                                  className="btn btn-secondary"
+                                  style={{ padding: '0.35rem 0.65rem', fontSize: '0.75rem' }}
+                                  onClick={() => toggleUserStatus(u.id)}
+                                >
+                                  {isActive ? 'Deactivate' : 'Activate'}
+                                </button>
+
+                                <button
+                                  className="btn btn-secondary"
+                                  style={{ padding: '0.35rem 0.55rem', color: 'var(--danger-solid)' }}
+                                  onClick={() => {
+                                    if (window.confirm(`Are you sure you want to remove ${u.name}?`)) {
+                                      deleteUser(u.id);
+                                    }
+                                  }}
+                                  title="Delete user account"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              </>
+                            )}
+                            {isPrimaryAdmin && (
+                              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontStyle: 'italic', paddingLeft: '0.25rem' }}>
+                                Chief
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </>
       )}
 

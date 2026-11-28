@@ -1,8 +1,14 @@
 import React, { useState } from 'react';
-import { Stethoscope, AlertTriangle, CheckCircle2, XCircle, HeartPulse } from 'lucide-react';
+import { Stethoscope, AlertTriangle, CheckCircle2, XCircle, HeartPulse, ShieldAlert, PauseCircle } from 'lucide-react';
 import { validateMedicalStep, calculateBMI } from '../../services/validationService';
+import { useAuth } from '../../context/AuthContext';
 
 export const Step2Medical = ({ initialData, onSave, isReadOnly }) => {
+  const { currentUser } = useAuth();
+  const loggedInExaminer = currentUser?.name
+    ? `${currentUser.name}${currentUser.designation ? ` (${currentUser.designation})` : ''}`
+    : '';
+
   const [formData, setFormData] = useState({
     bloodGroup: initialData?.bloodGroup || 'B+',
     heightCm: initialData?.heightCm || '',
@@ -21,7 +27,7 @@ export const Step2Medical = ({ initialData, onSave, isReadOnly }) => {
     vertigoTest: initialData?.vertigoTest || 'Fit',
     existingIllness: initialData?.existingIllness || 'No',
     fitnessStatus: initialData?.fitnessStatus || 'FIT',
-    examinerName: initialData?.examinerName || 'Gopal Ray (Chief Medical Officer)',
+    examinerName: initialData?.examinerName || loggedInExaminer,
     remarks: initialData?.remarks || 'Fit for heavy industrial plant work.'
   });
 
@@ -47,12 +53,18 @@ export const Step2Medical = ({ initialData, onSave, isReadOnly }) => {
         vertigoTest: initialData.vertigoTest || 'Fit',
         existingIllness: initialData.existingIllness || 'No',
         fitnessStatus: initialData.fitnessStatus || 'FIT',
-        examinerName: initialData.examinerName || 'Gopal Ray (Chief Medical Officer)',
+        examinerName: initialData.examinerName || loggedInExaminer,
         remarks: initialData.remarks || 'Fit for heavy industrial plant work.'
       });
       setErrors({});
     }
-  }, [initialData]);
+  }, [initialData, loggedInExaminer]);
+
+  React.useEffect(() => {
+    if (!initialData?.examinerName && loggedInExaminer) {
+      setFormData(prev => prev.examinerName ? prev : { ...prev, examinerName: loggedInExaminer });
+    }
+  }, [loggedInExaminer, initialData]);
 
   const handleVitalChange = (field, val) => {
     if (isReadOnly) return;
@@ -66,11 +78,21 @@ export const Step2Medical = ({ initialData, onSave, isReadOnly }) => {
       next.bmiCategory = res.category;
     }
 
+    if (field === 'fitnessStatus') {
+      if (val !== 'FIT' && prevRemarksIsDefaultFit(formData.remarks)) {
+        next.remarks = '';
+      } else if (val === 'FIT' && !formData.remarks?.trim()) {
+        next.remarks = 'Fit for heavy industrial plant work.';
+      }
+    }
+
     setFormData(next);
     if (errors[field]) {
       setErrors({ ...errors, [field]: null });
     }
   };
+
+  const prevRemarksIsDefaultFit = (text) => text === 'Fit for heavy industrial plant work.';
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -368,102 +390,181 @@ export const Step2Medical = ({ initialData, onSave, isReadOnly }) => {
         </div>
       </div>
 
-      {/* Gate Decision: FIT vs UNFIT */}
-      <div style={{
-        marginTop: '2rem',
-        padding: '1.25rem',
-        backgroundColor: formData.fitnessStatus === 'FIT' ? 'var(--success-bg)' : 'var(--danger-bg)',
-        border: `2px solid ${formData.fitnessStatus === 'FIT' ? 'var(--success-solid)' : 'var(--danger-solid)'}`,
-        borderRadius: 'var(--radius-md)'
-      }}>
-        <h4 style={{
-          fontSize: '1rem',
-          fontWeight: 800,
-          color: formData.fitnessStatus === 'FIT' ? 'var(--success-text)' : 'var(--danger-text)',
-          marginBottom: '0.75rem',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.5rem'
-        }}>
-          {formData.fitnessStatus === 'FIT' ? <CheckCircle2 size={20} /> : <XCircle size={20} />}
-          <span>FINAL MEDICAL FITNESS STATUS (STAGE GATE DECISION)</span>
-        </h4>
+      {/* Gate Decision: FIT / FIT WITH PRECAUTIONS / HOLD / UNFIT */}
+      {(() => {
+        const statusTheme = {
+          FIT: { bg: 'var(--success-bg)', border: 'var(--success-solid)', text: 'var(--success-text)' },
+          FIT_WITH_PRECAUTIONS: { bg: 'var(--info-bg)', border: 'var(--info-solid)', text: 'var(--info-text)' },
+          HOLD: { bg: 'var(--warning-bg)', border: 'var(--warning-solid)', text: 'var(--warning-text)' },
+          UNFIT: { bg: 'var(--danger-bg)', border: 'var(--danger-solid)', text: 'var(--danger-text)' }
+        }[formData.fitnessStatus] || { bg: 'var(--success-bg)', border: 'var(--success-solid)', text: 'var(--success-text)' };
 
-        <div style={{ display: 'flex', gap: '1.5rem', marginBottom: '1rem' }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-            <input
-              type="radio"
-              name="fitnessStatus"
-              value="FIT"
-              checked={formData.fitnessStatus === 'FIT'}
-              onChange={() => handleVitalChange('fitnessStatus', 'FIT')}
-              disabled={isReadOnly}
-            />
-            <span style={{ fontWeight: 800, color: 'var(--success-text)', fontSize: '0.95rem' }}>
-              FIT FOR GENERAL WORK (Auto-routes to Safety)
-            </span>
-          </label>
+        const statusIcon = formData.fitnessStatus === 'FIT'
+          ? <CheckCircle2 size={20} />
+          : formData.fitnessStatus === 'FIT_WITH_PRECAUTIONS'
+            ? <ShieldAlert size={20} />
+            : formData.fitnessStatus === 'HOLD'
+              ? <PauseCircle size={20} />
+              : <XCircle size={20} />;
 
-          <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-            <input
-              type="radio"
-              name="fitnessStatus"
-              value="UNFIT"
-              checked={formData.fitnessStatus === 'UNFIT'}
-              onChange={() => handleVitalChange('fitnessStatus', 'UNFIT')}
-              disabled={isReadOnly}
-            />
-            <span style={{ fontWeight: 800, color: 'var(--danger-text)', fontSize: '0.95rem' }}>
-              UNFIT (HALTS ONBOARDING & FLAGS PROFILE)
-            </span>
-          </label>
-        </div>
+        const remarksPlaceholder = formData.fitnessStatus === 'FIT'
+          ? 'Certified fit for plant work...'
+          : formData.fitnessStatus === 'FIT_WITH_PRECAUTIONS'
+            ? 'Specify work precautions (e.g. ground-level work only, no height/confined space, regular BP check)...'
+            : formData.fitnessStatus === 'HOLD'
+              ? 'Specify reason for HOLD and follow-up test / specialist opinion required...'
+              : 'Specify medical contraindications and reasons for rejection...';
 
-        <div className="form-group">
-          <label style={{ color: formData.fitnessStatus === 'FIT' ? 'var(--success-text)' : 'var(--danger-text)' }}>
-            Medical Officer Clinical Remarks / Rationale {formData.fitnessStatus === 'UNFIT' && <span className="required">*</span>}
-          </label>
-          <textarea
-            className={`form-textarea ${errors.remarks ? 'error' : ''}`}
-            rows={3}
-            placeholder={formData.fitnessStatus === 'FIT' ? "Certified fit for plant work..." : "Specify medical contraindications and reasons for rejection..."}
-            value={formData.remarks}
-            onChange={(e) => handleVitalChange('remarks', e.target.value)}
-            disabled={isReadOnly}
-          />
-          {errors.remarks && <span className="error-text">{errors.remarks}</span>}
-        </div>
+        return (
+          <div style={{
+            marginTop: '2rem',
+            padding: '1.25rem',
+            backgroundColor: statusTheme.bg,
+            border: `2px solid ${statusTheme.border}`,
+            borderRadius: 'var(--radius-md)'
+          }}>
+            <h4 style={{
+              fontSize: '1rem',
+              fontWeight: 800,
+              color: statusTheme.text,
+              marginBottom: '0.85rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem'
+            }}>
+              {statusIcon}
+              <span>FINAL MEDICAL FITNESS STATUS (DOCTOR OPINION / STAGE GATE DECISION)</span>
+            </h4>
 
-        <div className="form-group" style={{ marginTop: '0.75rem' }}>
-          <label style={{ color: formData.fitnessStatus === 'FIT' ? 'var(--success-text)' : 'var(--danger-text)' }}>
-            Medical Examiner Name & Registration No. <span className="required">*</span>
-          </label>
-          <input
-            type="text"
-            className="form-input"
-            value={formData.examinerName}
-            onChange={(e) => handleVitalChange('examinerName', e.target.value)}
-            disabled={isReadOnly}
-          />
-        </div>
-      </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 260px), 1fr))', gap: '0.75rem', marginBottom: '1rem' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                <input
+                  type="radio"
+                  name="fitnessStatus"
+                  value="FIT"
+                  checked={formData.fitnessStatus === 'FIT'}
+                  onChange={() => handleVitalChange('fitnessStatus', 'FIT')}
+                  disabled={isReadOnly}
+                />
+                <span style={{ fontWeight: 800, color: 'var(--success-text)', fontSize: '0.9rem' }}>
+                  FIT FOR GENERAL WORK (Routes to Safety)
+                </span>
+              </label>
+
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                <input
+                  type="radio"
+                  name="fitnessStatus"
+                  value="FIT_WITH_PRECAUTIONS"
+                  checked={formData.fitnessStatus === 'FIT_WITH_PRECAUTIONS'}
+                  onChange={() => handleVitalChange('fitnessStatus', 'FIT_WITH_PRECAUTIONS')}
+                  disabled={isReadOnly}
+                />
+                <span style={{ fontWeight: 800, color: 'var(--info-text)', fontSize: '0.9rem' }}>
+                  FIT WITH PRECAUTIONS (Routes to Safety)
+                </span>
+              </label>
+
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                <input
+                  type="radio"
+                  name="fitnessStatus"
+                  value="HOLD"
+                  checked={formData.fitnessStatus === 'HOLD'}
+                  onChange={() => handleVitalChange('fitnessStatus', 'HOLD')}
+                  disabled={isReadOnly}
+                />
+                <span style={{ fontWeight: 800, color: 'var(--warning-text)', fontSize: '0.9rem' }}>
+                  HOLD (Pending Review / Re-test)
+                </span>
+              </label>
+
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                <input
+                  type="radio"
+                  name="fitnessStatus"
+                  value="UNFIT"
+                  checked={formData.fitnessStatus === 'UNFIT'}
+                  onChange={() => handleVitalChange('fitnessStatus', 'UNFIT')}
+                  disabled={isReadOnly}
+                />
+                <span style={{ fontWeight: 800, color: 'var(--danger-text)', fontSize: '0.9rem' }}>
+                  UNFIT (Halts Onboarding &amp; Flags Profile)
+                </span>
+              </label>
+            </div>
+
+            <div className="form-group">
+              <label style={{ color: statusTheme.text }}>
+                Medical Officer Clinical Remarks / Doctor Opinion {formData.fitnessStatus !== 'FIT' && <span className="required">*</span>}
+              </label>
+              <textarea
+                className={`form-textarea ${errors.remarks ? 'error' : ''}`}
+                rows={3}
+                placeholder={remarksPlaceholder}
+                value={formData.remarks}
+                onChange={(e) => handleVitalChange('remarks', e.target.value)}
+                disabled={isReadOnly}
+              />
+              {errors.remarks && <span className="error-text">{errors.remarks}</span>}
+            </div>
+
+            <div className="form-group" style={{ marginTop: '0.75rem' }}>
+              <label style={{ color: statusTheme.text }}>
+                Medical Examiner Name &amp; Registration No. <span className="required">*</span>
+              </label>
+              <input
+                type="text"
+                className={`form-input ${errors.examinerName ? 'error' : ''}`}
+                placeholder="Logged-in Medical Officer Name"
+                value={formData.examinerName}
+                onChange={(e) => handleVitalChange('examinerName', e.target.value)}
+                disabled={isReadOnly}
+              />
+              {errors.examinerName && <span className="error-text">{errors.examinerName}</span>}
+            </div>
+          </div>
+        );
+      })()}
 
       {!isReadOnly && (
         <div style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'flex-end' }}>
           <button
             id="btn-save-step2"
             type="submit"
-            className={`btn ${formData.fitnessStatus === 'FIT' ? 'btn-primary' : 'btn-secondary'}`}
-            style={{ backgroundColor: formData.fitnessStatus === 'UNFIT' ? 'var(--danger-solid)' : '', color: '#FFF' }}
+            className="btn btn-primary"
+            style={{
+              backgroundColor: formData.fitnessStatus === 'UNFIT'
+                ? 'var(--danger-solid)'
+                : formData.fitnessStatus === 'HOLD'
+                  ? 'var(--warning-solid)'
+                  : formData.fitnessStatus === 'FIT_WITH_PRECAUTIONS'
+                    ? 'var(--info-solid)'
+                    : undefined,
+              color: '#FFF'
+            }}
           >
-            {formData.fitnessStatus === 'FIT' ? (
+            {formData.fitnessStatus === 'FIT' && (
               <>
-                <span>Certify FIT & Route to EHS Safety</span>
+                <span>Certify FIT &amp; Route to EHS Safety</span>
                 <CheckCircle2 size={16} />
               </>
-            ) : (
+            )}
+            {formData.fitnessStatus === 'FIT_WITH_PRECAUTIONS' && (
               <>
-                <span>Flag Profile as UNFIT & Halt Onboarding</span>
+                <span>Certify FIT WITH PRECAUTIONS &amp; Route to Safety</span>
+                <ShieldAlert size={16} />
+              </>
+            )}
+            {formData.fitnessStatus === 'HOLD' && (
+              <>
+                <span>Place on Medical HOLD (Keep at Medical)</span>
+                <PauseCircle size={16} />
+              </>
+            )}
+            {formData.fitnessStatus === 'UNFIT' && (
+              <>
+                <span>Flag Profile as UNFIT &amp; Halt Onboarding</span>
                 <XCircle size={16} />
               </>
             )}

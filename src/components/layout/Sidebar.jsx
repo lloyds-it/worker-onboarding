@@ -1,19 +1,19 @@
 import React from 'react';
-import { 
-  Users, 
-  ShieldCheck, 
-  FileText, 
-  Activity, 
-  BarChart3, 
-  UserPlus, 
-  Building2, 
-  RefreshCw, 
-  Printer, 
-  History, 
-  HardHat, 
-  Stethoscope, 
-  Fingerprint, 
-  Home, 
+import {
+  Users,
+  ShieldCheck,
+  FileText,
+  Activity,
+  BarChart3,
+  UserPlus,
+  Building2,
+  RefreshCw,
+  Printer,
+  History,
+  HardHat,
+  Stethoscope,
+  Fingerprint,
+  Home,
   LogOut,
   UserCog,
   ChevronLeft,
@@ -29,11 +29,11 @@ import { useTheme } from '../../context/ThemeContext';
 import { useWorkers } from '../../context/WorkerContext';
 import { ROLES, STAGES } from '../../types/constants';
 
-export const Sidebar = ({ 
-  activeView, 
-  setActiveView, 
-  onOpenNewWorkerModal, 
-  isCollapsed = false, 
+export const Sidebar = ({
+  activeView,
+  setActiveView,
+  onOpenNewWorkerModal,
+  isCollapsed = false,
   onToggleCollapse,
   isMobileOpen = false,
   onCloseMobile
@@ -114,7 +114,7 @@ export const Sidebar = ({
         {isAdmin && (
           <>
             <div className="nav-section-title">Executive Governance</div>
-            
+
             <button
               id="nav-admin-center"
               className={`nav-item ${activeView === 'admin_dashboard' ? 'active' : ''}`}

@@ -77,9 +77,14 @@ const STAGE_EMAIL_META = {
     actionSummary: 'Candidate has been registered by HR with an Employee ID and routed to your Medical Screening queue.'
   },
   STEP_2_TO_SAFETY: {
-    completedLabel: 'Step 2: Medical Fitness Examination (FIT)',
+    completedLabel: 'Step 2: Medical Fitness Examination',
     nextLabel: 'Step 3: EHS Safety Induction & PPE Issuance',
-    actionSummary: 'Candidate has been certified medically FIT and routed to your EHS Safety Induction queue.'
+    actionSummary: 'Candidate has been medically cleared (FIT / FIT WITH PRECAUTIONS) and routed to your EHS Safety Induction queue.'
+  },
+  STEP_2_HOLD_ALERT: {
+    completedLabel: 'Step 2: Medical Fitness Examination (HOLD)',
+    nextLabel: 'Medical Hold — Follow-up Required',
+    actionSummary: 'Candidate has been placed on MEDICAL HOLD pending further clinical evaluation or documentation.'
   },
   STEP_2_UNFIT_ALERT: {
     completedLabel: 'Step 2: Medical Fitness Examination (UNFIT)',

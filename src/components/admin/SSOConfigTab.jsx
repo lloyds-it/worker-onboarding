@@ -41,8 +41,8 @@ export const SSOConfigTab = () => {
     },
     {
       id: 'SESS-GO-8842',
-      user: 'Rinku Sharma',
-      email: 'ruv@lloyds.in',
+      user: 'HR Operations Lead',
+      email: 'hr@lloyds.in',
       role: 'HR',
       provider: 'GOOGLE',
       ip: '10.240.14.22 (HR Department VLAN)',
@@ -51,8 +51,8 @@ export const SSOConfigTab = () => {
     },
     {
       id: 'SESS-GO-7721',
-      user: 'Gopal Ray',
-      email: 'glr@lloyds.in',
+      user: 'Medical Officer',
+      email: 'medical@lloyds.in',
       role: 'MEDICAL',
       provider: 'GOOGLE',
       ip: '10.240.16.10 (OHC Medical Center)',

@@ -1,16 +1,22 @@
 import React, { useState } from 'react';
 import { Home, CheckCircle2, Building, ShieldCheck, KeyRound } from 'lucide-react';
 import { CAMPS, BLOCKS } from '../../types/constants';
+import { useAuth } from '../../context/AuthContext';
 
 export const Step5Camp = ({ initialData, worker, onSave, isReadOnly }) => {
+  const { currentUser } = useAuth();
+  const loggedInCampOfficer = currentUser?.name
+    ? `${currentUser.name}${currentUser.designation ? ` (${currentUser.designation})` : ''}`
+    : '';
+
   const [formData, setFormData] = useState({
     campName: initialData?.campName || CAMPS[0],
     blockNumber: initialData?.blockNumber || BLOCKS[0],
     roomNumber: initialData?.roomNumber || 'A-104',
     bedNumber: initialData?.bedNumber || 'Bed 1',
-    contractorSupervisor: initialData?.contractorSupervisor || 'Sunil Verma (Site Supervisor)',
-    supervisorMobile: initialData?.supervisorMobile || '9822001144',
-    allocatedBy: initialData?.allocatedBy || 'Ripan (Camp Supv)',
+    contractorSupervisor: initialData?.contractorSupervisor || '',
+    supervisorMobile: initialData?.supervisorMobile || '',
+    allocatedBy: initialData?.allocatedBy || loggedInCampOfficer,
     allocationDate: initialData?.allocationDate || new Date().toISOString().slice(0, 10)
   });
 
@@ -23,14 +29,20 @@ export const Step5Camp = ({ initialData, worker, onSave, isReadOnly }) => {
         blockNumber: initialData.blockNumber || BLOCKS[0],
         roomNumber: initialData.roomNumber || 'A-104',
         bedNumber: initialData.bedNumber || 'Bed 1',
-        contractorSupervisor: initialData.contractorSupervisor || 'Sunil Verma (Site Supervisor)',
-        supervisorMobile: initialData.supervisorMobile || '9822001144',
-        allocatedBy: initialData.allocatedBy || 'Ripan (Camp Supv)',
+        contractorSupervisor: initialData.contractorSupervisor || '',
+        supervisorMobile: initialData.supervisorMobile || '',
+        allocatedBy: initialData.allocatedBy || loggedInCampOfficer,
         allocationDate: initialData.allocationDate || new Date().toISOString().slice(0, 10)
       });
       setErrors({});
     }
-  }, [initialData]);
+  }, [initialData, loggedInCampOfficer]);
+
+  React.useEffect(() => {
+    if (!initialData?.allocatedBy && loggedInCampOfficer) {
+      setFormData(prev => prev.allocatedBy ? prev : { ...prev, allocatedBy: loggedInCampOfficer });
+    }
+  }, [loggedInCampOfficer, initialData]);
 
   const handleChange = (field, val) => {
     if (isReadOnly) return;
@@ -57,7 +69,7 @@ export const Step5Camp = ({ initialData, worker, onSave, isReadOnly }) => {
       ...formData,
       blockNumber: formData.blockNumber || BLOCKS[0],
       bedNumber: formData.bedNumber || 'Bed 1',
-      contractorSupervisor: formData.contractorSupervisor || 'Sunil Verma (Site Supervisor)',
+      contractorSupervisor: formData.contractorSupervisor || '',
       gatePassActive: true
     });
   };

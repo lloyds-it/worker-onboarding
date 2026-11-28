@@ -1,7 +1,13 @@
 import React, { useState } from 'react';
 import { Fingerprint, CheckCircle2, ShieldCheck, UserCheck } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 
 export const Step4IT = ({ initialData, worker, onSave, isReadOnly }) => {
+  const { currentUser } = useAuth();
+  const loggedInIT = currentUser?.name
+    ? `${currentUser.name}${currentUser.designation ? ` (${currentUser.designation})` : ''}`
+    : '';
+
   const [faceBiometricRegistered, setFaceBiometricRegistered] = useState(
     initialData?.faceBiometricRegistered ?? true
   );
@@ -12,7 +18,7 @@ export const Step4IT = ({ initialData, worker, onSave, isReadOnly }) => {
     initialData?.campusMasterUploaded ?? true
   );
   const [itAdminSignature, setItAdminSignature] = useState(
-    initialData?.itAdminSignature || 'Chitta Ranjan Panda (Sr. IT Systems Admin)'
+    initialData?.itAdminSignature || loggedInIT
   );
   const [error, setError] = useState(null);
 
@@ -21,10 +27,16 @@ export const Step4IT = ({ initialData, worker, onSave, isReadOnly }) => {
       setFaceBiometricRegistered(initialData.faceBiometricRegistered ?? true);
       setCwmsRegistered(initialData.cwmsRegistered ?? true);
       setCampusMasterUploaded(initialData.campusMasterUploaded ?? true);
-      setItAdminSignature(initialData.itAdminSignature || 'Chitta Ranjan Panda (Sr. IT Systems Admin)');
+      setItAdminSignature(initialData.itAdminSignature || loggedInIT);
       setError(null);
     }
-  }, [initialData]);
+  }, [initialData, loggedInIT]);
+
+  React.useEffect(() => {
+    if (!initialData?.itAdminSignature && loggedInIT) {
+      setItAdminSignature(prev => prev || loggedInIT);
+    }
+  }, [loggedInIT, initialData]);
 
   const handleSubmit = (e) => {
     e.preventDefault();

@@ -1,12 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { 
-  Search, 
-  LogOut, 
-  ShieldCheck, 
-  User, 
-  Sun, 
-  Moon, 
-  PanelLeftClose, 
+import {
+  Search,
+  LogOut,
+  ShieldCheck,
+  User,
+  Sun,
+  Moon,
+  PanelLeftClose,
   PanelLeftOpen,
   Key,
   FileSignature,
@@ -105,16 +105,16 @@ export const Header = ({ isSidebarCollapsed = false, onToggleSidebarCollapse, on
 
           {/* Official Dual Partner Logos (Kept exclusively on page header) */}
           <div className="header-brand-container">
-            <img 
-              src={logoInfra} 
-              alt="Lloyds Infra" 
+            <img
+              src={logoInfra}
+              alt="Lloyds Infra"
               className="header-brand-logo-infra"
               onError={(e) => { e.target.style.display = 'none'; }}
             />
             <div className="header-brand-divider" />
-            <img 
-              src={logoMetals} 
-              alt="Lloyds Metals & Energy" 
+            <img
+              src={logoMetals}
+              alt="Lloyds Metals & Energy"
               className="header-brand-logo-metals"
               onError={(e) => { e.target.style.display = 'none'; }}
             />
@@ -131,8 +131,8 @@ export const Header = ({ isSidebarCollapsed = false, onToggleSidebarCollapse, on
               onChange={(e) => setSearchQuery(e.target.value)}
             />
             {searchQuery && (
-              <button 
-                className="search-clear-btn" 
+              <button
+                className="search-clear-btn"
                 onClick={() => setSearchQuery('')}
                 title="Clear search"
                 aria-label="Clear search"
@@ -154,12 +154,12 @@ export const Header = ({ isSidebarCollapsed = false, onToggleSidebarCollapse, on
             disabled={isSyncing}
             style={{ position: 'relative' }}
           >
-            <RefreshCw 
-              size={16} 
-              style={{ 
+            <RefreshCw
+              size={16}
+              style={{
                 color: isSyncing ? 'var(--brand-primary)' : 'var(--text-muted)',
                 animation: isSyncing ? 'spin 1s linear infinite' : 'none'
-              }} 
+              }}
             />
           </button>
 
@@ -178,8 +178,8 @@ export const Header = ({ isSidebarCollapsed = false, onToggleSidebarCollapse, on
           {(() => {
             const RoleIcon = badgeStyle.icon;
             return (
-              <div 
-                className="header-role-pill" 
+              <div
+                className="header-role-pill"
                 style={{
                   backgroundColor: badgeStyle.bg,
                   color: badgeStyle.text,
@@ -197,7 +197,7 @@ export const Header = ({ isSidebarCollapsed = false, onToggleSidebarCollapse, on
 
           {/* User Identity Profile with Dropdown */}
           <div className="header-user-wrapper" ref={dropdownRef} style={{ position: 'relative' }}>
-            <div 
+            <div
               className="header-user-profile"
               onClick={() => setIsDropdownOpen(!isDropdownOpen)}
               style={{ cursor: 'pointer', userSelect: 'none' }}

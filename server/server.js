@@ -1143,14 +1143,15 @@ app.patch('/api/workers/:id/medical', authenticateToken, requireRole(['ADMIN', '
 
     const updated = await dbUpdateMedical(id, medical, worker);
     syncAccountsWithStore();
-    const isFit = medical.fitnessStatus === 'FIT';
+    const isFit = medical.fitnessStatus === 'FIT' || medical.fitnessStatus === 'FIT_WITH_PRECAUTIONS';
+    const isHold = medical.fitnessStatus === 'HOLD';
     const emailNotification = await notifyNextStageUsers({
-      transitionKey: isFit ? 'STEP_2_TO_SAFETY' : 'STEP_2_UNFIT_ALERT',
+      transitionKey: isFit ? 'STEP_2_TO_SAFETY' : (isHold ? 'STEP_2_HOLD_ALERT' : 'STEP_2_UNFIT_ALERT'),
       nextRoles: isFit ? ['SAFETY'] : ['ADMIN', 'HR'],
       worker: updated,
       accounts: SYSTEM_ACCOUNTS,
       actor: req.user,
-      extraDetails: `Fitness: ${medical.fitnessStatus || 'N/A'} | Examiner: ${medical.examinerName || 'Medical Officer'} | Remarks: ${medical.remarks || '—'}`
+      extraDetails: `Fitness: ${medical.fitnessStatus || 'N/A'} | Examiner: ${medical.examinerName || req.user?.name || 'Medical Officer'} | Remarks: ${medical.remarks || '—'}`
     });
     res.json({ success: true, data: updated, emailNotification });
   } catch (err) {

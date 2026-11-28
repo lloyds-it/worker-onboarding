@@ -27,7 +27,9 @@ export const getDepartmentStats = (workers) => {
 
   // Medical Breakdown
   const examinedWorkers = workers.filter(w => w.medical?.fitnessStatus);
-  const medicalFit = examinedWorkers.filter(w => w.medical?.fitnessStatus === 'FIT').length;
+  const medicalFit = examinedWorkers.filter(w => w.medical?.fitnessStatus === 'FIT' || w.medical?.fitnessStatus === 'FIT_WITH_PRECAUTIONS').length;
+  const medicalFitPrecautions = examinedWorkers.filter(w => w.medical?.fitnessStatus === 'FIT_WITH_PRECAUTIONS').length;
+  const medicalHold = examinedWorkers.filter(w => w.medical?.fitnessStatus === 'HOLD').length;
   const medicalUnfit = examinedWorkers.filter(w => w.medical?.fitnessStatus === 'UNFIT').length;
   const alcoholFails = examinedWorkers.filter(w => w.medical?.alcoholTest === 'Fail').length;
 
@@ -77,6 +79,8 @@ export const getDepartmentStats = (workers) => {
     medical: {
       totalExamined: examinedWorkers.length,
       medicalFit,
+      medicalFitPrecautions,
+      medicalHold,
       medicalUnfit,
       fitRate: examinedWorkers.length ? ((medicalFit / examinedWorkers.length) * 100).toFixed(1) : '0.0',
       alcoholFails

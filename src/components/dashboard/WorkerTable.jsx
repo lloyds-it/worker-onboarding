@@ -20,7 +20,7 @@ import {
 import { useAuth } from '../../context/AuthContext';
 import { useWorkers } from '../../context/WorkerContext';
 import { STAGES, STAGE_META, ROLES } from '../../types/constants';
-import { formatTimestamp, formatDuration } from '../../services/validationService';
+import { formatTimestamp, formatDuration, getMedicalFitnessMeta } from '../../services/validationService';
 
 export const WorkerTable = ({ onOpenProcessModal, onViewInductionDoc, onGenerateIdCard, onOpenAdminOverride }) => {
   const { currentRole } = useAuth();
@@ -250,11 +250,14 @@ export const WorkerTable = ({ onOpenProcessModal, onViewInductionDoc, onGenerate
                       <>
                         <td>{getStageBadge(worker.stage)}</td>
                         <td>
-                          {worker.medical?.fitnessStatus ? (
-                            <span className={`badge badge-${worker.medical?.fitnessStatus === 'FIT' ? 'success' : 'danger'}`}>
-                              {worker.medical?.fitnessStatus}
-                            </span>
-                          ) : (
+                          {worker.medical?.fitnessStatus ? (() => {
+                            const fm = getMedicalFitnessMeta(worker.medical.fitnessStatus);
+                            return (
+                              <span className={`badge badge-${fm.badge}`}>
+                                {fm.shortLabel}
+                              </span>
+                            );
+                          })() : (
                             <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Pending</span>
                           )}
                         </td>
@@ -304,11 +307,14 @@ export const WorkerTable = ({ onOpenProcessModal, onViewInductionDoc, onGenerate
                           ) : '—'}
                         </td>
                         <td>
-                          {worker.medical?.fitnessStatus ? (
-                            <span className={`badge badge-${worker.medical?.fitnessStatus === 'FIT' ? 'success' : 'danger'}`}>
-                              {worker.medical?.fitnessStatus}
-                            </span>
-                          ) : (
+                          {worker.medical?.fitnessStatus ? (() => {
+                            const fm = getMedicalFitnessMeta(worker.medical.fitnessStatus);
+                            return (
+                              <span className={`badge badge-${fm.badge}`}>
+                                {fm.shortLabel}
+                              </span>
+                            );
+                          })() : (
                             <span className="badge badge-warning">Exam Pending</span>
                           )}
                         </td>

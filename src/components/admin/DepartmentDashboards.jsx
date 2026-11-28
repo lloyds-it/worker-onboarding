@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
-import { 
-  Users, 
-  Stethoscope, 
-  HardHat, 
-  Fingerprint, 
-  Home, 
-  Activity, 
-  CheckCircle2, 
-  XCircle, 
+import {
+  Users,
+  Stethoscope,
+  HardHat,
+  Fingerprint,
+  Home,
+  Activity,
+  CheckCircle2,
+  XCircle,
   AlertTriangle,
   Layers,
   BedDouble,
@@ -16,6 +16,7 @@ import {
 import { useWorkers } from '../../context/WorkerContext';
 import { useAuth } from '../../context/AuthContext';
 import { getDepartmentStats } from '../../services/reportService';
+import { getMedicalFitnessMeta } from '../../services/validationService';
 import { TRADES, PPE_ITEMS, CAMPS, BLOCKS, ROLES } from '../../types/constants';
 
 const ROLE_TAB_MAP = {
@@ -276,9 +277,14 @@ export const DepartmentDashboards = ({ initialTab = 'hr' }) => {
                       <td>{w.medical?.spo2}%</td>
                       <td>{w.medical?.rbs} mg/dL</td>
                       <td>
-                        <span className={`badge badge-${w.medical?.fitnessStatus === 'FIT' ? 'success' : 'danger'}`}>
-                          {w.medical?.fitnessStatus}
-                        </span>
+                        {(() => {
+                          const fm = getMedicalFitnessMeta(w.medical?.fitnessStatus);
+                          return (
+                            <span className={`badge badge-${fm.badge}`}>
+                              {fm.shortLabel}
+                            </span>
+                          );
+                        })()}
                       </td>
                       <td style={{ fontSize: '0.775rem', maxWidth: '280px', color: 'var(--text-secondary)' }}>
                         {w.medical?.remarks || 'N/A'}

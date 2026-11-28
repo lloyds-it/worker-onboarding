@@ -33,6 +33,12 @@ export const Step3Safety = ({ initialData, onSave, isReadOnly }) => {
     }
   }, [initialData, defaultOfficerName]);
 
+  React.useEffect(() => {
+    if (!initialData?.safetyOfficerName && defaultOfficerName) {
+      setSafetyOfficerName(prev => prev || defaultOfficerName);
+    }
+  }, [defaultOfficerName, initialData]);
+
   const toggleTopic = (topic) => {
     if (isReadOnly) return;
     if (topicsCovered.includes(topic)) {
