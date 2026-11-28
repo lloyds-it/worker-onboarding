@@ -283,8 +283,12 @@ export const WorkerProvider = ({ children }) => {
       return null;
     }
 
-    const { assignedWorkerId: inputEmployeeId, ...cleanHrData } = hrData || {};
-    const employeeId = (inputEmployeeId || '').trim().toUpperCase() || generateEmployeeId(workers, cleanHrData.contractorCode, cleanHrData.locationCode);
+    const { assignedWorkerId: inputEmployeeId, ...rawHrData } = hrData || {};
+    const employeeId = (inputEmployeeId || '').trim().toUpperCase() || generateEmployeeId(workers, rawHrData.contractorCode, rawHrData.locationCode);
+    const cleanHrData = {
+      ...rawHrData,
+      fullName: (rawHrData.fullName || '').trim() || `Candidate (${employeeId})`
+    };
     const year = new Date().getFullYear();
     let maxRef = 0;
     workers.forEach(w => {

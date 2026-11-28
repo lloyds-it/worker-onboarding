@@ -1273,13 +1273,11 @@ app.get('/api/workers', authenticateToken, async (req, res) => {
 app.post('/api/workers', authenticateToken, requireRole(['ADMIN', 'HR']), async (req, res) => {
   try {
     const { _isUpdate, ...newWorker } = req.body || {};
-    if (!newWorker || !newWorker.id || !newWorker.hr || !newWorker.hr.fullName) {
-      return res.status(400).json({ success: false, error: 'Invalid worker registration payload: Missing candidate full name or ID.' });
+    if (!newWorker || !newWorker.id || !newWorker.hr) {
+      return res.status(400).json({ success: false, error: 'Invalid worker registration payload: Missing worker ID or HR object.' });
     }
-
-    // Input boundary sanitization
-    if (newWorker.hr.age && (parseInt(newWorker.hr.age, 10) < 18 || parseInt(newWorker.hr.age, 10) > 75)) {
-      return res.status(400).json({ success: false, error: 'Candidate age must be between 18 and 75 years per statutory regulations.' });
+    if (!newWorker.hr.fullName || !String(newWorker.hr.fullName).trim()) {
+      newWorker.hr.fullName = newWorker.assignedWorkerId ? `Candidate (${newWorker.assignedWorkerId})` : 'Unnamed Candidate';
     }
 
     const existing = await dbGetAllWorkers();

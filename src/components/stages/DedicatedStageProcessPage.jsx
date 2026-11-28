@@ -287,24 +287,28 @@ export const DedicatedStageProcessPage = ({ worker: propWorker, onSelectWorker, 
             </div>
             <div>
               <span style={{ color: 'var(--text-muted)' }}>Age &amp; Gender:</span>
-              <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{worker.hr?.age} yrs • {worker.hr?.gender === 'M' ? 'Male' : (worker.hr?.gender === 'F' ? 'Female' : 'Other')}</div>
+              <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                {worker.hr?.age ? `${worker.hr.age} yrs` : '—'} • {worker.hr?.gender === 'M' ? 'Male' : (worker.hr?.gender === 'F' ? 'Female' : (worker.hr?.gender ? 'Other' : '—'))}
+              </div>
             </div>
             <div>
               <span style={{ color: 'var(--text-muted)' }}>Contractor / Agency:</span>
               <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
-                {worker.hr?.contractorCode ? `${worker.hr.contractorCode} — ` : ''}{worker.hr?.contractorName}
+                {worker.hr?.contractorName ? `${worker.hr?.contractorCode ? `${worker.hr.contractorCode} — ` : ''}${worker.hr.contractorName}` : '—'}
               </div>
             </div>
             <div>
               <span style={{ color: 'var(--text-muted)' }}>Contact Mobile:</span>
               <div style={{ fontWeight: 600, color: 'var(--text-primary)', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
-                <Phone size={13} style={{ opacity: 0.7 }} /> {worker.hr?.mobileNumber}
+                <Phone size={13} style={{ opacity: 0.7 }} /> {worker.hr?.mobileNumber || '—'}
               </div>
             </div>
             <div>
               <span style={{ color: 'var(--text-muted)' }}>Emergency Contact:</span>
               <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
-                {worker.hr?.emergencyPerson} ({worker.hr?.emergencyRelationship}) • {worker.hr?.emergencyMobile}
+                {(worker.hr?.emergencyPerson || worker.hr?.emergencyMobile)
+                  ? `${worker.hr?.emergencyPerson || '—'}${worker.hr?.emergencyRelationship ? ` (${worker.hr.emergencyRelationship})` : ''} • ${worker.hr?.emergencyMobile || '—'}`
+                  : '—'}
               </div>
             </div>
             <div>

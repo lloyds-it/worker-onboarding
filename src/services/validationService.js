@@ -77,27 +77,8 @@ export const formatDuration = (startIso, endIso) => {
 export const validateHRStep = (data) => {
   const errors = {};
 
-  if (!data?.assignedWorkerId?.trim()) {
-    errors.assignedWorkerId = 'Employee ID is required.';
-  }
-
-  if (!data?.fullName?.trim()) {
-    errors.fullName = 'Worker full name is required.';
-  }
-
-  const cleanMobile = (data?.mobileNumber || '').trim().replace(/\D/g, '');
-  if (!cleanMobile) {
-    errors.mobileNumber = 'Mobile number is required.';
-  } else if (cleanMobile.length !== 10) {
-    errors.mobileNumber = 'Enter a valid 10-digit mobile number.';
-  }
-
-  if (!data?.contractorName?.trim()) {
-    errors.contractorName = 'Contractor agency name is required.';
-  }
-
-  if (!data?.trade) {
-    errors.trade = 'Skill trade category must be selected.';
+  if (!data?.fullName?.trim() && !data?.assignedWorkerId?.trim()) {
+    errors.fullName = 'Enter at least Worker Full Name (or Employee ID) to register.';
   }
 
   return {

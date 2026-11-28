@@ -343,7 +343,7 @@ export const Step1HR = ({ initialData, onSave, isReadOnly }) => {
         {/* Father/Husband Name */}
         <div className="form-group">
           <label htmlFor="father-husband-name">
-            Father's / Husband's Name <span className="required">*</span>
+            Father's / Husband's Name
           </label>
           <input
             id="father-husband-name"
@@ -360,7 +360,7 @@ export const Step1HR = ({ initialData, onSave, isReadOnly }) => {
         {/* DOB & Age */}
         <div className="form-group">
           <label htmlFor="worker-dob">
-            Date of Birth <span className="required">*</span>
+            Date of Birth
           </label>
           <div style={{ display: 'flex', gap: '0.5rem' }}>
             <input
@@ -393,7 +393,7 @@ export const Step1HR = ({ initialData, onSave, isReadOnly }) => {
         {/* Gender */}
         <div className="form-group">
           <label htmlFor="worker-gender">
-            Gender <span className="required">*</span>
+            Gender
           </label>
           <select
             id="worker-gender"
@@ -411,7 +411,7 @@ export const Step1HR = ({ initialData, onSave, isReadOnly }) => {
         {/* Mobile Number */}
         <div className="form-group">
           <label htmlFor="worker-mobile">
-            Mobile Number (10 Digits) <span className="required">*</span>
+            Mobile Number (10 Digits)
           </label>
           <input
             id="worker-mobile"
@@ -429,7 +429,7 @@ export const Step1HR = ({ initialData, onSave, isReadOnly }) => {
         {/* ID Proof Type */}
         <div className="form-group">
           <label htmlFor="worker-id-type">
-            Government ID Type <span className="required">*</span>
+            Government ID Type
           </label>
           <select
             id="worker-id-type"
@@ -447,7 +447,7 @@ export const Step1HR = ({ initialData, onSave, isReadOnly }) => {
         {/* ID Proof Reference */}
         <div className="form-group">
           <label htmlFor="worker-id-ref">
-            ID Proof Reference No. <span className="required">*</span>
+            ID Proof Reference No.
           </label>
           <input
             id="worker-id-ref"
@@ -464,7 +464,7 @@ export const Step1HR = ({ initialData, onSave, isReadOnly }) => {
         {/* Contractor Name */}
         <div className="form-group">
           <label htmlFor="contractor-name">
-            Contractor / Agency <span className="required">*</span>
+            Contractor / Agency
           </label>
           <select
             id="contractor-name"
@@ -607,7 +607,7 @@ export const Step1HR = ({ initialData, onSave, isReadOnly }) => {
         </h4>
         <div className="form-grid">
           <div className="form-group">
-            <label htmlFor="emergency-person">Contact Person Name <span className="required">*</span></label>
+            <label htmlFor="emergency-person">Contact Person Name</label>
             <input
               id="emergency-person"
               type="text"
@@ -621,7 +621,7 @@ export const Step1HR = ({ initialData, onSave, isReadOnly }) => {
           </div>
 
           <div className="form-group">
-            <label htmlFor="emergency-rel">Relationship <span className="required">*</span></label>
+            <label htmlFor="emergency-rel">Relationship</label>
             <input
               id="emergency-rel"
               type="text"
@@ -637,7 +637,7 @@ export const Step1HR = ({ initialData, onSave, isReadOnly }) => {
           <div className="form-group">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
               <label htmlFor="emergency-mobile" style={{ marginBottom: 0 }}>
-                Emergency Mobile <span className="required">*</span>
+                Emergency Mobile
               </label>
               {!isReadOnly && (
                 <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.72rem', fontWeight: 600, color: 'var(--brand-primary)', cursor: 'pointer', marginBottom: 0 }}>

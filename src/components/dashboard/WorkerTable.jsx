@@ -275,9 +275,13 @@ export const WorkerTable = ({ onOpenProcessModal, onViewInductionDoc, onGenerate
                     {currentRole === ROLES.HR && (
                       <>
                         <td>
-                          <div style={{ fontSize: '0.8rem' }}>{worker.hr?.emergencyPerson} ({worker.hr?.emergencyRelationship})</div>
+                          <div style={{ fontSize: '0.8rem' }}>
+                            {worker.hr?.emergencyPerson
+                              ? `${worker.hr.emergencyPerson}${worker.hr?.emergencyRelationship ? ` (${worker.hr.emergencyRelationship})` : ''}`
+                              : '—'}
+                          </div>
                           <div style={{ fontSize: '0.725rem', color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: '0.25rem', marginTop: '0.15rem' }}>
-                            <Phone size={11} style={{ opacity: 0.7 }} /> {worker.hr?.emergencyMobile}
+                            <Phone size={11} style={{ opacity: 0.7 }} /> {worker.hr?.emergencyMobile || '—'}
                           </div>
                         </td>
                         <td>{getStageBadge(worker.stage)}</td>
